@@ -4,13 +4,13 @@
 BEGIN;
 
 INSERT INTO usuarios (id, nombre, email, telefono, password_hash, rol, verificado) VALUES
-('00000000-0000-0000-0000-000000000001', 'María López',      'cliente@pethouse.co',   '300 123 4567', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'cliente',   TRUE),
-('00000000-0000-0000-0000-000000000002', 'Carolina Mejía',   'anfitrion@pethouse.co', '310 987 6543', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE),
-('00000000-0000-0000-0000-000000000003', 'Andrés Villamizar','andres@pethouse.co',    '300 111 2222', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE),
-('00000000-0000-0000-0000-000000000004', 'Valentina Ríos',   'valentina@pethouse.co', '300 333 4444', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE),
-('00000000-0000-0000-0000-000000000005', 'Dr. Mauricio Cárdenas', 'mauricio@pethouse.co', '300 555 6666', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE),
-('00000000-0000-0000-0000-000000000006', 'Lucía Fernández',  'lucia@pethouse.co',     '300 777 8888', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE),
-('00000000-0000-0000-0000-000000000007', 'Jorge Salamanca',  'jorge@pethouse.co',     '300 999 0000', '$2b$10$demo.demo.demo.demo.demo.demo.demo.demo.demo.demo', 'anfitrion', TRUE);
+('00000000-0000-0000-0000-000000000001', 'María López',      'cliente@pethouse.co',   '300 123 4567', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'cliente',   TRUE),
+('00000000-0000-0000-0000-000000000002', 'Carolina Mejía',   'anfitrion@pethouse.co', '310 987 6543', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE),
+('00000000-0000-0000-0000-000000000003', 'Andrés Villamizar','andres@pethouse.co',    '300 111 2222', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE),
+('00000000-0000-0000-0000-000000000004', 'Valentina Ríos',   'valentina@pethouse.co', '300 333 4444', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE),
+('00000000-0000-0000-0000-000000000005', 'Dr. Mauricio Cárdenas', 'mauricio@pethouse.co', '300 555 6666', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE),
+('00000000-0000-0000-0000-000000000006', 'Lucía Fernández',  'lucia@pethouse.co',     '300 777 8888', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE),
+('00000000-0000-0000-0000-000000000007', 'Jorge Salamanca',  'jorge@pethouse.co',     '300 999 0000', '$2a$10$wao36cN7mdhvq6OQiVouCeAmS1ftYmQsTl/QblBZIV6qTkTI/0THG', 'anfitrion', TRUE);
 
 INSERT INTO mascotas (id, usuario_id, nombre, especie, raza, peso_kg, vacunas_dia) VALUES
 ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Rocky', 'perro', 'Golden Retriever', 28.5, TRUE),

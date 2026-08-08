@@ -1,0 +1,136 @@
+// ============================================================
+// PETHOUSE API · Módulo Hospedajes (PostGIS)
+// GET /api/hospedajes?ciudad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden
+// GET /api/hospedajes/cerca?lat&lng&radio
+// GET /api/hospedajes/:id
+// POST /api/hospedajes   (anfitrión)
+// ============================================================
+import { Router } from 'express'
+import { pool } from '../config.js'
+import { auth, soloAnfitrion } from '../middleware/middleware.js'
+
+const r = Router()
+
+// ---- Listado con filtros (equivale a buscar_hospedajes() + detalle) ----
+r.get('/', async (req, res, next) => {
+  try {
+    const { ciudad, tipo, convivencia, desde, hasta, lat, lng, radio, q, orden } = req.query
+
+    const condiciones = ['h.activo = TRUE']
+    const params = []
+
+    if (tipo) { params.push(tipo); condiciones.push(`h.tipo = $${params.length}`) }
+    if (convivencia) { params.push(convivencia); condiciones.push(`h.convivencia = $${params.length}`) }
+    if (ciudad) {
+      params.push(`%${ciudad}%`)
+      condiciones.push(`(h.ciudad ILIKE $${params.length} OR h.barrio ILIKE $${params.length})`)
+    }
+    if (q) {
+      params.push(q)
+      condiciones.push(`to_tsvector('spanish', h.titulo || ' ' || h.descripcion || ' ' || h.ciudad) @@ plainto_tsquery('spanish', $${params.length})`)
+    }
+    if (desde && hasta) {
+      params.push(desde, hasta)
+      condiciones.push(`NOT EXISTS (
+        SELECT 1 FROM reservas rr
+         WHERE rr.hospedaje_id = h.id AND rr.estado = 'confirmada'
+           AND rr.desde < $${params.length} AND rr.hasta > $${params.length - 1})`)
+    }
+
+    let seleccion = `
+      SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.convivencia,
+             h.max_mascotas, h.rating, h.num_resenas, h.destacado, h.servicios, h.fotos,
+             ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng,
+             u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado`
+    let ordenSql = 'h.destacado DESC, h.rating DESC, h.num_resenas DESC'
+
+    if (lat && lng) {
+      params.push(Number(lng), Number(lat))
+      const radioM = Number(radio || 10000)
+      seleccion += `,
+             ROUND(ST_Distance(h.ubicacion, ST_SetSRID(ST_MakePoint($${params.length - 1}, $${params.length}), 4326)::geography)) AS distancia_m`
+      condiciones.push(`ST_DWithin(h.ubicacion, ST_SetSRID(ST_MakePoint($${params.length - 1}, $${params.length}), 4326)::geography, ${radioM})`)
+      ordenSql = 'distancia_m ASC'
+    }
+
+    switch (orden) {
+      case 'precio-asc': ordenSql = 'h.precio_noche ASC'; break
+      case 'precio-desc': ordenSql = 'h.precio_noche DESC'; break
+      case 'rating': ordenSql = 'h.rating DESC, h.num_resenas DESC'; break
+    }
+
+    const sql = `${seleccion} FROM hospedajes h JOIN usuarios u ON u.id = h.anfitrion_id
+                 WHERE ${condiciones.join(' AND ')} ORDER BY ${ordenSql} LIMIT 100`
+    const { rows } = await pool.query(sql, params)
+    res.json({ total: rows.length, hospedajes: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Búsqueda por radio (usa el índice GIST) ----
+r.get('/cerca', async (req, res, next) => {
+  try {
+    const lat = Number(req.query.lat), lng = Number(req.query.lng)
+    const radio = Number(req.query.radio || 10000)
+    if (!lat || !lng || Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'Parámetros lat y lng requeridos.' })
+    }
+    const { rows } = await pool.query(
+      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.rating,
+              ROUND(ST_Distance(h.ubicacion, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography)) AS distancia_m
+         FROM hospedajes h
+        WHERE h.activo
+          AND ST_DWithin(h.ubicacion, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)
+        ORDER BY distancia_m`,
+      [lat, lng, radio]
+    )
+    res.json({ total: rows.length, hospedajes: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Detalle: hospedaje + anfitrión + reseñas ----
+r.get('/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT h.*, u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado,
+              ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng
+         FROM hospedajes h JOIN usuarios u ON u.id = h.anfitrion_id
+        WHERE h.id = $1`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+
+    const { rows: resenas } = await pool.query(
+      `SELECT rs.rating, rs.titulo, rs.texto, rs.creado_en, u.nombre AS autor
+         FROM resenas rs JOIN usuarios u ON u.id = rs.autor_id
+        WHERE rs.hospedaje_id = $1 ORDER BY rs.creado_en DESC LIMIT 20`,
+      [req.params.id]
+    )
+    res.json({ hospedaje: rows[0], resenas })
+  } catch (err) { next(err) }
+})
+
+// ---- Crear hospedaje (anfitrión) ----
+r.post('/', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { titulo, tipo, descripcion, ciudad, barrio, lat, lng, coberturaRadioM,
+            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
+
+    if (!titulo || !tipo || !descripcion || !ciudad || lat == null || lng == null || !precioNoche) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios (titulo, tipo, descripcion, ciudad, lat, lng, precioNoche).' })
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO hospedajes
+         (anfitrion_id, tipo, titulo, descripcion, ciudad, barrio, ubicacion, cobertura_radio_m,
+          precio_noche, convivencia, max_mascotas, servicios, reglas, fotos)
+       VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15)
+       RETURNING id, titulo, tipo, ciudad, precio_noche`,
+      [req.usuario.id, tipo, titulo, descripcion, ciudad, barrio || null, Number(lng), Number(lat),
+       coberturaRadioM || null, Number(precioNoche), convivencia || 'cualquiera',
+       Number(maxMascotas || 1), servicios || [], reglas || [], fotos || []]
+    )
+    res.status(201).json({ hospedaje: rows[0] })
+  } catch (err) { next(err) }
+})
+
+export default r
