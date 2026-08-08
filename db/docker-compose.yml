@@ -1,0 +1,41 @@
+# ============================================================
+# PETHOUSE · Base de datos local con Docker (PostgreSQL + PostGIS)
+# ------------------------------------------------------------
+# Uso:
+#   docker compose up -d        → levanta la base con PostGIS
+#   docker compose down         → la detiene (conserva los datos)
+#
+# En el PRIMER arranque ejecuta automáticamente, en orden:
+#   01-esquema.sql  → estructura completa
+#   02-seed.sql     → datos de ejemplo (18 hospedajes reales)
+#
+# Conexión:
+#   Host: localhost  ·  Puerto: 5432
+#   Usuario: pethouse  ·  Contraseña: pethouse  ·  Base: pethouse
+#
+# Ejemplo (psql):
+#   psql "postgres://pethouse:pethouse@localhost:5432/pethouse" -c "SELECT postgis_version();"
+# ============================================================
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: pethouse-db
+    environment:
+      POSTGRES_USER: pethouse
+      POSTGRES_PASSWORD: pethouse
+      POSTGRES_DB: pethouse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Los .sql de esta carpeta se ejecutan solos en el primer arranque
+      - ./01-esquema.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro
+      - ./02-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pethouse -d pethouse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

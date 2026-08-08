@@ -3,6 +3,20 @@
 **`index.html`** es la plataforma completa en **un solo archivo** de HTML con CSS y JavaScript
 vanilla embebidos y **todas las imágenes incrustadas en base64** (funciona sin internet y sin servidor).
 
+## 🏗️ Arquitectura de Software y Base de Datos (PostgreSQL/PostGIS)
+
+El proyecto incluye la ingeniería completa para pasar del prototipo a producción:
+
+- **`docs/ARQUITECTURA.md`** — Arquitectura de software (C4: contexto, contenedores, componentes), decisiones ADR, API REST propuesta, despliegue y seguridad.
+- **`docs/DIAGRAMA-ER.html`** — Diagrama entidad-relación visual de las 13 tablas (ábrelo en el navegador).
+- **`db/01-esquema.sql`** — Esquema PostgreSQL + PostGIS **validado en Postgres 17 real**: 13 tablas, enums, índices GIST (búsqueda espacial), trigger de rating, función `buscar_hospedajes()`.
+- **`db/02-seed.sql`** — Datos demo: 18 hospedajes con coordenadas reales (ST_MakePoint), 7 usuarios, actividades.
+- **`db/03-consultas.sql`** — Consultas de ejemplo: radio de distancia, cobertura de cuidadores a domicilio, disponibilidad por fechas, reportes.
+- **`db/docker-compose.yml`** — Levanta PostgreSQL+PostGIS local en 1 comando (`docker compose up -d`).
+
+> ✅ Verificado en ejecución: índice GIST usado en EXPLAIN, EXCLUDE anti-doble-reserva rechazando solapamientos, trigger recalculando rating, búsqueda combinada funcional.
+
+
 ## Cómo usarla
 
 | Acción | Cómo |
