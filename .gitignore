@@ -7,3 +7,6 @@ node_modules/
 github-token.txt
 .env
 clave-gemini.txt
+
+# Workflow de automatización (se reactiva cuando el token tenga scope "workflow")
+.github/
