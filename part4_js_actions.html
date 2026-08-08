@@ -406,6 +406,10 @@ document.addEventListener('keydown',function(e){
   var sb=document.createElement('div');
   sb.id='snackbar'; sb.className='snackbar';
   app.after(sb);
+  /* Registro del Service Worker (solo cuando hay servidor https/http) */
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
   if(!location.hash) location.hash='#/';
   render();
 })();

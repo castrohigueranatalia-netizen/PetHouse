@@ -1,0 +1,17 @@
+{
+  "name": "Pethouse — Un hogar para tu mascota",
+  "short_name": "Pethouse",
+  "description": "Plataforma de hospedaje para mascotas: guarderías, veterinarias, casas campestres, apartamentos y cuidado a domicilio.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FB3F57",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

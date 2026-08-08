@@ -1,0 +1,12 @@
+{
+  "appId": "co.pethouse.app",
+  "appName": "Pethouse",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#FFFFFF"
+  }
+}

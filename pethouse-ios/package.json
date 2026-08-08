@@ -1,0 +1,16 @@
+{
+  "name": "pethouse-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pethouse — App iOS (Capacitor + WKWebView). La plataforma web corre dentro de la app nativa.",
+  "scripts": {
+    "sync": "cap sync ios",
+    "ios": "cap open ios",
+    "build:web": "node copiar-web.js"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/ios": "^7.6.8"
+  }
+}
