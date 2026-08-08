@@ -1,0 +1,314 @@
+'use strict';
+/* ============================================================
+   PETHOUSE · Plataforma de hospedaje para mascotas
+   HTML + CSS + JS vanilla (sin dependencias, todo embebido)
+   ============================================================ */
+
+/* ============================================================
+   ⚙️ CONFIGURACIÓN DE LA IA (Google Gemini)
+   ------------------------------------------------------------
+   OPCIÓN A — SOLO ESTE ARCHIVO (recomendada):
+   Pega tu clave gratuita en la línea de abajo y abre el HTML.
+   El chat "Consulta con IA" usará Gemini directamente.
+   Clave gratis: https://aistudio.google.com → "Get API key"
+   (modelo gemini-2.0-flash, ya viene por defecto)
+
+   OPCIÓN B — CON SERVIDOR (la más segura):
+   Deja la clave vacía y ejecuta  "node servidor-ia.js"
+   con tu clave en el archivo .env (la clave no sale del servidor).
+
+   Si no hay clave ni servidor, el asistente responde en modo
+   offline con su base de conocimiento local de 18 temas.
+   ============================================================ */
+var IA_CLAVE_GEMINI = '';            // ← PEGA AQUÍ TU CLAVE:  'AIza...'
+var IA_MODELO = 'gemini-2.0-flash';  // modelo por defecto (puedes cambiarlo)
+
+/* ---------- Almacenamiento seguro (funciona en previews con sandbox) ---------- */
+var store = (function(){
+  var mem = {};
+  try { var t='__ph_t'; localStorage.setItem(t,'1'); localStorage.removeItem(t); return localStorage; }
+  catch(e){ return { getItem:function(k){return k in mem?mem[k]:null;}, setItem:function(k,v){mem[k]=String(v);}, removeItem:function(k){delete mem[k];} }; }
+})();
+
+/* ---------- Utilidades ---------- */
+function fmtCOP(n){ return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function pad(n){ return (n<10?'0':'')+n; }
+function toISO(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function parseISO(s){ return s?new Date(s+'T00:00:00'):null; }
+function todayISO(){ return toISO(new Date()); }
+function addDays(iso,n){ var d=parseISO(iso); d.setDate(d.getDate()+n); return toISO(d); }
+function nightsBetween(a,b){ return Math.round((parseISO(b)-parseISO(a))/86400000); }
+var MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function isoShort(iso){ if(!iso)return ''; var d=parseISO(iso); return d.getDate()+' '+MES[d.getMonth()]; }
+function isoLong(iso){ if(!iso)return ''; var d=parseISO(iso); return d.getDate()+' de '+MESES[d.getMonth()]+' de '+d.getFullYear(); }
+function rangeLabel(a,b){ if(!a&&!b)return '¿Cuándo?'; if(a&&!b)return isoShort(a)+' · 1 noche'; var n=nightsBetween(a,b); return isoShort(a)+' – '+isoShort(b)+' · '+n+(n===1?' noche':' noches'); }
+function timeLabel(iso){ var d=new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function relTime(iso){ var d=new Date(iso), diff=Date.now()-d.getTime(), min=Math.floor(diff/60000);
+  if(min<1)return 'ahora'; if(min<60)return 'hace '+min+' min'; var h=Math.floor(min/60);
+  if(h<24)return 'hace '+h+' h'; var days=Math.floor(h/24); return days===1?'ayer':'hace '+days+' días'; }
+function initials(n){ return String(n||'').split(' ').filter(Boolean).slice(0,2).map(function(w){return w[0].toUpperCase();}).join(''); }
+var AVATAR_COLORS=['#FB3F57','#E67E22','#2E9E8F','#5B6EE8','#8E44AD','#1A7F4E','#D64550','#3A6EA5'];
+function avatarColor(seed){ var h=0; for(var i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))%997; return AVATAR_COLORS[h%AVATAR_COLORS.length]; }
+function clamp(n,min,max){ return Math.min(Math.max(n,min),max); }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+/* ---------- Imágenes embebidas (base64) ---------- */
+var IMG = {
+  logo:  '{{IMG:logo}}',
+  hero:  '{{IMG:hero}}',
+  g1: '{{IMG:g1}}', g2: '{{IMG:g2}}',
+  v1: '{{IMG:v1}}', v2: '{{IMG:v2}}',
+  c1: '{{IMG:c1}}', c2: '{{IMG:c2}}',
+  a1: '{{IMG:a1}}', a2: '{{IMG:a2}}',
+  paseo: '{{IMG:paseo}}'
+};
+var PHOTOS = { 'guarderia-1':IMG.g1,'guarderia-2':IMG.g2,'veterinaria-1':IMG.v1,'veterinaria-2':IMG.v2,'campestre-1':IMG.c1,'campestre-2':IMG.c2,'apto-1':IMG.a1,'apto-2':IMG.a2,'act-paseo':IMG.paseo };
+function foto(f){ return PHOTOS[f]||IMG.g1; }
+
+/* ---------- Iconos (paths Material Design) ---------- */
+var ICONS = {
+  search:'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  heart:'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
+  star:'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  chat:'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+  calendar:'M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z',
+  pin:'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+  person:'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+  lock:'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+  eye:'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+  eyeOff:'M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z',
+  home:'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+  menu:'M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z',
+  close:'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+  back:'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  chevLeft:'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+  chevRight:'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  check:'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  add:'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  remove:'M19 13H5v-2h14v2z',
+  send:'M2.01 21L23 12 2.01 3 2 10l15 2-15 2z',
+  shield:'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  verified:'M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z',
+  logout:'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+  pets:'M4.5 9.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm4.5 1.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4.5-1.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM12 12c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z',
+  globe:'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z',
+  apartment:'M11 3v10H3V5c0-1.1.9-2 2-2h6zm2 0h6c1.1 0 2 .9 2 2v8h-8V3zm-6 4v2h2V7H7zm0 4v2h2v-2H7zm8-4v2h2V7h-2zm0 4v2h2v-2h-2z',
+  medical:'M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+  leaf:'M6.05 8.05c-2.73 2.73-2.73 7.15-.02 9.88 1.47-3.4 4.09-6.24 7.36-7.93-2.77 2.34-4.71 5.61-5.39 9.32 2.6 1.23 5.8.78 7.95-1.37C19.43 14.47 20 4 20 4S9.53 4.57 6.05 8.05z',
+  clock:'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z',
+  food:'M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z',
+  camera:'M12 15.2c1.77 0 3.2-1.43 3.2-3.2s-1.43-3.2-3.2-3.2-3.2 1.43-3.2 3.2 1.43 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z',
+  dog:'M12 2c1.1 0 2 .9 2 2 0 .35-.1.68-.26.97C14.58 5.55 15.7 6 17 6c1.1 0 2-.9 2-2V3.5c0-.83.67-1.5 1.5-1.5S22 2.67 22 3.5c0 1.18-.46 2.27-1.21 3.09C21.6 7.22 22 8.1 22 9.08V13c0 2.76-2.24 5-5 5h-1.33l-1.77 3.54c-.36.72-1.4.72-1.76 0L10.33 18H9c-2.76 0-5-2.24-5-5V9.08c0-.98.4-1.86 1.21-2.58C4.46 5.77 4 4.68 4 3.5 4 2.67 4.67 2 5.5 2S7 2.67 7 3.5V4c0 1.1.9 2 2 2 1.3 0 2.42-.45 3.26-1.03C12.1 4.68 12 4.35 12 4c0-1.1.9-2 2-2zm-4.5 8.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5S9 12.83 9 12s-.67-1.5-1.5-1.5zm9 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5S18 12.83 18 12s-.67-1.5-1.5-1.5z',
+  info:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
+  warning:'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+  share:'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z',
+  phoneCall:'M20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.11-.74-.03-1.02.24l-2.2 2.2c-2.83-1.44-5.15-3.75-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1zM19 12h2c0-4.97-4.03-9-9-9v2c3.87 0 7 3.13 7 7zm-4 0h2c0-2.76-2.24-5-5-5v2c1.66 0 3 1.34 3 3z',
+  lockOpen:'M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z',
+  settings:'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
+  autoAwesome:'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z'
+};
+var FILL_ICONS = { heart:1, star:1, verified:1, pets:1 };
+function ic(name,size,filled,color){
+  var d = ICONS[name]||'';
+  var f = FILL_ICONS[name]||filled;
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="'+(f?'currentColor':'none')+'" stroke="'+(f?'none':'currentColor')+'" stroke-width="'+(f?0:1.8)+'" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'+(color?' style="color:'+color+'"':'')+'><path d="'+d+'"/></svg>';
+}
+function stars(n,size){ var out='<span class="stars">'; for(var i=0;i<5;i++){ out+=ic('star',size||14, i<n); } return out+'</span>'; }
+function avatar(name,size){ return '<span class="avatar '+size+'" style="background:'+avatarColor(name)+'">'+esc(initials(name))+'</span>'; }
+
+/* ---------- BASE DE DATOS (mock) ---------- */
+var TIPOS = [
+  {id:'guarderia',   label:'Guardería',       plural:'Guarderías',       icon:'pets', desc:'Cuidado diario con juego supervisado y socialización.'},
+  {id:'veterinaria', label:'Veterinaria',     plural:'Veterinarias',     icon:'medical', desc:'Estancias con supervisión clínica y atención 24/7.'},
+  {id:'campestre',   label:'Casa campestre',  plural:'Casas campestres', icon:'leaf', desc:'Espacios amplios al aire libre, lejos de la ciudad.'},
+  {id:'apartamento', label:'Apartamento',     plural:'Apartamentos',     icon:'apartment', desc:'Hogares urbanos acogedores con anfitrión presente.'},
+  {id:'domicilio',   label:'Cuidado en tu casa', plural:'Cuidado en tu casa', icon:'home', desc:'Un cuidador profesional se desplaza a la residencia del dueño.'}
+];
+var CONVIVENCIA = [
+  {id:'cualquiera', label:'Sin preferencia',   short:'Cualquiera'},
+  {id:'compartida', label:'Puede compartir',   short:'Comparte espacio'},
+  {id:'individual', label:'Estancia individual', short:'Estancia individual'}
+];
+var HOSTS = {
+  h1:{nombre:'Carolina Mejía',    superhost:true,  respuestas:'responde en menos de 1 hora', desde:2019},
+  h2:{nombre:'Andrés Villamizar', superhost:true,  respuestas:'responde en menos de 2 horas', desde:2020},
+  h3:{nombre:'Valentina Ríos',    superhost:false, respuestas:'responde en menos de 3 horas', desde:2021},
+  h4:{nombre:'Dr. Mauricio Cárdenas', superhost:false, respuestas:'responde en menos de 1 hora', desde:2017},
+  h5:{nombre:'Lucía Fernández',   superhost:true,  respuestas:'responde en menos de 2 horas', desde:2018},
+  h6:{nombre:'Jorge Salamanca',   superhost:false, respuestas:'responde en menos de 4 horas', desde:2022}
+};
+var HOSPEDAJES = [
+  {id:'ph-01',titulo:'Guardería Patitas Felices — Chapinero',tipo:'guarderia',ciudad:'Bogotá',barrio:'Chapinero Alto',precio:48000,convivencia:'compartida',mascotas:8,rating:4.9,numResenas:214,destacado:true,favoritos:312,hostId:'h1',fotos:['guarderia-1','guarderia-2','apto-1'],
+   servicios:['Juego supervisado','Cámaras en vivo 24/7','Paseos diarios','Alimentación incluida','Reporte fotográfico diario','Espacio interior climatizado'],
+   desc:'Guardería boutique en Chapinero con grupos reducidos de juego, cámaras en vivo para que veas a tu mascota desde tu celular y reporte fotográfico diario. Contamos con áreas de descanso, patio interno y personal certificado en primeros auxilios caninos.',
+   reglas:['Vacunas al día obligatorias','Mascotas mayores de 4 meses','Desparasitación reciente']},
+  {id:'ph-02',titulo:'Happy Paws Daycare — El Poblado',tipo:'guarderia',ciudad:'Medellín',barrio:'El Poblado',precio:55000,convivencia:'compartida',mascotas:12,rating:4.8,numResenas:168,destacado:true,favoritos:254,hostId:'h2',fotos:['guarderia-2','guarderia-1','campestre-1'],
+   servicios:['Zona de juegos al aire libre','Piscina para perros','Cámaras en vivo','Entrenamiento básico','Transporte opcional','Guardería nocturna'],
+   desc:'Amplio daycare en El Poblado con zona verde de 400 m², piscina para perros y entrenador en sitio. Ideal para perros sociables que disfrutan el juego con otros peludos. Ofrecemos recogida y entrega en la zona.',
+   reglas:['Vacunas al día obligatorias','Perros sociables','Prueba de comportamiento inicial']},
+  {id:'ph-03',titulo:'Guardería Canina La Manada — Norte',tipo:'guarderia',ciudad:'Cali',barrio:'Ciudad Jardín',precio:40000,convivencia:'individual',mascotas:6,rating:4.7,numResenas:96,destacado:false,favoritos:121,hostId:'h3',fotos:['guarderia-1','apto-2','guarderia-2'],
+   servicios:['Cuidado individual','Cuarto propio con cama','Paseos personalizados','Alimentación según dieta','Videos diarios','Cerca eléctrica interior'],
+   desc:'Guardería con estancias individuales para mascotas que prefieren tranquilidad. Cada huésped tiene su propio espacio de descanso y rutina de paseos personalizada según su energía.',
+   reglas:['Vacunas al día','Indicar dieta especial','Mascotas esterilizadas preferiblemente']},
+  {id:'ph-04',titulo:'VetStay Clínica Veterinaria — Chapinero',tipo:'veterinaria',ciudad:'Bogotá',barrio:'Chapinero',precio:85000,convivencia:'individual',mascotas:4,rating:5.0,numResenas:187,destacado:true,favoritos:298,hostId:'h4',fotos:['veterinaria-1','veterinaria-2','guarderia-1'],
+   servicios:['Supervisión médica 24/7','Enfermería veterinaria','Administración de medicamentos','Hospitalización cómoda','Chequeo diario','Urgencias incluidas'],
+   desc:'Hospedaje dentro de una clínica veterinaria con supervisión médica permanente. Perfecto para mascotas con condiciones especiales, terapias o que requieren tranquilidad absoluta. Incluye chequeo diario y reporte del médico tratante.',
+   reglas:['Historia clínica al ingreso','Vacunas al día','Mascotas con condición médica bienvenidas']},
+  {id:'ph-05',titulo:'PetCare Suite Veterinaria — Bocagrande',tipo:'veterinaria',ciudad:'Cartagena',barrio:'Bocagrande',precio:72000,convivencia:'individual',mascotas:6,rating:4.8,numResenas:142,destacado:false,favoritos:176,hostId:'h4',fotos:['veterinaria-2','veterinaria-1','apto-2'],
+   servicios:['Suites individuales climatizadas','Personal de enfermería','Paseos asistidos','Alimentación premium','Telemedicina para dueños','Spa post-estancia'],
+   desc:'Suites de hospedaje en clínica veterinaria con aire acondicionado, ideales para el clima de Cartagena. Atención de enfermería permanente y comunicación con el dueño vía WhatsApp y videollamadas.',
+   reglas:['Vacunas al día','Carné de desparasitación','Apto médico para geriátricos']},
+  {id:'ph-06',titulo:'Veterinaria Mi Mejor Amigo — Laureles',tipo:'veterinaria',ciudad:'Medellín',barrio:'Laureles',precio:90000,convivencia:'compartida',mascotas:5,rating:4.9,numResenas:203,destacado:true,favoritos:267,hostId:'h4',fotos:['veterinaria-1','guarderia-2','veterinaria-2'],
+   servicios:['Hospedaje clínico','Terapias de recuperación','Fisioterapia canina','Nutrición personalizada','Monitoreo remoto','Sala de juegos para convalecientes'],
+   desc:'Clínica veterinaria con servicio de hospedaje para mascotas en recuperación o con rutinas de salud especiales. Combinamos descanso supervisado con sesiones de fisioterapia si lo requieren.',
+   reglas:['Remisión o historia clínica','Vacunas al día','Evaluación previa gratuita']},
+  {id:'ph-07',titulo:'Finca Los Cerros — Hospedaje campestre',tipo:'campestre',ciudad:'Chía',barrio:'Vereda Fusca',precio:98000,convivencia:'compartida',mascotas:10,rating:4.9,numResenas:156,destacado:true,favoritos:341,hostId:'h5',fotos:['campestre-1','campestre-2','guarderia-2'],
+   servicios:['2 hectáreas de campo','Senderos para caminatas','Piscina natural para perros','Caballeriza y zoológico de contacto','Fogata nocturna','Cámaras en zonas comunes'],
+   desc:'Finca campestre a 20 minutos de Bogotá con dos hectáreas de prado, senderos y piscina natural para perros. Tu mascota corre, explora y socializa bajo supervisión constante. Alojamiento en casas con calefacción.',
+   reglas:['Vacunas al día','Perros con buen comportamiento','Correa durante transporte']},
+  {id:'ph-08',titulo:'Casa Campo Armonía — Rionegro',tipo:'campestre',ciudad:'Rionegro',barrio:'Llanogrande',precio:115000,convivencia:'individual',mascotas:4,rating:5.0,numResenas:89,destacado:true,favoritos:198,hostId:'h5',fotos:['campestre-2','campestre-1','veterinaria-1'],
+   servicios:['Habitación exclusiva','Jardín privado cercado','Chef de comida natural','Paseos por el bosque','Sesión de fotos incluida','Baño con productos orgánicos'],
+   desc:'Casa campestre exclusiva en Llanogrande para estancias individuales. Cada huésped tiene jardín privado, habitación propia y atención personalizada de la anfitriona, chef de comida natural para mascotas.',
+   reglas:['Reserva mínima 2 noches','Vacunas al día','Mascotas de hasta 25 kg']},
+  {id:'ph-09',titulo:'Villa Pet Country — Villeta',tipo:'campestre',ciudad:'Villeta',barrio:'Vereda La Esmeralda',precio:82000,convivencia:'compartida',mascotas:12,rating:4.7,numResenas:74,destacado:false,favoritos:143,hostId:'h6',fotos:['campestre-1','guarderia-2','campestre-2'],
+   servicios:['Clima cálido todo el año','Piscina para perros','Ríos y quebradas cercanas','Áreas de juego temáticas','Transporte desde Bogotá','Rappi vet cercano'],
+   desc:'Hacienda en clima cálido a 1.5 horas de Bogotá. Perfecta para perros que aman el agua: piscina, quebrada y mucha sombra. Grupos de juego organizados por tamaño y energía.',
+   reglas:['Vacunas al día','Aplicación de antipulgas previa','No se aceptan hembras en celo']},
+  {id:'ph-10',titulo:'Apartamento Pet Friendly — Galerías',tipo:'apartamento',ciudad:'Bogotá',barrio:'Galerías',precio:62000,convivencia:'individual',mascotas:2,rating:4.8,numResenas:131,destacado:true,favoritos:189,hostId:'h1',fotos:['apto-1','apto-2','guarderia-1'],
+   servicios:['Anfitrión en casa','Parques a 2 cuadras','Cama y juguetes incluidos','Cámaras en sala','Alimentación a la carta','Apto para gatos'],
+   desc:'Acogedor apartamento en Galerías donde tu mascota se queda en familia. Máximo 2 huéspedes a la vez para garantizar atención. Paseos 3 veces al día por los parques del barrio y mucho tiempo de sofá.',
+   reglas:['Vacunas al día','Mascotas menores de 15 kg','Reportar alergias o medicamentos']},
+  {id:'ph-11',titulo:'Suite Urbana — Laureles',tipo:'apartamento',ciudad:'Medellín',barrio:'Laureles',precio:68000,convivencia:'compartida',mascotas:3,rating:4.6,numResenas:88,destacado:false,favoritos:112,hostId:'h2',fotos:['apto-2','apto-1','campestre-2'],
+   servicios:['Terraza con grama sintética','Ruta de paseos diaria','Snacks saludables','Reporte por video','Perros y gatos','Primeros auxilios certificado'],
+   desc:'Apartamento en Laureles con terraza propia donde las mascotas juegan y toman sol. Paseos diarios por la Unidad Deportiva. Máximo 3 huéspedes para mantener un ambiente tranquilo.',
+   reglas:['Vacunas al día','Comportamiento verificado','Avisar con 48 h de anticipación']},
+  {id:'ph-12',titulo:'Apartamento Céntrico — Cabecera',tipo:'apartamento',ciudad:'Bucaramanga',barrio:'Cabecera del Llano',precio:45000,convivencia:'individual',mascotas:1,rating:4.9,numResenas:67,destacado:false,favoritos:95,hostId:'h3',fotos:['apto-1','guarderia-1','apto-2'],
+   servicios:['Solo un huésped a la vez','Anfitriona amante de perros','Parque a 5 minutos','Comida casera incluida','Videos diarios','Cuidado 24/7'],
+   desc:'Hospedaje individual en el corazón de Bucaramanga. Una sola mascota a la vez: atención total, comida casera y paseos mañana y tarde. Ideal para perros ansiosos o que extrañan mucho a su familia.',
+   reglas:['Vacunas al día','Mascotas de cualquier tamaño','Reserva mínima 1 noche']},
+  {id:'ph-13',titulo:'Cuidadora a domicilio — Chapinero',tipo:'domicilio',ciudad:'Bogotá',barrio:'Chapinero Alto',precio:70000,convivencia:'individual',mascotas:3,rating:4.9,numResenas:58,destacado:true,favoritos:143,hostId:'h1',fotos:['apto-1','apto-2','guarderia-1'],
+   servicios:['La cuidadora va a tu casa','Paseos diarios por tu barrio','Reporte con fotos y video','Cuidado de plantas y correspondencia','Rutina y alimentación exactas','Seguro de responsabilidad'],
+   desc:'Carolina se desplaza hasta tu residencia para cuidar a tu mascota en su propio entorno: sin cambios de rutina, sin estrés de traslado y con todo el cariño de siempre. Visitas 2 veces al día o estancia completa, con reporte diario y comunicación constante.',
+   reglas:['Mascotas con vacunas al día','Zona Chapinero y alrededores','Entrevista previa gratuita']},
+  {id:'ph-14',titulo:'Pet sitter en tu casa — El Poblado',tipo:'domicilio',ciudad:'Medellín',barrio:'El Poblado',precio:75000,convivencia:'individual',mascotas:3,rating:4.8,numResenas:47,destacado:true,favoritos:121,hostId:'h2',fotos:['apto-2','apto-1','campestre-2'],
+   servicios:['Estancia completa en tu hogar','Paseos 3 veces al día','Fotos y videos diarios','Rutina personalizada','Cuidado nocturno','Comunicación constante'],
+   desc:'Andrés se queda en tu casa mientras viajas: tu mascota mantiene sus horarios, sus paseos y su cama. Ideal para perros que se estresan con lugares nuevos. Incluye cuidados de la casa y reporte diario.',
+   reglas:['Vacunas al día','Mascotas de hasta 30 kg','Coordinación previa de rutinas']},
+  {id:'ph-15',titulo:'Cuidador a domicilio — Ciudad Jardín',tipo:'domicilio',ciudad:'Cali',barrio:'Ciudad Jardín',precio:60000,convivencia:'individual',mascotas:2,rating:4.7,numResenas:33,destacado:false,favoritos:68,hostId:'h3',fotos:['apto-1','guarderia-1','apto-2'],
+   servicios:['Visitas 2 veces al día','Paseos mañana y tarde','Alimentación según dieta','Reporte por WhatsApp','Limpieza de areneros (gatos)','Flexibilidad de horarios'],
+   desc:'Valentina cuida a tu mascota en tu propia casa con visitas programadas o estancia parcial. Perfecto para gatos y perros que prefieren no salir de su territorio. Reporte con foto en cada visita.',
+   reglas:['Vacunas al día','Zona Ciudad Jardín y aledaños','Indicar dieta y medicamentos']},
+  {id:'ph-16',titulo:'Cuidadora a domicilio — Usaquén',tipo:'domicilio',ciudad:'Bogotá',barrio:'Usaquén',precio:68000,convivencia:'individual',mascotas:2,rating:4.8,numResenas:41,destacado:true,favoritos:96,hostId:'h6',fotos:['apto-2','apto-1','guarderia-1'],
+   servicios:['Visitas mañana y tarde','Paseos en el parque El Country','Reporte fotográfico diario','Alimentación y medicamentos','Experiencia con mascotas senior','Llaves con seguro'],
+   desc:'Jorge se desplaza hasta Usaquén para cuidar a tu mascota en casa: visitas dos veces al día o estancia completa. Amplia experiencia con mascotas senior y administración de medicamentos.',
+   reglas:['Vacunas al día','Zona Usaquén y alrededores','Entrevista previa gratuita']},
+  {id:'ph-17',titulo:'Pet sitter — Alto Prado',tipo:'domicilio',ciudad:'Barranquilla',barrio:'Alto Prado',precio:65000,convivencia:'individual',mascotas:3,rating:4.8,numResenas:39,destacado:false,favoritos:74,hostId:'h6',fotos:['apto-1','apto-2','campestre-1'],
+   servicios:['Estancia en tu hogar','Paseos a horas frescas','Climatización y agua constante','Reporte por WhatsApp','Cuidado de gatos y perros','Flexibilidad de horarios'],
+   desc:'Cuidador en el norte de Barranquilla: tu mascota se queda en casa con aire acondicionado, paseos a horas frescas del día y reporte constante para ti.',
+   reglas:['Vacunas al día','Zona norte de Barranquilla','Indicar rutinas de alimentación']},
+  {id:'ph-18',titulo:'Cuidado en tu casa — Teusaquillo',tipo:'domicilio',ciudad:'Bogotá',barrio:'Teusaquillo',precio:62000,convivencia:'individual',mascotas:3,rating:4.9,numResenas:52,destacado:false,favoritos:88,hostId:'h1',fotos:['apto-1','guarderia-1','apto-2'],
+   servicios:['Visitas 2-3 veces al día','Paseos cerca a la Av. 26','Cámara y reporte diario','Alimentación según dieta','Cuidado de plantas','Disponible fines de semana'],
+   desc:'Cuidado a domicilio en Teusaquillo con visitas múltiples al día, cerca a parques y con la tranquilidad de que tu mascota nunca sale de casa.',
+   reglas:['Vacunas al día','Zona Teusaquillo y alrededores','Entrevista previa']}
+];
+/* Coordenadas (lat, lng) aproximadas de cada hospedaje para el mapa */
+var COORDS = {
+  'ph-01':[4.711,-74.072],'ph-02':[6.244,-75.581],'ph-03':[3.452,-76.532],'ph-04':[4.649,-74.080],
+  'ph-05':[10.391,-75.479],'ph-06':[6.244,-75.581],'ph-07':[4.859,-74.058],'ph-08':[6.174,-75.386],
+  'ph-09':[5.012,-74.473],'ph-10':[4.665,-74.078],'ph-11':[6.244,-75.581],'ph-12':[7.119,-73.123],
+  'ph-13':[4.695,-74.067],'ph-14':[6.215,-75.575],'ph-15':[3.417,-76.520],
+  'ph-16':[4.694,-74.031],'ph-17':[10.995,-74.795],'ph-18':[4.657,-74.084]
+};
+function coordsDe(h){ return COORDS[h.id]||[4.7,-74.1]; }
+function getHosp(id){ for(var i=0;i<HOSPEDAJES.length;i++){ if(HOSPEDAJES[i].id===id) return HOSPEDAJES[i]; } return null; }
+function getHost(id){ return HOSTS[id]||{nombre:'Anfitrión Pethouse',superhost:false,respuestas:'responde rápido',desde:2022}; }
+function tipoDe(h){ for(var i=0;i<TIPOS.length;i++){ if(TIPOS[i].id===h.tipo) return TIPOS[i]; } return TIPOS[0]; }
+function convDe(h){ for(var i=0;i<CONVIVENCIA.length;i++){ if(CONVIVENCIA[i].id===h.convivencia) return CONVIVENCIA[i]; } return CONVIVENCIA[0]; }
+function ciudades(){ var out=[]; HOSPEDAJES.forEach(function(h){ if(out.indexOf(h.ciudad)<0) out.push(h.ciudad); }); return out.sort(); }
+var CIUDADES = ciudades();
+
+var REVIEWS = {
+  'ph-01':[{a:'Daniela Torres',f:'hace 2 semanas',r:5,t:'¡Mi Rocky volvió feliz!',x:'Carolina le envió fotos todos los días y Rocky no quería irse. Se nota el amor por los animales en cada detalle. 100% recomendado.'},
+           {a:'Felipe Restrepo',f:'hace 1 mes',r:5,t:'Excelente comunicación',x:'Las cámaras en vivo me dieron una tranquilidad absoluta durante mi viaje. Mi perra estaba jugando todo el día.'},
+           {a:'María José Duque',f:'hace 2 meses',r:4,t:'Muy buen cuidado',x:'Todo perfecto. Solo sugiero más espacio de estacionamiento al recoger. El cuidado fue impecable.'}],
+  'ph-02':[{a:'Santiago Ospina',f:'hace 3 semanas',r:5,t:'La piscina es un éxito',x:'Mi labrador es feliz en Happy Paws. Andrés siempre está pendiente y el transporte opcional me salvó la vida.'},
+           {a:'Camila Vélez',f:'hace 1 mes',r:5,t:'Grupos de juego muy organizados',x:'Los separan por tamaño y energía. Se nota la formación del equipo. Volveremos cada viaje.'},
+           {a:'Juan Pablo Arias',f:'hace 2 meses',r:4,t:'Muy completo',x:'Instalaciones amplias y limpias. El entrenamiento básico incluido fue un plus inesperado.'}],
+  'ph-03':[{a:'Laura Giraldo',f:'hace 1 semana',r:5,t:'Perfecto para perros tímidos',x:'Valentina entendió que mi perro necesita su espacio. Estancia individual con videos diarios. Un encanto.'},
+           {a:'Andrés Camacho',f:'hace 3 semanas',r:5,t:'Atención personalizada',x:'Le prepararon su dieta especial y respetaron sus horarios. Se nota la experiencia.'},
+           {a:'Paula Herrera',f:'hace 1 mes',r:4,t:'Muy bien',x:'Buen cuidado y comunicación clara. El cuarto individual es cómodo y silencioso.'}],
+  'ph-04':[{a:'Ricardo Mendoza',f:'hace 1 semana',r:5,t:'Tranquilidad total',x:'Mi gato tiene una condición cardíaca y el Dr. Cárdenas lo cuidó con un nivel de detalle increíble. Informe médico diario.'},
+           {a:'Diana Páez',f:'hace 1 mes',r:5,t:'El mejor lugar para mascotas delicadas',x:'Urgencias incluidas y personal 24/7. Viajé tranquila por primera vez en años.'},
+           {a:'Óscar Villamil',f:'hace 2 meses',r:5,t:'Profesionalismo',x:'Chequeos diarios y mucha paciencia con mi perro anciano. Gracias por el cariño.'}],
+  'ph-05':[{a:'Verónica Alarcón',f:'hace 2 semanas',r:5,t:'Suites impecables',x:'El aire acondicionado es clave en Cartagena. Mi perro estuvo fresco y consentido. Reportes por WhatsApp todos los días.'},
+           {a:'Miguel Durán',f:'hace 1 mes',r:4,t:'Muy buen servicio',x:'Personal amable y suites limpias. La telemedicina para dueños es un gran detalle.'},
+           {a:'Ana Sofía Britto',f:'hace 2 meses',r:5,t:'Volveremos',x:'Mi perra salió con el mejor baño de su vida del spa post-estancia. ¡Recomendado!'}],
+  'ph-06':[{a:'Julián Botero',f:'hace 1 semana',r:5,t:'Recuperación exitosa',x:'Llevé a mi perro tras una cirugía y salió perfecto. La fisioterapia canina hizo la diferencia.'},
+           {a:'Marcela Hoyos',f:'hace 1 mes',r:5,t:'Médicos de verdad',x:'Monitoreo remoto y nutrición personalizada. Mi perra diabética estuvo en las mejores manos.'},
+           {a:'Cristian Zapata',f:'hace 2 meses',r:4,t:'Muy completo',x:'Instalaciones impecables. Me hubiera gustado horario de visitas más amplio, pero el cuidado fue excelente.'}],
+  'ph-07':[{a:'Isabella Gómez',f:'hace 1 semana',r:5,t:'El paraíso de mi perro',x:'Corrió por dos hectáreas y llegó exhausto y feliz. Las fotos con la piscina natural son un tesoro.'},
+           {a:'Tomás Rueda',f:'hace 1 mes',r:5,t:'Experiencia campestre real',x:'Senderos, fogata y mucha naturaleza. Lucía es una anfitriona de otro nivel.'},
+           {a:'Sara Montoya',f:'hace 2 meses',r:4,t:'Muy recomendado',x:'Espacio enorme y supervisión constante. Me encantaría que hubiera más baños para perros.'}],
+  'ph-08':[{a:'Federico Londoño',f:'hace 2 semanas',r:5,t:'Lujo para mascotas',x:'Habitación propia, chef de comida natural y sesión de fotos incluida. Mi perro vivió mejor que yo.'},
+           {a:'Catalina Zea',f:'hace 1 mes',r:5,t:'Atención uno a uno',x:'Jardín privado y rutinas personalizadas. Para perros que necesitan calma, es perfecto.'},
+           {a:'Alejandro Mejía',f:'hace 2 meses',r:5,t:'Impecable',x:'Desde la llegada todo fue perfecto. Los productos orgánicos del baño dejaron el pelo brillante.'}],
+  'ph-09':[{a:'Natalia Pinzón',f:'hace 1 semana',r:5,t:'Clima cálido y diversión',x:'Mi perro amó la piscina. Jorge envía videos todos los días. El transporte desde Bogotá es muy práctico.'},
+           {a:'Sebastián Mora',f:'hace 1 mes',r:4,t:'Muy buen plan',x:'Grupos por tamaño y energía muy bien manejados. Villeta es el destino ideal en clima cálido.'},
+           {a:'Karina Suárez',f:'hace 2 meses',r:5,t:'Recomendado 100%',x:'Todo muy limpio y organizado. Mi husky regresó feliz y agotado.'}],
+  'ph-10':[{a:'Gabriela Niño',f:'hace 1 semana',r:5,t:'Como en casa',x:'Mi gato se quedó en el sofá de Carolina como si fuera su casa. Parques cerca y cero estrés.'},
+           {a:'Esteban Quintero',f:'hace 1 mes',r:5,t:'Atención de familia',x:'Paseos 3 veces al día y cámaras en la sala. Me fui tranquilo de viaje por primera vez.'},
+           {a:'Manuela Cifuentes',f:'hace 2 meses',r:4,t:'Muy bien',x:'Todo excelente, solo el parqueadero es complicado. El cuidado fue de 10.'}],
+  'ph-11':[{a:'Daniel Granada',f:'hace 2 semanas',r:5,t:'Terraza ideal',x:'La terraza con grama sintética es perfecta. Mi perro pasó el día tomando sol y jugando.'},
+           {a:'Valeria Osorio',f:'hace 1 mes',r:4,t:'Buen ambiente',x:'Rutas de paseo diarias y snacks saludables. Buena comunicación por video.'},
+           {a:'Simón Arango',f:'hace 2 meses',r:5,t:'Mi perra feliz',x:'Volvió relajada y socializada. Andrés es muy profesional con los horarios de comida.'}],
+  'ph-12':[{a:'Nicolás Barrera',f:'hace 1 semana',r:5,t:'Atención uno a uno',x:'Solo una mascota a la vez y se nota: mi perro fue el rey de la casa. Videos todos los días.'},
+           {a:'Xiomara Prada',f:'hace 1 mes',r:5,t:'Perfecto para ansiosos',x:'Mi perrita sufre de ansiedad por separación y con Valentina estuvo tranquila. No lo puedo creer.'},
+           {a:'Héctor Parra',f:'hace 2 meses',r:4,t:'Excelente cuidado',x:'Comida casera incluida y parque cerca. Muy recomendado para estancias cortas.'}],
+  'ph-13':[{a:'Paula Santamaría',f:'hace 1 semana',r:5,t:'Mi gato ni se enteró',x:'Carolina fue a mi casa dos veces al día, le mandaba fotos y hasta regó las plantas. El gato feliz en su territorio.'},
+           {a:'Julián Pardo',f:'hace 1 mes',r:5,t:'Cero estrés para mi perro',x:'Al quedarse en casa, mi labrador no sufrió nada. Rutina exacta y paseos por el barrio. Repetiremos siempre.'},
+           {a:'Mariana Cruz',f:'hace 2 meses',r:4,t:'Muy recomendado',x:'Todo impecable. La entrevista previa me dio mucha confianza. El reporte diario con fotos es un gran detalle.'}],
+  'ph-14':[{a:'Sebastián Quintero',f:'hace 2 semanas',r:5,t:'Se quedó en casa con mi perro',x:'Andrés durmió en mi casa una semana. Mi perro mantuvo su rutina perfecta y recibimos fotos a diario.'},
+           {a:'Daniela López',f:'hace 1 mes',r:5,t:'Tranquilidad total',x:'Volvimos y la casa estaba impecable. Incluso dejó la nevera organizada. Un 10 como cuidador y como persona.'},
+           {a:'Andrés Mejía',f:'hace 2 meses',r:4,t:'Muy profesional',x:'Rutina personalizada y comunicación constante. El cuidado nocturno fue clave para mi perro mayor.'}],
+  'ph-15':[{a:'Carolina Ortiz',f:'hace 1 semana',r:5,t:'Mis gatas felices',x:'Valentina les limpió el arenero, las alimentó en sus horarios y mandó foto en cada visita. Las gatas la adoran.'},
+           {a:'Felipe Moreno',f:'hace 1 mes',r:4,t:'Buen servicio',x:'Visitas puntuales y reporte por WhatsApp. Mi perro ansioso estuvo tranquilo en casa.'},
+           {a:'Sofía Valencia',f:'hace 2 meses',r:5,t:'Flexible y atenta',x:'Se adaptó a mis horarios de viaje sin problema. Muy recomendada para Cali.'}],
+  'ph-16':[{a:'Paula Rincón',f:'hace 1 semana',r:5,t:'Cuidó de mi perro mayor',x:'Mi pastor de 12 años necesita medicamentos y Jorge los administró perfecto. Visitas puntuales y fotos cada día.'},
+           {a:'Martín Duarte',f:'hace 1 mes',r:5,t:'Muy confiable',x:'Le dejé las llaves con total tranquilidad. Mi perro feliz y la casa impecable al volver.'},
+           {a:'Laura Peña',f:'hace 2 meses',r:4,t:'Recomendado',x:'Paseos por El Country y reporte diario. Excelente comunicación.'}],
+  'ph-17':[{a:'Carmen Villalba',f:'hace 2 semanas',r:5,t:'Clima cálido bien manejado',x:'Paseos temprano y aire acondicionado todo el día. Mi pug súper bien en Barranquilla.'},
+           {a:'Ricardo Palacio',f:'hace 1 mes',r:5,t:'Gatos y perros, sin problema',x:'Cuidó a mis dos gatos en casa con reporte por WhatsApp. Muy recomendado.'},
+           {a:'Mónica Ferrer',f:'hace 2 meses',r:4,t:'Buen servicio',x:'Flexibilidad total con los horarios. Volvería a contratarlo.'}],
+  'ph-18':[{a:'Andrés Castillo',f:'hace 1 semana',r:5,t:'Varias visitas al día',x:'Tres visitas diarias con fotos de cada una. Mi perrita nunca se sintió sola.'},
+           {a:'Valeria Suárez',f:'hace 1 mes',r:5,t:'Cerca a la 26',x:'Paseos largos por el parque y mi planta favorita viva. ¡Gracias Carolina!'},
+           {a:'Julián Mora',f:'hace 2 meses',r:4,t:'Muy atenta',x:'Se adaptó a la dieta especial de mi perro. Comunicación constante.'}]
+};
+function getResenas(id){ return REVIEWS[id]||[]; }
+
+var ACTIVIDADES = [
+  {id:'act-01',nombre:'Paseo en grupo por el parque',tipo:'paseos',desc:'Caminata de 45 minutos por parques pet-friendly con walker profesional y grupos de máximo 4 perros.',duracion:'45 min',precio:15000,foto:'act-paseo',tags:['Diario','Grupos pequeños']},
+  {id:'act-02',nombre:'Piscina y natación canina',tipo:'piscina',desc:'Sesión de 30 minutos en piscina climatizada con chaleco de flotación, ideal para perros atléticos o con displasia.',duracion:'30 min',precio:25000,foto:'act-piscina',tags:['Climatizada','Con instructor']},
+  {id:'act-03',nombre:'Entrenamiento de agilidad',tipo:'entrenamiento',desc:'Circuito de saltos, túneles y slalom con entrenador certificado. Mejora obediencia y confianza.',duracion:'40 min',precio:30000,foto:'act-agilidad',tags:['Certificado','Todos los niveles']},
+  {id:'act-04',nombre:'Spa y relajación premium',tipo:'spa',desc:'Baño con productos orgánicos, masaje de relajación, cepillado y aromaterapia. Finaliza con fotografía profesional.',duracion:'60 min',precio:40000,foto:'act-spa',tags:['Productos orgánicos','Incluye fotos']},
+  {id:'act-05',nombre:'Sesión de fotos profesional',tipo:'fotos',desc:'Producción fotográfica de 20 minutos con fondo temático. Recibe 10 fotos editadas por correo.',duracion:'20 min',precio:35000,foto:'act-paseo',tags:['10 fotos editadas','Fondo temático']},
+  {id:'act-06',nombre:'Picnic canino al atardecer',tipo:'social',desc:'Merienda saludable al aire libre con otros huéspedes del hospedaje. Incluye snacks horneados sin azúcar.',duracion:'50 min',precio:20000,foto:'campestre-1',tags:['Socialización','Snacks incluidos']}
+];
+var ACT_TIPOS = [{id:'todos',label:'Todas'},{id:'paseos',label:'Paseos'},{id:'piscina',label:'Piscina'},{id:'entrenamiento',label:'Entrenamiento'},{id:'spa',label:'Spa'},{id:'fotos',label:'Fotografía'},{id:'social',label:'Social'}];
+function actTipoLabel(id){ for(var i=0;i<ACT_TIPOS.length;i++){ if(ACT_TIPOS[i].id===id) return ACT_TIPOS[i].label; } return id; }
+/* Ilustración SVG para actividades sin foto */
+function actArt(name){
+  var pal={piscina:['#8FE3F5','#2E9E8F','🏊 Natación'],entrenamiento:['#FFD9A0','#E67E22','🎽 Agilidad'],spa:['#FFD0D8','#FB3F57','✨ Spa']};
+  var c=pal[name]||pal.spa;
+  return '<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block" aria-hidden="true">'+
+    '<defs><linearGradient id="ag-'+name+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="'+c[0]+'"/><stop offset="100%" stop-color="'+c[1]+'"/></linearGradient></defs>'+
+    '<rect width="400" height="300" fill="url(#ag-'+name+')"/>'+
+    '<g fill="rgba(255,255,255,.85)"><circle cx="170" cy="120" r="46"/><ellipse cx="170" cy="186" rx="36" ry="30"/><circle cx="128" cy="96" r="14"/><circle cx="212" cy="96" r="14"/><circle cx="104" cy="140" r="12"/><circle cx="236" cy="140" r="12"/></g>'+
+    '<g fill="rgba(255,255,255,.28)"><circle cx="60" cy="60" r="70"/><circle cx="350" cy="240" r="90"/></g>'+
+    '<text x="200" y="262" text-anchor="middle" font-size="16" font-weight="700" fill="rgba(255,255,255,.95)" font-family="system-ui">'+c[2]+'</text></svg>';
+}
+function actFotoHtml(a){
+  if(a.foto.indexOf('act-')===0 && !PHOTOS[a.foto]) return actArt(a.foto.slice(4));
+  return '<img src="'+foto(a.foto)+'" alt="'+esc(a.nombre)+'" loading="lazy">';
+}

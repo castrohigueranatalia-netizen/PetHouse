@@ -1,0 +1,14 @@
+{
+  "name": "pethouse-html",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Pethouse — versión autocontenida en un solo archivo HTML (CSS + JS vanilla, imágenes embebidas).",
+  "scripts": {
+    "test": "node test-html.mjs",
+    "build": "python3 build.py",
+    "ia": "node servidor-ia.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

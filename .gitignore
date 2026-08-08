@@ -1,0 +1,9 @@
+# Dependencias y temporales
+node_modules/
+.smoke-out/
+*.log
+
+# Archivos locales de configuración que no deben subirse
+github-token.txt
+.env
+clave-gemini.txt

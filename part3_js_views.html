@@ -1,0 +1,779 @@
+
+/* ---------- Estado global ---------- */
+var S = {
+  ciudad:'', tipo:'', convivencia:'cualquiera', orden:'relevancia',
+  desde:null, hasta:null,
+  calOpen:false, calView:0,
+  modal:null,               // {type:'confirm'|'act'|'publish'}
+  mascotas:1, mascotasMax:8,
+  confirm:null, done:null,  // reserva
+  actTarget:null, actDesde:null, actHasta:null,
+  pubOpen:false, pubErr:'',
+  actTipo:'todos', actQ:'',
+  activeConv:null,
+  drawerOpen:false, menuOpen:false,
+  aiOpen:false, aiMsgs:[], aiTyping:false, aiCfgOpen:false, aiServerOk:null,
+  animAI:false, animCal:false, animModal:false
+};
+
+/* ---------- Sesión / usuarios ---------- */
+var DEMO_USERS = [
+  {id:'u-demo-cliente',nombre:'María López',email:'cliente@pethouse.co',password:'demo123',telefono:'300 123 4567',rol:'cliente',mascota:{nombre:'Rocky'}},
+  {id:'u-demo-host',nombre:'Carolina Mejía',email:'anfitrion@pethouse.co',password:'demo123',telefono:'310 987 6543',rol:'anfitrion',mascota:{nombre:'Luna'}}
+];
+function loadUsers(){ var raw=store.getItem('ph_users'); if(raw){ try{ return JSON.parse(raw); }catch(e){} } store.setItem('ph_users',JSON.stringify(DEMO_USERS)); return DEMO_USERS.slice(); }
+var USERS = loadUsers();
+function saveUsers(){ store.setItem('ph_users',JSON.stringify(USERS)); }
+function currentUser(){ var sid=store.getItem('ph_session'); if(!sid) return null; for(var i=0;i<USERS.length;i++){ if(USERS[i].id===sid) return USERS[i]; } return null; }
+function setSession(uid){ store.setItem('ph_session',uid); }
+function clearSession(){ store.removeItem('ph_session'); }
+
+/* ---------- Favoritos / reservas / plan / chat ---------- */
+function getFavs(){ try{ return JSON.parse(store.getItem('ph_favs')||'[]'); }catch(e){ return []; } }
+function setFavs(f){ store.setItem('ph_favs',JSON.stringify(f)); }
+function getReservas(){ var u=currentUser(); if(!u) return []; try{ return JSON.parse(store.getItem('ph_reservas_'+u.id)||'[]'); }catch(e){ return []; } }
+function setReservas(r){ var u=currentUser(); if(!u) return; store.setItem('ph_reservas_'+u.id,JSON.stringify(r)); }
+function getPlan(){ var u=currentUser(); if(!u) return []; try{ return JSON.parse(store.getItem('ph_plan_'+u.id)||'[]'); }catch(e){ return []; } }
+function setPlan(p){ var u=currentUser(); if(!u) return; store.setItem('ph_plan_'+u.id,JSON.stringify(p)); }
+function seedChat(){
+  var u=currentUser(); if(!u) return [];
+  var key='ph_chat_'+u.id, raw=store.getItem(key);
+  if(raw){ try{ return JSON.parse(raw); }catch(e){} }
+  var now=Date.now(), iso=function(m){ return new Date(now-m*60000).toISOString(); };
+  var convs=[
+    {id:'conv-1',hostId:'h1',messages:[
+      {id:uid(),from:'host',text:'¡Hola María! ¿En qué fechas estarías viajando con Rocky? 🐶',time:iso(26*60),read:true},
+      {id:uid(),from:'me',text:'¡Hola Carolina! Sería del 14 al 18 de agosto. ¿Tienes cupo en la guardería?',time:iso(25*60),read:true},
+      {id:uid(),from:'host',text:'¡Sí, hay cupo! Rocky compartirá grupo con otros 5 perritos de su tamaño. Te enviaré el reporte diario con fotos 📸',time:iso(24*60),read:false}]},
+    {id:'conv-2',hostId:'h5',messages:[
+      {id:uid(),from:'host',text:'Hola, gracias por tu interés en la finca. ¿Tu mascota está acostumbrada a estar en campo abierto?',time:iso(50*60),read:true},
+      {id:uid(),from:'me',text:'Sí, le encanta correr. Solo me preocupa que se escape, ¿el perímetro está cercado?',time:iso(49*60),read:true}]}
+  ];
+  store.setItem(key,JSON.stringify(convs));
+  return convs;
+}
+function getChat(){ var u=currentUser(); if(!u) return []; try{ return JSON.parse(store.getItem('ph_chat_'+u.id)||'null')||seedChat(); }catch(e){ return seedChat(); } }
+function setChat(c){ var u=currentUser(); if(!u) return; store.setItem('ph_chat_'+u.id,JSON.stringify(c)); }
+function getOrCreateConv(hostId){
+  var convs=getChat(); var found=null;
+  convs.forEach(function(c){ if(c.hostId===hostId) found=c; });
+  if(!found){ found={id:uid(),hostId:hostId,messages:[]}; convs.unshift(found); setChat(convs); }
+  return found;
+}
+var HOST_REPLIES=['¡Hola! Claro, con gusto te cuento todos los detalles. 🙌','Sí, tenemos disponibilidad para esas fechas. ¿Cuántas mascotas son?','Perfecto, tu mascota estará en las mejores manos. Te envío fotos todos los días.','Puedes reservar directamente en la página y yo confirmo de inmediato.','¿Tu mascota tiene alguna dieta especial o medicamento que debamos tener en cuenta?','¡Genial! Yo mismo/a supervisaré el cuidado personalmente. ¡Nos vemos pronto!'];
+function unreadTotal(){ var t=0; getChat().forEach(function(c){ c.messages.forEach(function(m){ if(m.from==='host'&&!m.read) t++; }); }); return t; }
+
+/* ============================================================
+   ASISTENTE IA — "Dr. Pethouse" (salud y cuidados de mascotas)
+   Conecta con Google Gemini / OpenAI-compatible si hay clave.
+   Sin clave o sin internet: base de conocimiento local (offline).
+   ============================================================ */
+var AI_SYSTEM='Eres "Dr. Pethouse", asistente de salud y bienestar de mascotas de la plataforma Pethouse, un servicio de hospedaje para mascotas en Colombia. Respondes en español, de forma clara, cálida y breve (3 a 6 frases). Ayudas con dudas de salud, nutrición, comportamiento, higiene y cuidados de perros y gatos. Si la consulta tiene signos de alarma (sangre, convulsiones, dificultad para respirar, ingestión de tóxicos, vómito o diarrea persistentes, decaimiento, falta de apetito prolongada), di claramente que debe acudir de inmediato a un veterinario y menciona las señales de alarma. Nunca des dosis de medicamentos y recuerda siempre que no sustituyes al veterinario.';
+var AI_CHIPS=['Mi perro vomita, ¿qué hago?','Mi gato tiene fiebre','¿Qué alimentos son tóxicos?','Pulgas y garrapatas','¿Cada cuánto bañarlo?','Ansiedad por separación','Viajar con mi mascota','Vacunas necesarias'];
+var AI_KBS=[
+ {k:['vomit','devolvi'],a:'El vómito ocasional puede deberse a indigestión o hierba. Retira el alimento por 8-12 horas (deja agua fresca) y reintroduce comida blanda (arroz con pollo sin condimentos). ⚠️ Acude al veterinario si vomita repetidamente, hay sangre, decaimiento, o si es un cachorro o un gato (los gatos no deben ayunar mucho tiempo).'},
+ {k:['diarrea','heces blandas'],a:'Ofrece agua fresca constante para evitar deshidratación y una dieta blanda (arroz, pollo o papa cocida) por 1-2 días. Los probióticos ayudan. ⚠️ Ve al veterinario si dura más de 24-48 horas, hay sangre, vómito, fiebre o decaimiento.'},
+ {k:['fiebre','temperatura'],a:'En perros y gatos la fiebre es temperatura superior a 39 °C. Mantenlo hidratado, en un lugar fresco y tranquilo. ⚠️ Nunca le des medicamentos humanos (ibuprofeno, paracetamol y acetaminofén son tóxicos). Si la fiebre persiste más de 24 horas o hay otros síntomas, acude al veterinario.'},
+ {k:['toxic','intoxic','veneno','chocolate','uva','cebolla','ajo','xilitol','aguacate'],a:'El chocolate, las uvas, la cebolla, el ajo, el xilitol (endulzantes) y el aguacate son tóxicos para perros y gatos. ⚠️ Si sospechas intoxicación: llama de inmediato a tu veterinario o a un centro de toxicología, guarda el empaque o muestra, y NO induzcas el vómito sin indicación del profesional.'},
+ {k:['pulga','garrapata','piojos'],a:'Usa antiparasitarios externos según el peso y la especie (nunca productos de perro en gatos). Revisa orejas, axilas y entre los dedos tras los paseos, y lava la cama de tu mascota. Si hay garrapatas, retíralas con pinzas sin dejar la cabeza dentro.'},
+ {k:['bañar','baño','shampoo','champu'],a:'Los perros se bañan cada 3-8 semanas según raza y actividad, con champú específico para perros (el de humanos altera su pH). Los gatos se acicalan solos: báñalos solo si es necesario. Seca bien y evita bañar cachorros muy pequeños o con vacunas recientes.'},
+ {k:['aliment','comida','que come','dieta','pienso','croqueta'],a:'Ofrece alimento balanceado según edad y tamaño, con porciones regulares y agua fresca siempre. Evita sobras de comida humana y los alimentos tóxicos (chocolate, cebolla, uvas, xilitol). Si cambias de dieta, hazlo de forma gradual en 7 días.'},
+ {k:['vacuna','vacunacion','rabia','moquillo','parvo'],a:'Los cachorros requieren el esquema básico (múltiple canina o felina y rabia) con refuerzos anuales según tu veterinario. En Pethouse exigimos carnet de vacunación al día para hospedar y socializar con otros animales.'},
+ {k:['ansiedad','separacion','ladra mucho','destruye','estres'],a:'La ansiedad por separación se maneja con rutinas predecibles, ejercicio diario, juguetes interactivos y salidas progresivas (desensibilización). Los hospedajes de Pethouse con estancia individual y paseos diarios ayudan mucho. Si es severa, consulta a un etólogo o tu veterinario.'},
+ {k:['gato','felino','arenero','rascador'],a:'Los gatos necesitan arenero limpio (idealmente uno por gato más uno extra), rascador, lugares altos y rutinas estables. ⚠️ Si un gato deja de comer más de 24 horas, es una urgencia (riesgo de lipidosis hepática): acude al veterinario de inmediato.'},
+ {k:['cachorro','recien nacido','socializacion'],a:'Los cachorros necesitan socialización temprana (personas, sonidos y otros perros sanos y vacunados), rutinas de comida y sueño, y controles veterinarios. No los expongas a zonas con perros sin vacunar ni los bañes en exceso.'},
+ {k:['geriatrico','anciano','viejo','artritis','mayor'],a:'Las mascotas mayores se benefician de chequeos veterinarios cada 6 meses, dieta senior, camas ortopédicas y ejercicio suave. Cuida sus articulaciones y la temperatura. Si la hospedas, informa a tu anfitrión sobre sus medicamentos.'},
+ {k:['viajar','viaje','transporte','carro','avion'],a:'Usa transportadora o arnés seguro, agua fresca y paradas cada 2-3 horas en viajes largos. Nunca dejes a tu mascota sola dentro del auto (golpes de calor). En Pethouse coordina con el anfitrión el horario de llegada y sus necesidades. La sedación solo debe indicarla el veterinario.'},
+ {k:['pelea','mordida','mordedura','rasguno'],a:'Limpia la herida con agua y jabón neutro y evalúa si es profunda o sangra mucho. ⚠️ Las mordeduras pueden infectarse: acude al veterinario y verifica el estado de vacunas. Separa a los animales y mantén la calma.'},
+ {k:['tos','estornudo','mocos','resfriado'],a:'Reposo y un ambiente cálido ayudan. ⚠️ La tos persistente puede ser tos de las perreras (muy contagiosa) u otra afección: si dura más de 2-3 días, hay dificultad respiratoria o pérdida de apetito, consulta al veterinario y avisa en los lugares de hospedaje.'},
+ {k:['apetito','no quiere comer','inapetencia'],a:'La pérdida de apetito de más de 24 horas en adultos (y menos en cachorros y gatos) es una señal de alarma. Ofrece alimento húmedo o tibio, pero si persiste o hay vómito, decaimiento o dolor, acude al veterinario.'},
+ {k:['emergencia','urgencia','convulsion','atragant','accidente'],a:'En una emergencia: mantén la calma, asegura el área, nunca metas los dedos en la boca de un animal convulsionando y trasládalo de inmediato a la clínica veterinaria más cercana. Ten a mano el teléfono de tu veterinario y de urgencias 24 horas.'},
+ {k:['hospedaje','guarderia','dejarlo','cuidar'],a:'Para hospedar a tu mascota en Pethouse: vacunas al día, antiparasitario reciente, su cama o juguete favorito y una nota con su rutina y alimentación. Conversa con el anfitrión por el chat interno y elige la convivencia (compartida o individual) según su carácter.'}
+];
+function offlineReply(q){
+  var lq=String(q||'').toLowerCase(), best=null, bestScore=0;
+  AI_KBS.forEach(function(e){
+    var s=0;
+    e.k.forEach(function(k){ if(lq.indexOf(k)>=0) s++; });
+    if(s>bestScore){ bestScore=s; best=e; }
+  });
+  if(best) return best.a;
+  return '¡Hola! 👋 Puedo orientarte sobre salud y cuidados de mascotas (perros y gatos): síntomas como vómito, diarrea o fiebre, alimentación, vacunas, baño, pulgas, comportamiento, viajes y hospedaje. Cuéntame con más detalle qué le pasa a tu mascota y te daré recomendaciones. ⚠️ Recuerda que soy orientación general: ante signos graves (sangre, convulsiones, dificultad para respirar o intoxicación) acude de inmediato a un veterinario.';
+}
+function aiConfig(){
+  /* Si pegaste una clave en IA_CLAVE_GEMINI (arriba), se usa Gemini directo;
+     si no, se intenta la API del servidor (/api/ia) y luego el modo offline. */
+  var def=IA_CLAVE_GEMINI
+    ? {provider:'gemini',servidorUrl:'/api/ia',key:IA_CLAVE_GEMINI,model:IA_MODELO,base:''}
+    : {provider:'servidor',servidorUrl:'/api/ia',key:'',model:IA_MODELO,base:''};
+  try{ var saved=JSON.parse(store.getItem('ph_ai_cfg')||'null'); if(saved) return Object.assign({},def,saved); return def; }
+  catch(e){ return def; }
+}
+/* Comprueba si la API del servidor (servidor-ia.js) está activa */
+function aiProbeServer(){
+  var cfg=aiConfig();
+  if(cfg.provider!=='servidor'){ S.aiServerOk=null; return; }
+  S.aiServerOk=null;
+  var base=(cfg.servidorUrl||'/api/ia').replace(/\/$/,'');
+  var p=(typeof fetch==='function')?fetch(base+'/estado',{method:'GET'}):Promise.reject(new Error('fetch no disponible'));
+  p.then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+   .then(function(d){ S.aiServerOk=!!(d&&d.configurada); if(S.aiOpen) render(); })
+   .catch(function(){ S.aiServerOk=false; if(S.aiOpen) render(); });
+}
+function aiFab(){
+  return '<button class="ai-fab" data-a="ai-open" aria-label="Consulta con IA">'+ic('autoAwesome',20)+'<span>Consulta con IA</span></button>';
+}
+function aiModal(){
+  if(!S.aiOpen) return '';
+  var anim=S.animAI?'none':''; S.animAI=true;
+  var a=anim?' style="animation:none"':'';
+  var cfg=aiConfig();
+  var mode;
+  if(cfg.provider==='servidor'){
+    if(S.aiServerOk===true) mode='<span class="ai-mode on">● Gemini vía API</span>';
+    else if(S.aiServerOk===false) mode='<span class="ai-mode off">● Modo offline</span>';
+    else mode='<span class="ai-mode" style="background:#E3E6EA;color:#4A4F57">● Verificando API…</span>';
+  } else {
+    mode=cfg.key?'<span class="ai-mode on">● IA conectada</span>':'<span class="ai-mode off">● Modo offline</span>';
+  }
+  var cfgPanel=S.aiCfgOpen?'<div class="ai-config">'+
+    '<div class="field"><label>Proveedor</label><select id="ai-prov">'+
+    '<option value="servidor"'+(cfg.provider==='servidor'?' selected':'')+'>API del servidor (Gemini — recomendada)</option>'+
+    '<option value="gemini"'+(cfg.provider==='gemini'?' selected':'')+'>Gemini directo (clave en el navegador)</option>'+
+    '<option value="openai"'+(cfg.provider==='openai'?' selected':'')+'>OpenAI / compatible</option></select></div>'+
+    '<div class="field" id="ai-srvurl-wrap" style="'+(cfg.provider!=='servidor'?'display:none':'')+'"><label>URL de la API del servidor</label><input id="ai-srvurl" placeholder="/api/ia" value="'+esc(cfg.servidorUrl||'/api/ia')+'"></div>'+
+    '<div class="field"><label>Clave de API <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--ph-muted)">(solo si usas Gemini directo)</span></label><input id="ai-key" type="password" placeholder="AIza…" value="'+esc(cfg.key||'')+'"></div>'+
+    '<div class="field"><label>Modelo</label><input id="ai-model" placeholder="gemini-2.0-flash" value="'+esc(cfg.model||'')+'"></div>'+
+    '<div class="field" id="ai-base-wrap" style="'+(cfg.provider!=='openai'?'display:none':'')+'"><label>URL base (opcional)</label><input id="ai-base" placeholder="https://api.openai.com/v1" value="'+esc(cfg.base||'')+'"></div>'+
+    '<button class="btn btn-primary btn-sm" data-a="ai-save">Guardar configuración</button>'+
+    (IA_CLAVE_GEMINI?'<p class="ai-note" style="background:var(--ph-success-container);color:var(--ph-on-success-container);padding:10px 12px;border-radius:var(--ph-r-sm)">✅ Tienes una clave pegada en el HTML (IA_CLAVE_GEMINI): el chat usa <b>Gemini directo</b> automáticamente.</p>':'')+
+    '<p class="ai-note"><b>Recomendado:</b> deja «API del servidor» y ejecuta <b>node servidor-ia.js</b> en la carpeta del proyecto (con tu clave en el archivo .env). El chat se conecta a <b>POST /api/ia</b> y la clave nunca sale del servidor. Alternativa: consigue una clave <b>gratis</b> en <b>aistudio.google.com</b> y úsala con «Gemini directo». Sin servidor ni clave, respondo con mi base de conocimiento local.</p>'+
+    '</div>':'';
+  var msgs='';
+  S.aiMsgs.forEach(function(m){
+    if(m.role==='bot'){ msgs+='<div class="ai-row-msg"><span class="ai-avatar">'+ic('pets',16,true)+'</span><div class="ai-bubble bot">'+esc(m.text)+'</div></div>'; }
+    else { msgs+='<div class="ai-bubble user">'+esc(m.text)+'</div>'; }
+  });
+  if(S.aiTyping) msgs+='<div class="ai-row-msg"><span class="ai-avatar">'+ic('pets',16,true)+'</span><div class="ai-bubble bot"><span class="typing-dots"><span></span><span></span><span></span></span></div></div>';
+  return '<div class="modal-scrim" data-a="close-ai"'+a+'><div class="modal ai-modal" role="dialog" aria-modal="true" data-a="inner"'+a+'>'+
+    '<div class="modal-header"><h2 class="d-sm" style="font-size:17px">🐾 Dr. Pethouse — Consulta con IA</h2>'+
+    '<div class="row gap-8">'+mode+
+    '<button class="icon-btn surface" data-a="ai-cfg" aria-label="Configurar IA">'+ic('settings',18)+'</button>'+
+    '<button class="icon-btn surface" data-a="close-ai" aria-label="Cerrar">'+ic('close',20)+'</button></div></div>'+
+    cfgPanel+
+    '<div class="ai-body" id="ai-body">'+msgs+'</div>'+
+    '<div class="ai-chips">'+AI_CHIPS.map(function(c){return '<button class="ai-chip" data-a="ai-chip" data-q="'+esc(c)+'">'+c+'</button>';}).join('')+'</div>'+
+    '<form class="ai-input-row" data-form="ai"><div class="field"><input id="ai-msg" placeholder="Pregunta sobre salud o cuidados…" autocomplete="off"></div>'+
+    '<button type="submit" class="icon-btn primary" id="ai-send">'+ic('send',20)+'</button></form>'+
+    '<div class="ai-warn">⚠️ La IA da orientación general y no reemplaza la consulta veterinaria. Ante emergencias, acude a tu veterinario.</div>'+
+    '</div></div>';
+}
+function scrollAi(){ var el=document.getElementById('ai-body'); if(el){ try{ el.scrollTop=el.scrollHeight; }catch(e){} } }
+function focusAiInput(){ var el=document.getElementById('ai-msg'); if(el){ try{ el.focus(); var len=el.value.length; if(el.setSelectionRange) el.setSelectionRange(len,len); }catch(e){} } }
+
+
+/* ---------- Snackbar ---------- */
+var toastTimer=null;
+function toast(msg,type){
+  var el=document.getElementById('snackbar');
+  el.className='snackbar '+(type||'')+' show';
+  el.innerHTML=ic(type==='success'?'verified':type==='error'?'warning':'info',18)+'<span>'+esc(msg)+'</span>';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ el.className='snackbar'; },3800);
+}
+
+/* ============================================================
+   COMPONENTES
+   ============================================================ */
+function navTabs(route){
+  var tabs=[['#/','Inicio'],['#/buscar','Hospedajes'],['#/mapa','Mapa'],['#/actividades','Actividades caninas','<span class="new-tag" style="margin-left:2px">Nuevo</span>']];
+  return '<nav class="nav-tabs hidden-mobile">'+tabs.map(function(tab){
+    var key=tab[0].replace('#/','');
+    var act=(route===key||(route===''&&key===''))?' active':'';
+    return '<a href="'+tab[0]+'" class="nav-tab'+act+'">'+tab[1]+(tab[2]||'')+'</a>';
+  }).join('')+'</nav>';
+}
+function navbar(){
+  var u=currentUser();
+  var right;
+  if(u){
+    var un=unreadTotal();
+    right='<div style="position:relative" id="acct-wrap">'+
+      '<button class="account-chip" data-a="toggle-menu" aria-haspopup="menu">'+
+      '<span class="burger"><span></span><span></span><span></span></span>'+avatar(u.nombre,'xs')+'</button>'+
+      (S.menuOpen?'<div class="dropdown">'+
+        '<div class="cap-sm muted" style="padding:8px 16px 4px">Sesión de <b class="ink">'+esc(u.nombre)+'</b></div>'+
+        '<button class="dropdown-item" data-a="go" data-href="#/mis-reservas">'+ic('calendar',18)+' Mis reservas</button>'+
+        '<button class="dropdown-item" data-a="go" data-href="#/mensajes">'+ic('chat',18)+' Mensajes'+(un?'<span class="badge-pill badge-primary" style="margin-left:auto;box-shadow:none;padding:2px 8px">'+un+'</span>':'')+'</button>'+
+        '<button class="dropdown-item" data-a="go" data-href="#/actividades">'+ic('pets',18)+' Actividades</button>'+
+        '<div class="dropdown-sep"></div>'+
+        '<button class="dropdown-item danger" data-a="logout">'+ic('logout',18)+' Cerrar sesión</button>'+
+      '</div>':'')+'</div>';
+  } else {
+    right='<a class="nav-host-link hidden-mobile" href="#/registro?rol=anfitrion">Hazte anfitrión</a>'+
+      '<a class="btn btn-ghost btn-sm hidden-mobile" href="#/login">Iniciar sesión</a>'+
+      '<a class="btn btn-primary btn-sm hidden-mobile" href="#/registro">Regístrate</a>'+
+      '<button class="icon-btn outline hidden-desktop" data-a="toggle-drawer" aria-label="Menú">'+ic('menu',22)+'</button>';
+  }
+  return '<header class="navbar"><div class="container navbar-inner">'+
+    '<a href="#/" class="brand"><img src="'+IMG.logo+'" alt="Logo Pethouse"><span class="brand-name">Pet<span>house</span></span></a>'+
+    navTabs(currentRoute())+
+    '<div class="nav-right">'+right+'</div>'+
+    '</div></header>';
+}
+function drawer(){
+  var u=currentUser();
+  var links='<button class="drawer-link" data-a="go" data-href="#/">'+ic('home',20)+' Inicio</button>'+
+    '<button class="drawer-link" data-a="go" data-href="#/buscar">'+ic('search',20)+' Hospedajes</button>'+
+    '<button class="drawer-link" data-a="go" data-href="#/mapa">'+ic('pin',20)+' Mapa</button>'+
+    '<button class="drawer-link" data-a="go" data-href="#/actividades">'+ic('pets',20)+' Actividades caninas</button>';
+  if(u){
+    links+='<button class="drawer-link" data-a="go" data-href="#/mis-reservas">'+ic('calendar',20)+' Mis reservas</button>'+
+      '<button class="drawer-link" data-a="go" data-href="#/mensajes">'+ic('chat',20)+' Mensajes</button>';
+  }
+  links+='<div class="dropdown-sep"></div>';
+  if(u){ links+='<button class="drawer-link" style="color:var(--ph-error)" data-a="logout">'+ic('logout',20)+' Cerrar sesión</button>'; }
+  else { links+='<button class="drawer-link" data-a="go" data-href="#/login">'+ic('lock',20)+' Iniciar sesión</button>'+
+    '<button class="drawer-link" data-a="go" data-href="#/registro">'+ic('person',20)+' Crear cuenta</button>'; }
+  return S.drawerOpen?'<div class="drawer-scrim" data-a="close-all"></div><aside class="drawer">'+
+    '<div class="drawer-head"><span class="brand-name" style="font-size:20px">Pet<span>house</span></span>'+
+    '<button class="icon-btn surface" data-a="close-all">'+ic('close',20)+'</button></div>'+links+'</aside>':'';
+}
+function footer(){
+  return '<footer class="footer"><div class="container"><div class="footer-grid">'+
+    '<div class="footer-col"><h4>Producto</h4><a href="#/buscar">Hospedajes</a><a href="#/actividades">Actividades caninas</a><a href="#/registro?rol=anfitrion">Hazte anfitrión</a><a href="#/buscar">Seguro Pethouse</a></div>'+
+    '<div class="footer-col"><h4>Ayuda</h4><a href="#">Centro de ayuda</a><a href="#">Estado del servicio</a><a href="#">Opciones de reserva</a><a href="#">Política de reembolsos</a></div>'+
+    '<div class="footer-col"><h4>Comunidad</h4><a href="#">Pethouse.org</a><a href="#">Contra la discriminación</a><a href="#">Rescate y adopción</a><a href="#">Aliados veterinarios</a></div>'+
+    '<div class="footer-col"><h4>Acerca de</h4><a href="#">Noticias</a><a href="#">Carreras</a><a href="#">Inversores</a><a href="#">Sostenibilidad</a></div>'+
+    '</div></div>'+
+    '<div class="legal-band"><div class="container legal-inner">'+
+    '<div class="row"><span>© 2026 Pethouse, Inc.</span><a href="#">Privacidad</a><a href="#">Términos</a><a href="#">Mapa del sitio</a></div>'+
+    '<div class="row"><button class="row gap-4">'+ic('globe',16)+' Español (CO)</button><span>$ COP</span></div>'+
+    '</div></div></footer>';
+}
+function searchBar(compact){
+  /* Opciones de convivencia: ¿compartir con más mascotas o no? */
+  var convOpts=[['cualquiera','Sin preferencia'],['compartida','Sí, puede compartir'],['individual','No, estancia individual']];
+  var conv='';
+  convOpts.forEach(function(o){ conv+='<option value="'+o[0]+'"'+(S.convivencia===o[0]?' selected':'')+'>'+o[1]+'</option>'; });
+  return '<div class="search-pill">'+
+    '<div class="search-seg" style="flex:1 1 34%"><span class="seg-label">¿Dónde?</span>'+
+    '<input id="sb-ciudad" list="ciudades-list" placeholder="Ciudad, barrio…" value="'+esc(S.ciudad)+'" aria-label="Ciudad"></div>'+
+    '<datalist id="ciudades-list">'+CIUDADES.map(function(c){return '<option value="'+c+'">';}).join('')+'</datalist>'+
+    '<div class="search-seg" style="flex:1 1 32%;border-left:1px solid var(--ph-hairline)" data-a="open-cal">'+
+    '<span class="seg-label">Fechas</span><span class="seg-value">'+rangeLabel(S.desde,S.hasta)+'</span></div>'+
+    '<div class="search-seg seg-convivencia" style="flex:1 1 30%;border-left:1px solid var(--ph-hairline)">'+
+    '<span class="seg-label">¿Comparte espacio?</span><span class="seg-label seg-label-m">Compartir</span>'+
+    '<select id="sb-conv" aria-label="¿Comparte espacio con otras mascotas?">'+conv+'</select></div>'+
+    '<button class="search-orb" data-a="do-search" aria-label="Buscar hospedajes">'+ic('search',22)+'</button></div>';
+}
+function pCard(h){
+  var tipo=tipoDe(h), conv=convDe(h), fav=getFavs().indexOf(h.id)>=0;
+  return '<article class="p-card"><a href="#/hospedaje/'+h.id+'" aria-label="'+esc(h.titulo)+'">'+
+    '<div class="p-photo"><img src="'+foto(h.fotos[0])+'" alt="'+esc(h.titulo)+'" loading="lazy">'+
+    '<span class="badge-pill p-badge">'+tipo.label+'</span>'+
+    (h.destacado?'<span class="badge-pill p-badge" style="top:52px">Favorito de huéspedes</span>':'')+
+    '<span class="p-count">'+h.fotos.length+' fotos</span></div></a>'+
+    '<button class="icon-btn p-heart" data-a="fav" data-id="'+h.id+'" aria-label="Favorito" style="color:'+(fav?'var(--ph-primary)':'var(--ph-ink)')+'">'+ic('heart',18,fav)+'</button>'+
+    '<div class="p-meta"><div class="p-title"><h3><a href="#/hospedaje/'+h.id+'">'+esc(h.titulo)+'</a></h3>'+
+    '<span class="p-price">'+fmtCOP(h.precio)+'<span style="font-weight:400;color:var(--ph-muted)"> noche</span></span></div>'+
+    '<p class="p-sub">'+esc(h.barrio)+', '+esc(h.ciudad)+' · Disponible en tus fechas</p>'+
+    '<div class="p-row"><span class="badge-pill badge-soft" style="box-shadow:none">'+ic('pets',13)+' '+conv.short+'</span>'+
+    '<span class="row gap-4" style="margin-left:auto">'+ic('star',14,true)+' <b class="cap-sm">'+h.rating+'</b><span class="cap-sm muted">('+h.numResenas+')</span></span></div>'+
+    '</div></article>';
+}
+function starsRow(n){ return stars(Math.round(n),20); }
+
+/* ---------- Calendario ---------- */
+function monthMatrix(year,month){
+  var first=new Date(year,month,1), startDow=first.getDay(), dim=new Date(year,month+1,0).getDate(), cells=[];
+  for(var i=0;i<startDow;i++)cells.push(null);
+  for(var d=1;d<=dim;d++)cells.push(toISO(new Date(year,month,d)));
+  return cells;
+}
+function calMonth(year,month){
+  var cells=monthMatrix(year,month), min=todayISO(), out='<h4 class="cal-month-title">'+MESES[month]+' '+year+'</h4>';
+  out+='<div class="cal-head"><span>do</span><span>lu</span><span>ma</span><span>mi</span><span>ju</span><span>vi</span><span>sá</span></div><div class="cal">';
+  cells.forEach(function(iso){
+    if(!iso){ out+='<span></span>'; return; }
+    var disabled=iso<min, isStart=iso===S.desde, isEnd=iso===S.hasta;
+    var inRange=S.desde&&S.hasta&&iso>S.desde&&iso<S.hasta;
+    var cls='cal-day'+(iso===todayISO()?' today':'')+(inRange?' in-range':'')+(isStart||isEnd?' selected':'');
+    out+='<button class="'+cls+'"'+(disabled?' disabled':'')+' data-a="pick" data-date="'+iso+'" aria-label="'+isoLong(iso)+'">'+Number(iso.slice(8,10))+'</button>';
+  });
+  return out+'</div>';
+}
+function calModal(){
+  if(!S.calOpen) return '';
+  var anim=S.animCal?'none':''; S.animCal=true;
+  var a=anim?' style="animation:none"':'';
+  var base=new Date(); base.setDate(1); base.setMonth(base.getMonth()+S.calView);
+  var y2=base.getMonth()===11?base.getFullYear()+1:base.getFullYear(), m2=base.getMonth()===11?0:base.getMonth()+1;
+  return '<div class="modal-scrim" data-a="close-cal"'+a+'><div class="modal wide" role="dialog" aria-modal="true" data-a="inner"'+a+'>'+
+    '<div class="modal-header"><h2 class="d-sm">Selecciona las fechas</h2><button class="icon-btn surface" data-a="close-cal">'+ic('close',20)+'</button></div>'+
+    '<div class="modal-body"><div class="cal-nav">'+
+    '<button class="icon-btn surface" data-a="cal-shift" data-dir="-1">'+ic('chevLeft',20)+'</button>'+
+    '<div class="row gap-16" style="flex-wrap:wrap"><div class="row gap-8"><span class="micro">Llegada:</span><b class="b-sm">'+(S.desde?isoLong(S.desde):'—')+'</b></div>'+
+    '<div class="row gap-8"><span class="micro">Salida:</span><b class="b-sm">'+(S.hasta?isoLong(S.hasta):'—')+'</b></div></div>'+
+    '<button class="icon-btn surface" data-a="cal-shift" data-dir="1">'+ic('chevRight',20)+'</button></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:16px">'+
+    calMonth(base.getFullYear(),base.getMonth())+'<div class="hidden-mobile">'+calMonth(y2,m2)+'</div></div>'+
+    '<p class="cap-sm muted" style="margin-top:16px">'+(S.desde&&!S.hasta?'Llegada el '+isoLong(S.desde)+' · ahora elige la salida':'Elige tu llegada y salida. Las fechas mínimas son hoy.')+'</p></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" data-a="cal-clear">Borrar fechas</button>'+
+    '<button class="btn btn-outline" data-a="preset" data-n="2">Este fin de semana</button>'+
+    '<button class="btn btn-outline" data-a="preset" data-n="7">7 días</button>'+
+    '<button class="btn btn-primary" data-a="close-cal" '+(S.desde&&S.hasta?'':'disabled')+'>Aplicar</button></div></div></div>';
+}
+function confirmModal(){
+  if(!S.modal||S.modal.type!=='confirm'||!S.confirm) return '';
+  var anim=S.animModal?'none':''; S.animModal=true;
+  var a=anim?' style="animation:none"':'';
+  var c=S.confirm;
+  return '<div class="modal-scrim" data-a="close-modal"'+a+'><div class="modal" role="dialog" aria-modal="true" data-a="inner"'+a+'>'+
+    '<div class="modal-header"><h2 class="d-sm">Confirma tu reserva</h2><button class="icon-btn surface" data-a="close-modal">'+ic('close',20)+'</button></div>'+
+    '<div class="modal-body"><p class="b-sm muted"><b class="ink">'+esc(c.titulo)+'</b> · '+esc(c.barrio)+', '+esc(c.ciudad)+'</p>'+
+    '<div class="fee-row" style="margin-top:16px"><span class="fee-note">'+isoLong(c.desde)+' → '+isoLong(c.hasta)+'</span><span>'+c.noches+(c.noches===1?' noche':' noches')+'</span></div>'+
+    '<div class="fee-row"><span class="fee-note">'+c.mascotas+' '+(c.mascotas===1?'mascota':'mascotas')+' × '+fmtCOP(c.precioNoche)+'/noche</span><span>'+fmtCOP(c.precioNoche*c.noches)+'</span></div>'+
+    '<div class="fee-row"><span class="fee-note">Limpieza + servicio</span><span>'+fmtCOP(c.limpieza+c.servicio)+'</span></div>'+
+    '<div class="fee-row total"><span>Total</span><span>'+fmtCOP(c.total)+'</span></div>'+
+    '<p class="cap-sm muted" style="margin-top:12px">Al confirmar aceptas las reglas del hospedaje y la política de reembolsos de Pethouse.</p></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" data-a="close-modal">Cancelar</button>'+
+    '<button class="btn btn-primary" data-a="do-confirm">Confirmar reserva</button></div></div></div>';
+}
+function actModal(){
+  if(!S.modal||S.modal.type!=='act'||!S.actTarget) return '';
+  var anim=S.animModal?'none':''; S.animModal=true;
+  var a=anim?' style="animation:none"':'';
+  var act=S.actTarget;
+  return '<div class="modal-scrim" data-a="close-modal"'+a+'><div class="modal" role="dialog" aria-modal="true" data-a="inner"'+a+'>'+
+    '<div class="modal-header"><h2 class="d-sm">Agregar: '+esc(act.nombre)+'</h2><button class="icon-btn surface" data-a="close-modal">'+ic('close',20)+'</button></div>'+
+    '<div class="modal-body"><p class="b-sm muted mb-16">Elige las fechas de la estancia para la que quieres agendar esta actividad.</p>'+
+    '<button class="btn btn-outline w-full" data-a="open-cal-act">'+ic('calendar',18)+' '+
+    (S.desde&&S.hasta?isoShort(S.desde)+' – '+isoShort(S.hasta):'Seleccionar fechas de la estancia')+'</button></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" data-a="close-modal">Cancelar</button>'+
+    '<button class="btn btn-primary" data-a="do-add-act">'+ic('pets',18)+' Agregar al plan</button></div></div></div>';
+}
+function pubModal(){
+  if(!S.modal||S.modal.type!=='publish') return '';
+  var anim=S.animModal?'none':''; S.animModal=true;
+  var a=anim?' style="animation:none"':'';
+  return '<div class="modal-scrim" data-a="close-modal"'+a+'><div class="modal" role="dialog" aria-modal="true" data-a="inner"'+a+'>'+
+    '<div class="modal-header"><h2 class="d-sm">Publicar nueva actividad</h2><button class="icon-btn surface" data-a="close-modal">'+ic('close',20)+'</button></div>'+
+    '<div class="modal-body">'+
+    (S.pubErr?'<div class="demo-box mb-16" style="border-color:var(--ph-error);color:var(--ph-error);border-style:solid">'+esc(S.pubErr)+'</div>':'')+
+    '<div class="col gap-16"><div class="field"><label>Nombre de la actividad</label><input id="pub-nombre" placeholder="Ej: Caminata al atardecer"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div class="field"><label>Tipo</label><select id="pub-tipo">'+
+    ACT_TIPOS.slice(1).map(function(t){return '<option value="'+t.id+'">'+t.label+'</option>';}).join('')+'</select></div>'+
+    '<div class="field"><label>Duración</label><input id="pub-duracion" placeholder="45 min"></div></div>'+
+    '<div class="field"><label>Precio (COP)</label><input id="pub-precio" type="number" min="0" step="1000" placeholder="20000"></div>'+
+    '<div class="field"><label>Descripción</label><textarea id="pub-desc" placeholder="¿Qué incluye? ¿Qué necesita la mascota?"></textarea></div></div></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" data-a="close-modal">Cancelar</button>'+
+    '<button class="btn btn-primary" data-a="do-publish">Publicar actividad</button></div></div></div>';
+}
+
+/* ============================================================
+   VISTAS
+   ============================================================ */
+function currentRoute(){ var h=(location.hash||'#/').replace('#/',''); return h.split('?')[0]; }
+
+function vHome(){
+  var destacados=HOSPEDAJES.filter(function(h){return h.destacado;}).slice(0,8);
+  var tops=ACTIVIDADES.slice(0,3);
+  var steps=[['search','1. Busca y compara','Filtra por ciudad, fechas, tipo de alojamiento y preferencia de convivencia de tu mascota.'],
+    ['chat','2. Conversa con el anfitrión','Resuelve dudas por el chat interno antes de reservar: espacio, rutinas, cuidados especiales.'],
+    ['shield','3. Reserva con seguridad','Cada hospedaje está verificado y cuenta con reseñas reales de otros dueños.']];
+  var tests=[['Daniela Torres','Rocky volvió feliz y con fotos todos los días. Las cámaras en vivo me dieron una tranquilidad absoluta durante mi viaje.','Guardería · Bogotá'],
+    ['Federico Londoño','Mi perro vivió mejor que yo: habitación propia, chef de comida natural y sesión de fotos incluida. Otro nivel.','Casa campestre · Rionegro'],
+    ['Ricardo Mendoza','Mi gato tiene condición cardíaca y el equipo veterinario lo cuidó con un detalle increíble. Informe médico diario.','Veterinaria · Bogotá']];
+  return '<section class="hero"><img src="'+IMG.hero+'" alt="Mascota cuidada en un hogar acogedor"><div class="hero-content container">'+
+    '<h1>Un hogar para tu mascota mientras tú viajas</h1><p>Guarderías, veterinarias, casas campestres y apartamentos verificados</p>'+
+    searchBar()+'</div></section>'+
+    '<section class="section-tight" style="border-bottom:1px solid var(--ph-hairline-soft)"><div class="container"><div class="cat-strip">'+
+    TIPOS.map(function(t){ return '<a href="#/buscar?tipo='+t.id+'" class="cat-item">'+ic(t.icon,28)+'<span>'+t.plural+'</span></a>'; }).join('')+
+    '</div></div></section>'+
+    '<section class="section"><div class="container"><div class="row-between mb-24" style="align-items:flex-end">'+
+    '<div><h2 class="d-xl">Hospedajes destacados</h2><p class="b-md muted mt-8">Los favoritos de la comunidad de Pethouse</p></div>'+
+    '<a href="#/buscar" class="btn btn-ghost btn-sm hidden-mobile">Ver todos →</a></div>'+
+    '<div class="grid-cards">'+destacados.map(pCard).join('')+'</div></div></section>'+
+    '<section class="container" style="padding-bottom:64px"><div class="banner-act"><img src="'+IMG.paseo+'" alt="Paseo canino en grupo"><div class="content">'+
+    '<span class="badge-pill" style="background:var(--ph-primary);color:#fff;box-shadow:none">'+ic('pets',13)+' Actividades caninas</span>'+
+    '<h2 style="margin-top:16px">Haz de la estancia una aventura</h2>'+
+    '<p>Paseos en grupo, piscina, entrenamiento de agilidad y spa. Agrega actividades a la estancia de tu mascota y recibe fotos y videos de cada experiencia.</p>'+
+    '<a href="#/actividades" class="btn btn-pill" style="background:#fff;color:var(--ph-ink)">Explorar actividades '+ic('chevRight',16)+'</a></div></div></section>'+
+    '<section class="section" style="padding-top:0"><div class="container"><div class="row-between mb-24" style="align-items:flex-end">'+
+    '<div><h2 class="d-xl">Diversión garantizada</h2><p class="b-md muted mt-8">Agrega una o varias a la estancia de tu mascota</p></div>'+
+    '<a href="#/actividades" class="btn btn-ghost btn-sm hidden-mobile">Ver todas →</a></div>'+
+    '<div class="grid-cards" style="grid-template-columns:repeat(3,1fr)">'+tops.map(function(a){
+      return '<article class="act-card"><a href="#/actividades" class="act-photo">'+actFotoHtml(a)+'</a>'+
+        '<div class="act-body"><h3 class="t-md"><a href="#/actividades">'+esc(a.nombre)+'</a></h3><p class="b-sm muted">'+esc(a.desc)+'</p>'+
+        '<div class="act-foot"><span class="row gap-4 muted cap-sm">'+ic('clock',15)+' '+a.duracion+'</span><b>'+fmtCOP(a.precio)+'</b></div></div></article>';
+    }).join('')+'</div></div></section>'+
+    '<section class="section" style="background:var(--ph-surface-soft)"><div class="container">'+
+    '<h2 class="d-xl" style="text-align:center">¿Cómo funciona Pethouse?</h2>'+
+    '<p class="b-md muted" style="text-align:center;margin-top:8px;margin-bottom:48px">Hospeda a tu mascota con la misma confianza de Airbnb, pero hecho para peludos</p>'+
+    '<div class="grid-cards" style="grid-template-columns:repeat(3,1fr)">'+steps.map(function(s){
+      return '<div class="step-card"><div class="step-icon">'+ic(s[0],34)+'</div><h3 class="d-sm">'+s[1]+'</h3><p class="b-sm muted mt-8">'+s[2]+'</p></div>';
+    }).join('')+'</div></div></section>'+
+    '<section class="section"><div class="container"><h2 class="d-xl" style="text-align:center;margin-bottom:48px">Lo que dicen los dueños</h2>'+
+    '<div class="grid-cards" style="grid-template-columns:repeat(3,1fr)">'+tests.map(function(t){
+      return '<div class="card" style="border:1px solid var(--ph-hairline-soft);background:#fff;border-radius:var(--ph-r-md);padding:24px">'+
+        '<div class="stars mb-8">'+stars(5,15)+'</div><p class="b-md" style="color:var(--ph-body)">“'+t[1]+'”</p>'+
+        '<div class="row gap-12 mt-16">'+avatar(t[0],'sm')+'<div><b class="cap-sm">'+t[0]+'</b><div class="cap-sm muted">'+t[2]+'</div></div></div></div>';
+    }).join('')+'</div></div></section>';
+}
+
+function parseQuery(qs){
+  var out={}; if(!qs) return out;
+  qs.replace(/^\?/,'').split('&').forEach(function(p){
+    var kv=p.split('='); if(kv[0]) out[decodeURIComponent(kv[0])]=decodeURIComponent(kv[1]||'');
+  });
+  return out;
+}
+function vSearch(q){
+  var ciudad=q.ciudad||'', tipo=q.tipo||'', conv=q.convivencia||'cualquiera', desde=q.desde||null, hasta=q.hasta||null;
+  S.ciudad=ciudad; S.tipo=tipo; S.convivencia=conv; S.desde=desde||null; S.hasta=hasta||null;
+  var list=HOSPEDAJES.filter(function(h){
+    if(ciudad){ var c=ciudad.toLowerCase(); if(h.ciudad.toLowerCase().indexOf(c)<0&&h.barrio.toLowerCase().indexOf(c)<0) return false; }
+    if(tipo&&h.tipo!==tipo) return false;
+    if(conv!=='cualquiera'&&h.convivencia!==conv) return false;
+    return true;
+  }).slice();
+  if(S.orden==='precio-asc')list.sort(function(a,b){return a.precio-b.precio;});
+  else if(S.orden==='precio-desc')list.sort(function(a,b){return b.precio-a.precio;});
+  else if(S.orden==='rating')list.sort(function(a,b){return b.rating-a.rating;});
+  else list.sort(function(a,b){ return (b.destacado-a.destacado)||(b.favoritos-a.favoritos); });
+  var convLabel=''; CONVIVENCIA.forEach(function(c){ if(c.id===conv) convLabel=c.label; });
+  var chips='';
+  TIPOS.forEach(function(t){ chips+='<button class="chip'+(tipo===t.id?' active':'')+'" data-a="f-tipo" data-id="'+t.id+'">'+ic(t.icon,17)+' '+t.plural+'</button>'; });
+  chips+='<span class="chip" style="pointer-events:none;border-color:transparent">·</span>';
+  CONVIVENCIA.slice(1).forEach(function(c){ chips+='<button class="chip'+(conv===c.id?' active':'')+'" data-a="f-conv" data-id="'+c.id+'">'+ic(c.id==='individual'?'shield':'pets',16)+' '+c.label+'</button>'; });
+  chips+='<button class="chip" data-a="open-cal">'+ic('calendar',16)+' '+rangeLabel(desde,hasta)+'</button>';
+  var hWord=(list.length===1?'hospedaje':'hospedajes');
+  return '<div class="container" style="padding-top:32px;padding-bottom:64px"><div style="max-width:920px;margin:0 auto 8px">'+searchBar()+'</div>'+
+    '<div class="row-between mt-24 mb-16" style="flex-wrap:wrap;gap:12px"><div>'+
+    '<h1 class="d-lg">'+list.length+' '+hWord+(ciudad?' en <span style="color:var(--ph-primary)">'+esc(ciudad)+'</span>':'')+'</h1>'+
+    '<p class="cap-sm muted mt-8">'+rangeLabel(desde,hasta)+(conv!=='cualquiera'?' · '+convLabel:'')+'</p></div>'+
+    '<div class="row gap-8" style="flex-wrap:wrap">'+
+    '<a class="btn btn-outline btn-sm" href="#/mapa'+(ciudad||tipo?'?':'')+(ciudad?'ciudad='+encodeURIComponent(ciudad):'')+(ciudad&&tipo?'&':'')+(tipo?'tipo='+tipo:'')+'">'+ic('pin',16)+' Ver mapa</a>'+
+    '<label class="row gap-8 cap-sm muted">Ordenar por <select id="sel-orden" style="border:1px solid var(--ph-hairline);border-radius:var(--ph-r-full);padding:8px 36px 8px 14px;background:#fff;font-size:14px;appearance:none;cursor:pointer">'+
+    [['relevancia','Relevancia'],['precio-asc','Precio: menor a mayor'],['precio-desc','Precio: mayor a menor'],['rating','Mejor calificadas']]
+    .map(function(o){ return '<option value="'+o[0]+'"'+(S.orden===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></label></div></div>'+
+    '<div class="row gap-12" style="flex-wrap:wrap;margin-bottom:28px">'+chips+'</div>'+
+    (list.length?'<div class="grid-cards">'+list.map(pCard).join('')+'</div>':
+      '<div class="empty-state" style="border:1px solid var(--ph-hairline-soft);border-radius:var(--ph-r-lg)"><div class="big-icon">'+ic('search',44)+'</div>'+
+      '<h2 class="d-sm ink" style="margin-bottom:8px">Sin resultados para esa búsqueda</h2>'+
+      '<p class="b-sm muted" style="max-width:420px;margin:0 auto 24px">Prueba con otra ciudad, cambia la preferencia de convivencia o elimina los filtros de fecha.</p>'+
+      '<button class="btn btn-primary" data-a="clear-filters">Limpiar filtros</button></div>')+
+    '</div>';
+}
+function vDetail(id,q){
+  var h=getHosp(id);
+  if(!h) return '<div class="container" style="padding:96px 24px;text-align:center"><h1 class="d-xl">Hospedaje no encontrado</h1><a href="#/buscar" class="btn btn-primary mt-24">Volver a la búsqueda</a></div>';
+  if(S.done&&S.done.hospedajeId===id&&S.done.view){
+    var d=S.done;
+    return '<div class="container-narrow" style="padding-top:64px;padding-bottom:64px;text-align:center">'+
+      '<div class="confirm-check">'+ic('check',48)+'</div><h1 class="d-xl" style="margin-top:8px">¡Reserva confirmada!</h1>'+
+      '<p class="b-md muted mt-8">Código de reserva <b class="ink">'+d.id+'</b> · '+esc(h.titulo)+'</p>'+
+      '<div style="background:#fff;border:1px solid var(--ph-hairline);border-radius:var(--ph-r-md);box-shadow:var(--ph-shadow-1);padding:24px;max-width:460px;margin:24px auto 0;text-align:left">'+
+      '<div class="row-between" style="padding:8px 0"><span class="cap-sm muted">Llegada</span><b class="b-sm">'+isoLong(d.desde)+'</b></div>'+
+      '<div class="row-between" style="padding:8px 0"><span class="cap-sm muted">Salida</span><b class="b-sm">'+isoLong(d.hasta)+'</b></div>'+
+      '<div class="row-between" style="padding:8px 0"><span class="cap-sm muted">Huéspedes</span><b class="b-sm">'+d.mascotas+' '+(d.mascotas===1?'mascota':'mascotas')+'</b></div>'+
+      '<div class="row-between" style="padding:8px 0;border-top:1px solid var(--ph-hairline-soft);margin-top:8px"><span class="cap-sm muted">Total pagado</span><b class="d-sm">'+fmtCOP(d.total)+'</b></div></div>'+
+      '<div class="row gap-12 mt-24" style="justify-content:center;flex-wrap:wrap"><a class="btn btn-primary" href="#/mis-reservas">Ver mis reservas</a>'+
+      '<button class="btn btn-outline" data-a="contact" data-id="'+h.hostId+'">Enviar mensaje al anfitrión</button></div></div>';
+  }
+  var host=getHost(h.hostId), tipo=tipoDe(h), conv=convDe(h), resenas=getResenas(id);
+  var fav=getFavs().indexOf(id)>=0;
+  var noches=S.desde&&S.hasta?nightsBetween(S.desde,S.hasta):0;
+  var limpieza=Math.round(h.precio*0.6), servicio=Math.round(h.precio*noches*0.1);
+  var total=h.precio*noches+limpieza+servicio;
+  var serIcons={Juego:'pets','Cámaras':'eye','Paseos':'dog','Alimentación':'food','Reporte':'camera','Videos':'camera','Zona':'pets','Piscina':'pets','Entrenamiento':'dog','Transporte':'pin','Cuidado':'shield','Cuarto':'home','Supervisión':'medical','Enfermería':'medical','Administración':'medical','Hospitalización':'home','Chequeo':'medical','Urgencias':'shield','Suites':'home','Personal':'medical','Telemedicina':'medical','Spa':'brush','Terapias':'medical','Fisioterapia':'medical','Nutrición':'food','Monitoreo':'eye','Sala':'pets','2 hectáreas':'leaf','Senderos':'leaf','Caballeriza':'leaf','Fogata':'leaf','Habitación':'home','Jardín':'leaf','Chef':'food','Sesión':'camera','Baño':'brush','Clima':'leaf','Ríos':'leaf','Áreas':'pets','Rappi':'medical','Anfitrión':'home','Parques':'leaf','Cama':'home','Apto':'pets','Terraza':'home','Ruta':'dog','Snacks':'food','Perros':'pets','Primeros':'shield','Solo':'shield','Comida':'food','Videos':'camera','Cuidado':'shield'};
+  function serIcon(s){ for(var k in serIcons){ if(s.indexOf(k)===0) return serIcons[k]; } return 'check'; }
+  S.mascotasMax=h.mascotas;
+  return '<div class="container-narrow" style="padding-top:24px;padding-bottom:64px">'+
+    '<div class="row gap-8 mb-16" style="flex-wrap:wrap">'+
+    '<button class="icon-btn surface" data-a="back">'+ic('back',20)+'</button>'+
+    '<div style="flex:1;min-width:220px"><h1 class="d-lg">'+esc(h.titulo)+'</h1>'+
+    '<div class="row gap-12 mt-8" style="flex-wrap:wrap"><span class="row gap-4">'+ic('star',15,true)+' <b class="cap-sm">'+h.rating+'</b></span>'+
+    '<span class="cap-sm muted">·</span><span class="row gap-4 muted cap-sm">'+ic('pin',15)+' '+esc(h.barrio)+', '+esc(h.ciudad)+'</span>'+
+    (host.superhost?'<span class="badge-pill badge-primary" style="box-shadow:none">'+ic('verified',13)+' Superanfitrión</span>':'')+'</div></div>'+
+    '<div class="row gap-8" style="flex-wrap:wrap"><a class="btn btn-outline btn-sm hidden-mobile" href="#/mapa?hosp='+id+'">'+ic('pin',16)+' En el mapa</a>'+
+    '<button class="icon-btn outline" data-a="share">'+ic('share',19)+'</button>'+
+    '<button class="icon-btn outline" data-a="fav" data-id="'+id+'" style="color:'+(fav?'var(--ph-primary)':'var(--ph-ink)')+'">'+ic('heart',19,fav)+'</button></div></div>'+
+    '<div class="photo-grid"><div class="main"><img src="'+foto(h.fotos[0])+'" alt="'+esc(h.titulo)+'"></div>'+
+    '<div class="side"><img src="'+foto(h.fotos[1])+'" alt="foto 2"></div><div class="side"><img src="'+foto(h.fotos[2])+'" alt="foto 3"></div></div>'+
+    '<div class="detail-grid" style="margin-top:40px"><div>'+
+    '<div style="background:#fff;border:1px solid var(--ph-hairline);border-radius:var(--ph-r-md);box-shadow:var(--ph-shadow-1);padding:24px">'+
+    '<div class="row-between" style="align-items:center;gap:16px;flex-wrap:wrap"><div class="row gap-16">'+avatar(host.nombre,'lg')+
+    '<div><h3 class="t-md">'+esc(host.nombre)+'</h3><div class="cap-sm muted">'+(host.superhost?'Superanfitrión · ':'')+'Anfitrión desde '+host.desde+'</div>'+
+    '<div class="row gap-8" style="margin-top:6px"><span class="row gap-4 cap-sm muted">'+ic('clock',14)+' '+host.respuestas+'</span>'+
+    '<span class="row gap-4 cap-sm" style="color:var(--ph-success)">'+ic('verified',14)+' Verificado</span></div></div></div>'+
+    '<button class="btn btn-outline btn-sm" data-a="contact" data-id="'+h.hostId+'">'+ic('chat',17)+' Contactar</button></div></div>'+
+    '<p class="b-md mt-24" style="color:var(--ph-body)">'+esc(h.desc)+'</p>'+
+    (h.tipo==='domicilio'?'<div style="background:var(--ph-primary-container);color:var(--ph-on-primary-container);border-radius:var(--ph-r-md);padding:20px 24px;margin-top:24px" class="row gap-16">'+
+      '<span class="step-icon" style="width:52px;height:52px;margin:0;flex-shrink:0;background:#fff">'+ic('home',26)+'</span>'+
+      '<div><h3 class="t-md">Cuidado en tu casa</h3>'+
+      '<p class="b-sm mt-8" style="opacity:.85">El cuidador se desplaza hasta tu residencia: tu mascota se queda en su propio hogar, con su rutina, sus olores y sin estrés de traslado.</p></div></div>':'')+
+    '<div style="background:#fff;border:1px solid var(--ph-hairline-soft);border-radius:var(--ph-r-md);padding:24px;margin-top:24px" class="row gap-16">'+
+    '<span class="step-icon" style="width:52px;height:52px;margin:0;flex-shrink:0">'+ic(conv.id==='individual'?'shield':'pets',26)+'</span>'+
+    '<div><h3 class="t-md">Preferencia de convivencia: '+conv.label.toLowerCase()+'</h3>'+
+    '<p class="b-sm muted mt-8">'+(h.tipo==='domicilio'?'Tu mascota permanece en su propio hogar junto al cuidador, sin contacto con otros animales.'
+      :(conv.id==='individual'?'Tu mascota tendrá su propio espacio sin contacto con otros animales durante toda la estancia.':'Tu mascota puede socializar y compartir espacios con otros huéspedes bajo supervisión constante.'))+'</p></div></div>'+
+    '<div class="mt-24"><h2 class="d-md mb-8">Lo que incluye la estancia</h2>'+
+    h.servicios.map(function(s){ return '<div class="amenity-row"><span class="am-icon">'+ic(serIcon(s),20)+'</span><div><b>'+esc(s)+'</b></div></div>'; }).join('')+'</div>'+
+    '<div class="mt-24"><h2 class="d-md mb-8">Reglas del hospedaje</h2><ul class="col gap-8">'+
+    h.reglas.map(function(r){ return '<li class="row gap-8 b-md" style="color:var(--ph-body)">'+ic('check',18,'','var(--ph-success)')+' '+esc(r)+'</li>'; }).join('')+'</ul></div>'+
+    '<div class="mt-32"><div class="rating-big mb-24"><span class="num">'+h.rating.toFixed(2)+'</span><div>'+
+    starsRow(h.rating)+'<p class="cap-sm muted mt-8"><b class="ink">'+h.numResenas+' reseñas</b> de huéspedes verificados</p></div></div>'+
+    '<div class="review-grid">'+resenas.map(function(r){
+      return '<div class="review-card"><div class="rev-head">'+avatar(r.a,'sm')+'<div><div class="rev-name">'+esc(r.a)+'</div><div class="rev-date">'+r.f+'</div></div></div>'+
+      '<div class="stars mb-8">'+stars(r.r,13)+'</div><b class="cap-sm">'+esc(r.t)+'</b><p class="mt-8">“'+esc(r.x)+'”</p></div>';
+    }).join('')+'</div></div></div>'+
+    '<aside class="detail-rail"><div class="res-card"><div class="res-price">'+fmtCOP(h.precio)+' <span>noche</span></div>'+
+    '<p class="cap-sm muted mt-8">'+tipo.label+' · hasta '+h.mascotas+' mascotas · '+conv.short+'</p>'+
+    '<div class="res-dates mt-16"><div><button class="seg" data-a="open-cal"><label>Llegada</label><span class="val">'+(S.desde?isoLong(S.desde):'Agregar fecha')+'</span></button>'+
+    '<button class="seg" data-a="open-cal"><label>Salida</label><span class="val">'+(S.hasta?isoLong(S.hasta):'Agregar fecha')+'</span></button></div></div>'+
+    '<div class="mt-16"><label class="micro" style="display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;color:var(--ph-muted)">Mascotas</label>'+
+    '<div class="stepper"><button class="icon-btn surface" data-a="stepper" data-dir="-1">'+ic('remove',18)+'</button>'+
+    '<span class="count">'+S.mascotas+' '+(S.mascotas===1?'mascota':'mascotas')+'</span>'+
+    '<button class="icon-btn surface" data-a="stepper" data-dir="1">'+ic('add',18)+'</button></div></div>'+
+    (noches>0?'<div class="mt-16">'+
+      '<div class="fee-row"><span class="fee-note">'+fmtCOP(h.precio)+' × '+noches+' '+(noches===1?'noche':'noches')+'</span><span>'+fmtCOP(h.precio*noches)+'</span></div>'+
+      '<div class="fee-row"><span class="fee-note">Tarifa de limpieza</span><span>'+fmtCOP(limpieza)+'</span></div>'+
+      '<div class="fee-row"><span class="fee-note">Tarifa de servicio Pethouse (10%)</span><span>'+fmtCOP(servicio)+'</span></div>'+
+      '<div class="fee-row total"><span>Total antes de impuestos</span><span>'+fmtCOP(total)+'</span></div></div>'
+      :'<p class="cap-sm muted mt-16" style="text-align:center">Selecciona las fechas para ver la cotización por día</p>')+
+    '<button class="btn btn-primary btn-block btn-lg mt-16" data-a="reserve">'+(currentUser()?'Reservar':'Inicia sesión para reservar')+'</button>'+
+    '<p class="cap-sm muted mt-8" style="text-align:center">'+ic('lock',13)+' No se te cobrará todavía</p><hr class="divider">'+
+    '<h4 class="cap" style="margin-bottom:12px">Actividades caninas disponibles</h4>'+
+    '<a href="#/actividades" class="btn btn-outline btn-sm w-full">'+ic('pets',17)+' Agregar actividades a la estancia</a>'+
+    '</div></aside></div>'+
+    '<div class="sticky-mobile-bar"><div><b style="font-size:20px">'+fmtCOP(h.precio)+'</b> <span style="font-size:13px;color:var(--ph-muted)">noche</span>'+
+    '<div class="cap-sm muted">'+(noches>0?noches+' noches · '+fmtCOP(total):'selecciona fechas')+'</div></div>'+
+    '<button class="btn btn-primary" data-a="reserve">'+(currentUser()?'Reservar':'Reservar')+'</button></div>';
+}
+function vActivities(){
+  var u=currentUser(), plan=getPlan();
+  var list=ACTIVIDADES.filter(function(a){ return (S.actTipo==='todos'||a.tipo===S.actTipo)&&(!S.actQ||a.nombre.toLowerCase().indexOf(S.actQ)>=0||a.desc.toLowerCase().indexOf(S.actQ)>=0); });
+  var head='<div class="container" style="padding-top:32px;padding-bottom:64px"><div class="row-between" style="align-items:flex-end;flex-wrap:wrap;gap:16px"><div>'+
+    '<span class="badge-pill badge-primary" style="box-shadow:none;margin-bottom:12px">'+ic('pets',13)+' Actividades caninas</span>'+
+    '<h1 class="d-xl">Convierte la estancia en una aventura</h1>'+
+    '<p class="b-md muted mt-8" style="max-width:560px">Agrega paseos, natación, entrenamiento y spa al plan de tu mascota. Cada actividad incluye reporte con fotos y video para ti.</p></div>'+
+    '<button class="btn btn-outline" data-a="publish">'+ic('add',18)+' Publicar actividad</button></div>';
+  var planHtml='';
+  if(u&&plan.length){
+    planHtml='<div style="background:var(--ph-primary-container);border-radius:var(--ph-r-md);padding:24px;margin-top:24px">'+
+      '<h2 class="t-md" style="color:var(--ph-on-primary-container)">Plan de actividades de '+(u.mascota&&u.mascota.nombre?esc(u.mascota.nombre):'tu mascota')+'</h2>'+
+      '<div class="col gap-8 mt-16">'+plan.map(function(p){
+        return '<div class="row-between" style="gap:12px;flex-wrap:wrap"><div class="row gap-12">'+ic('check',20,'','var(--ph-primary)')+
+        '<div><b class="b-md">'+esc(p.nombre)+'</b><div class="cap-sm" style="color:var(--ph-on-primary-container)">'+(p.desde&&p.hasta?isoShort(p.desde)+' – '+isoShort(p.hasta):'Fecha flexible')+' · '+fmtCOP(p.precio)+'</div></div></div>'+
+        '<button class="btn btn-ghost btn-sm" data-a="del-plan" data-id="'+p.id+'">Quitar</button></div>';
+      }).join('')+'</div></div>';
+  }
+  var filters='<div class="row gap-12 mt-24" style="flex-wrap:wrap"><div class="cat-strip" style="flex:1">'+
+    ACT_TIPOS.map(function(t){ return '<button class="chip'+(S.actTipo===t.id?' active':'')+'" data-a="act-tipo" data-id="'+t.id+'">'+t.label+'</button>'; }).join('')+'</div>'+
+    '<div class="field" style="width:260px;max-width:100%"><input id="act-q" type="search" placeholder="Buscar actividad…" value="'+esc(S.actQ)+'" aria-label="Buscar actividad"></div></div>';
+  var grid=list.length?'<div class="grid-cards mt-24" style="grid-template-columns:repeat(3,1fr)">'+list.map(function(a){
+    return '<article class="act-card"><div class="act-photo">'+actFotoHtml(a)+'<span class="badge-pill p-badge">'+actTipoLabel(a.tipo)+'</span></div>'+
+      '<div class="act-body"><h3 class="t-md">'+esc(a.nombre)+'</h3><p class="b-sm muted">'+esc(a.desc)+'</p>'+
+      '<div class="row gap-8" style="flex-wrap:wrap">'+a.tags.map(function(t){return '<span class="badge-pill badge-soft" style="box-shadow:none">'+t+'</span>';}).join('')+'</div>'+
+      '<div class="act-foot"><span class="row gap-4 muted cap-sm">'+ic('clock',15)+' '+a.duracion+'</span><b>'+fmtCOP(a.precio)+'</b>'+
+      '<button class="icon-btn primary" data-a="add-act" data-id="'+a.id+'" aria-label="Agregar '+esc(a.nombre)+'">'+ic('add',20)+'</button></div></div></article>';
+  }).join('')+'</div>':'<div class="empty-state"><div class="big-icon">'+ic('pets',44)+'</div><p class="b-sm muted">No hay actividades con esos filtros.</p></div>';
+  return head+planHtml+filters+grid+'</div>';
+}
+function vLogin(){
+  return '<div class="auth-wrap"><div class="auth-card"><div class="auth-logo"><img src="'+IMG.logo+'" alt="Logo Pethouse"><span class="brand-name">Pet<span>house</span></span></div>'+
+    '<h1 class="d-lg" style="text-align:center">Bienvenido de nuevo</h1>'+
+    '<p class="cap-sm muted" style="text-align:center;margin-top:6px;margin-bottom:24px">Inicia sesión para reservar y chatear con anfitriones</p>'+
+    '<div id="login-err"></div>'+
+    '<form data-form="login" class="col gap-16" novalidate>'+
+    '<div class="field"><label for="lg-email">Correo electrónico</label><input id="lg-email" type="email" placeholder="tucorreo@ejemplo.com"></div>'+
+    '<div class="field"><label for="lg-pw">Contraseña</label><input id="lg-pw" type="password" placeholder="••••••••"></div>'+
+    '<button type="submit" class="btn btn-primary btn-block">Iniciar sesión</button></form>'+
+    '<div class="demo-box mt-24"><b class="cap-sm ink">Cuentas demo para explorar:</b><div class="col gap-8 mt-8">'+
+    '<button class="btn btn-outline btn-sm w-full" data-a="demo" data-rol="cliente">'+ic('person',17)+' Entrar como dueño (cliente)</button>'+
+    '<button class="btn btn-outline btn-sm w-full" data-a="demo" data-rol="anfitrion">'+ic('verified',17)+' Entrar como anfitrión</button>'+
+    '<p class="cap-sm" style="color:var(--ph-muted)">También puedes usar cliente@pethouse.co / demo123</p></div></div>'+
+    '<p class="cap-sm muted mt-24" style="text-align:center">¿No tienes cuenta? <a href="#/registro" style="text-decoration:underline">Regístrate gratis</a></p></div></div>';
+}
+function vRegister(q){
+  var rol=(q&&q.rol)||'cliente';
+  return '<div class="auth-wrap"><div class="auth-card"><div class="auth-logo"><img src="'+IMG.logo+'" alt="Logo Pethouse"><span class="brand-name">Pet<span>house</span></span></div>'+
+    '<h1 class="d-lg" style="text-align:center">Crea tu cuenta</h1>'+
+    '<p class="cap-sm muted" style="text-align:center;margin-top:6px;margin-bottom:24px">'+(rol==='anfitrion'?'Regístrate para hospedar mascotas 🏡':'Regístrate para reservar y chatear 🐾')+'</p>'+
+    '<div id="reg-err"></div>'+
+    '<form data-form="register" class="col gap-16" novalidate>'+
+    '<div class="field"><label>Nombre completo</label><input id="rg-nombre" placeholder="Ej: María López"></div>'+
+    '<div class="field"><label>Teléfono</label><input id="rg-tel" type="tel" placeholder="300 123 4567"></div>'+
+    '<div class="field"><label>Correo electrónico</label><input id="rg-email" type="email" placeholder="tucorreo@ejemplo.com"></div>'+
+    '<div class="field"><label>Crea una contraseña</label><input id="rg-pw" type="password" placeholder="Mínimo 6 caracteres"></div>'+
+    '<div class="field"><label>Confirma tu contraseña</label><input id="rg-pw2" type="password" placeholder="Repite tu contraseña"></div>'+
+    (rol==='cliente'?'<div class="field"><label>Nombre de tu mascota <span class="muted-soft">(opcional)</span></label><input id="rg-mascota" placeholder="Ej: Rocky"></div>':'')+
+    '<label class="row gap-12 cap-sm" style="align-items:flex-start;cursor:pointer"><input id="rg-terms" type="checkbox" style="width:18px;height:18px;margin-top:2px;accent-color:var(--ph-primary)">'+
+    '<span>Acepto los <a href="#" style="text-decoration:underline">términos y condiciones</a> y la <a href="#" style="text-decoration:underline">política de privacidad</a> de Pethouse.</span></label>'+
+    '<button type="submit" class="btn btn-primary btn-block">'+(rol==='anfitrion'?'Crear cuenta de anfitrión':'Crear cuenta')+'</button></form>'+
+    '<p class="cap-sm muted mt-24" style="text-align:center">¿Ya tienes cuenta? <a href="#/login" style="text-decoration:underline">Inicia sesión</a></p></div></div>';
+}
+function vChat(){
+  var u=currentUser(); if(!u) return vLogin();
+  var convs=getChat();
+  if(!S.activeConv&&convs.length)S.activeConv=convs[0].id;
+  var active=null; convs.forEach(function(c){ if(c.id===S.activeConv) active=c; });
+  var listHtml='<div class="chat-list">'+(convs.length?'':'<p class="cap-sm muted" style="padding:24px">Aún no tienes conversaciones. Entra a un hospedaje y pulsa «Contactar anfitrión».</p>')+
+    convs.map(function(c){
+      var host=getHost(c.hostId), last=c.messages[c.messages.length-1];
+      var un=c.messages.filter(function(m){return m.from==='host'&&!m.read;}).length;
+      return '<button class="chat-list-item'+(active&&active.id===c.id?' active':'')+'" data-a="conv" data-id="'+c.id+'">'+avatar(host.nombre,'md')+
+        '<div style="min-width:0"><div class="cl-name">'+esc(host.nombre)+(host.superhost?ic('verified',14,'','var(--ph-primary)'):'')+(un?'<span class="unread-dot"></span>':'')+'</div>'+
+        '<div class="cl-msg">'+(last?(last.from==='me'?'Tú: ':'')+esc(last.text):'Di hola 👋')+'</div></div>'+
+        '<span class="cl-time">'+(last?relTime(last.time):'')+'</span></button>';
+    }).join('')+'</div>';
+  var mainHtml;
+  if(active){
+    var host=getHost(active.hostId);
+    mainHtml='<div class="chat-head">'+avatar(host.nombre,'md')+
+      '<div style="min-width:0"><div class="row gap-4"><b class="b-md">'+esc(host.nombre)+'</b>'+(host.superhost?ic('verified',15,'','var(--ph-primary)'):'')+'</div>'+
+      '<div class="cap-sm muted">'+host.respuestas+'</div></div>'+
+      '<div style="margin-left:auto" class="row gap-4 cap-sm muted">'+ic('shield',14)+' En línea</div></div>'+
+      '<div class="chat-body" id="chat-body">'+
+      active.messages.map(function(m){ return '<div class="bubble '+(m.from==='me'?'mine':'theirs')+'">'+esc(m.text)+'<span class="b-time">'+timeLabel(m.time)+'</span></div>'; }).join('')+
+      (S.typing?'<div class="bubble theirs" style="padding:0"><span class="typing-dots"><span></span><span></span><span></span></span></div>':'')+
+      '</div><form class="chat-input" data-form="chat"><div class="field"><input id="chat-msg" placeholder="Escribele a '+esc(host.nombre.split(' ')[0])+'…" autocomplete="off"></div>'+
+      '<button type="submit" class="icon-btn primary" id="chat-send" disabled>'+ic('send',20)+'</button></form>';
+  } else {
+    mainHtml='<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center"><div class="big-icon">'+ic('chat',44)+'</div>'+
+      '<h2 class="d-sm ink" style="margin-bottom:8px">Selecciona una conversación</h2>'+
+      '<p class="b-sm muted">'+(convs.length?'Toca una conversación para ver los mensajes.':'Explora hospedajes y contacta a un anfitrión para empezar.')+'</p>'+
+      (convs.length?'':'<a class="btn btn-primary" style="margin:24px auto 0" href="#/buscar">Buscar hospedajes</a>')+'</div>';
+  }
+  var mobileCls=active?' mobile-conv':' mobile-list';
+  return '<div class="container" style="padding-top:32px;padding-bottom:48px"><div class="row-between mb-16" style="flex-wrap:wrap;gap:8px"><div>'+
+    '<h1 class="d-lg">Mensajes</h1><p class="cap-sm muted">Conversa con los anfitriones antes y durante la estancia</p></div>'+
+    '<span class="badge-pill badge-soft" style="box-shadow:none">'+ic('shield',14)+' Chat protegido por Pethouse</span></div>'+
+    '<div class="chat-layout'+mobileCls+'">'+listHtml+mainHtml+'</div></div>';
+}
+/* ---------- Mapa de hospedajes ---------- */
+var MAP_COLORS={guarderia:'#FB3F57',veterinaria:'#2E9E8F',campestre:'#E67E22',apartamento:'#5B6EE8',domicilio:'#8E44AD'};
+var MAP_LABEL_OFF={Bogotá:[14,6],'Chía':[16,-10],Medellín:[14,-8],Cali:[14,10],Cartagena:[14,-6],Rionegro:[-10,14],Villeta:[16,-6],Bucaramanga:[14,8]};
+function mapHref(city,tipo){
+  var p=[];
+  if(city)p.push('ciudad='+encodeURIComponent(city));
+  if(tipo)p.push('tipo='+tipo);
+  return '#/mapa'+(p.length?'?'+p.join('&'):'');
+}
+function vMapa(q){
+  var ciudadF=q.ciudad||'', tipoF=q.tipo||'';
+  if(q.hosp) S.mapSel=q.hosp;
+  var list=HOSPEDAJES.filter(function(h){
+    if(ciudadF&&h.ciudad!==ciudadF) return false;
+    if(tipoF&&h.tipo!==tipoF) return false;
+    return true;
+  });
+  if(S.mapSel&&!list.some(function(h){return h.id===S.mapSel;})) S.mapSel=null;
+  var tipoLabel=''; TIPOS.forEach(function(t){ if(t.id===tipoF) tipoLabel=t.plural; });
+  var cityCount={};
+  HOSPEDAJES.forEach(function(h){ cityCount[h.ciudad]=(cityCount[h.ciudad]||0)+1; });
+
+  /* Chips de ciudades */
+  var chips='<button class="chip'+(ciudadF?'':' active')+'" data-a="go" data-href="'+mapHref('',tipoF)+'">Todas</button>';
+  CIUDADES.forEach(function(c){
+    chips+='<button class="chip'+(ciudadF===c?' active':'')+'" data-a="go" data-href="'+mapHref(c,tipoF)+'">'+c+' <span class="cap-sm muted-soft">('+cityCount[c]+')</span></button>';
+  });
+
+  /* Leyenda por tipo */
+  var legend='';
+  TIPOS.forEach(function(t){
+    legend+='<button class="chip'+(tipoF===t.id?' active':'')+'" data-a="go" data-href="'+mapHref(ciudadF,t.id)+'"><span class="dot" style="background:'+MAP_COLORS[t.id]+'"></span>'+t.plural+'</button>';
+  });
+
+  /* Marcadores */
+  var cityIdx={}, cityLabeled={}, marks='', labels='';
+  list.forEach(function(h){
+    var c=h.ciudad;
+    cityIdx[c]=(cityIdx[c]||0)+1;
+    var i=cityIdx[c]-1;
+    var xy=mapXY(h.lat,h.lng);
+    var dx=(i%3-1)*9, dy=(Math.floor(i/3)%3-1)*9;
+    var col=MAP_COLORS[h.tipo]||'#FB3F57';
+    var sel=S.mapSel===h.id;
+    marks+='<g data-a="map-pick" data-id="'+h.id+'" style="cursor:pointer" role="button" aria-label="'+esc(h.titulo)+'">'+
+      (sel?'<circle cx="'+(xy[0]+dx)+'" cy="'+(xy[1]+dy)+'" r="15" fill="'+col+'" opacity="0.22"></circle>':'')+
+      '<circle class="map-marker'+(sel?' sel':'')+'" cx="'+(xy[0]+dx)+'" cy="'+(xy[1]+dy)+'" r="'+(sel?10:8)+'" fill="'+col+'" stroke="#fff" stroke-width="2.5"></circle></g>';
+    /* Etiqueta de ciudad (una sola vez) */
+    if(!cityLabeled[c]){
+      cityLabeled[c]=true;
+      var off=MAP_LABEL_OFF[c]||[12,-8];
+      labels+='<text x="'+(xy[0]+dx+off[0])+'" y="'+(xy[1]+dy+off[1])+'" font-size="12" font-weight="600" fill="#6A6A6A">'+esc(c)+'</text>';
+    }
+  });
+
+  /* Tarjeta del hospedaje seleccionado */
+  var selH=S.mapSel?getHosp(S.mapSel):null;
+  var cardHtml;
+  if(selH){
+    var sConv=convDe(selH), sTipo=tipoDe(selH), sHost=getHost(selH.hostId);
+    cardHtml='<div class="card" style="padding:16px">'+
+      '<div class="row-between" style="margin-bottom:12px"><span class="badge-pill badge-primary" style="box-shadow:none">'+ic('pin',13)+' Hospedaje seleccionado</span>'+
+      '<button class="icon-btn sm" data-a="map-clear" aria-label="Quitar selección">'+ic('close',18)+'</button></div>'+
+      '<a href="#/hospedaje/'+selH.id+'" style="border-radius:var(--ph-r-sm);overflow:hidden;aspect-ratio:16/9;display:block"><img src="'+foto(selH.fotos[0])+'" alt="'+esc(selH.titulo)+'" style="width:100%;height:100%;object-fit:cover"></a>'+
+      '<h3 class="t-md mt-12"><a href="#/hospedaje/'+selH.id+'">'+esc(selH.titulo)+'</a></h3>'+
+      '<p class="cap-sm muted mt-8">'+esc(selH.barrio)+', '+esc(selH.ciudad)+' · '+sTipo.label+'</p>'+
+      '<div class="row gap-8 mt-8" style="flex-wrap:wrap">'+
+      '<span class="row gap-4 cap-sm">'+ic('star',14,true)+' <b>'+selH.rating+'</b> <span class="muted">('+selH.numResenas+')</span></span>'+
+      '<span class="badge-pill badge-soft" style="box-shadow:none">'+ic('pets',12)+' '+sConv.short+'</span></div>'+
+      '<div class="row-between mt-12" style="gap:12px;flex-wrap:wrap"><b class="d-sm">'+fmtCOP(selH.precio)+' <span style="font-size:13px;color:var(--ph-muted);font-weight:400">noche</span></b>'+
+      '<div class="row gap-8"><a class="btn btn-primary btn-sm" href="#/hospedaje/'+selH.id+'">Ver hospedaje</a>'+
+      '<button class="btn btn-outline btn-sm" data-a="contact" data-id="'+selH.hostId+'">'+ic('chat',15)+'</button></div></div>'+
+      '<p class="cap-sm muted mt-12">Cuida: '+esc(sHost.nombre)+' · '+sHost.respuestas+'</p></div>';
+  } else {
+    cardHtml='<div class="card" style="padding:24px;text-align:center;color:var(--ph-muted)"><div class="big-icon" style="width:64px;height:64px;margin:0 auto 12px">'+ic('pin',30)+'</div>'+
+      '<p class="b-sm">Haz clic en un marcador del mapa para ver el hospedaje. Cada punto indica la ciudad donde se encuentra (o la zona que cubre el cuidador a domicilio).</p></div>';
+  }
+
+  return '<div class="container" style="padding-top:32px;padding-bottom:64px">'+
+    '<div class="row-between mb-16" style="flex-wrap:wrap;gap:12px"><div>'+
+    '<h1 class="d-xl">Mapa de hospedajes</h1>'+
+    '<p class="b-md muted mt-8">'+list.length+' '+(list.length===1?'hospedaje':'hospedajes')+(ciudadF?' en <b class="ink">'+esc(ciudadF)+'</b>':' en Colombia')+(tipoF?' · '+tipoLabel:'')+'</p></div>'+
+    '<a class="btn btn-outline btn-sm" href="#/buscar'+(ciudadF||tipoF?'?':'')+(ciudadF?'ciudad='+encodeURIComponent(ciudadF):'')+(ciudadF&&tipoF?'&':'')+(tipoF?'tipo='+tipoF:'')+'">Ver lista</a></div>'+
+    '<div class="row gap-12" style="flex-wrap:wrap;margin-bottom:12px">'+chips+'</div>'+
+    '<div class="row gap-12" style="flex-wrap:wrap;margin-bottom:24px">'+legend+'</div>'+
+    '<div class="map-grid">'+
+    '<div class="map-svg-wrap"><svg viewBox="0 0 '+MAP_W+' '+MAP_H+'" style="width:100%;height:auto;display:block" role="img" aria-label="Mapa de Colombia con la ubicación de los hospedajes">'+
+    '<path d="'+COLOMBIA_D+'" fill="#fff" stroke="#C1C1C1" stroke-width="1.5"></path>'+marks+labels+'</svg></div>'+
+    '<aside class="map-sel">'+cardHtml+'</aside></div></div>';
+}
+function vStays(){
+  var u=currentUser(); if(!u) return vLogin();
+  var reservas=getReservas(), plan=getPlan();
+  var body;
+  if(!reservas.length){
+    body='<div class="empty-state" style="border:1px dashed var(--ph-hairline);border-radius:var(--ph-r-lg);margin-top:32px"><div class="big-icon">'+ic('calendar',44)+'</div>'+
+      '<h2 class="d-sm ink" style="margin-bottom:8px">Aún no tienes reservas</h2>'+
+      '<p class="b-sm muted" style="max-width:420px;margin:0 auto 24px">Busca el hospedaje perfecto para tu mascota y reserva en menos de un minuto.</p>'+
+      '<a href="#/buscar" class="btn btn-primary">Buscar hospedajes</a></div>';
+  } else {
+    body='<div class="col gap-16 mt-24">'+reservas.map(function(r){
+      var h=getHosp(r.hospedajeId); if(!h) return '';
+      var canc=r.estado==='Cancelada';
+      return '<div style="background:#fff;border:1px solid var(--ph-hairline);border-radius:var(--ph-r-md);padding:20px;display:grid;grid-template-columns:120px 1fr auto;gap:20px;align-items:center;opacity:'+(canc?'.65':'1')+'">'+
+        '<a href="#/hospedaje/'+h.id+'" style="border-radius:var(--ph-r-sm);overflow:hidden;aspect-ratio:1/1"><img src="'+foto(h.fotos[0])+'" alt="'+esc(h.titulo)+'"></a>'+
+        '<div style="min-width:0"><div class="row gap-8" style="flex-wrap:wrap"><span class="badge-pill '+(canc?'badge-soft':'badge-success')+'" style="box-shadow:none">'+r.estado+'</span>'+
+        '<span class="badge-pill badge-outline" style="box-shadow:none">'+r.id+'</span></div>'+
+        '<h2 class="t-md mt-8" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><a href="#/hospedaje/'+h.id+'">'+esc(h.titulo)+'</a></h2>'+
+        '<p class="cap-sm muted mt-8">'+isoLong(r.desde)+' → '+isoLong(r.hasta)+' · '+r.noches+' '+(r.noches===1?'noche':'noches')+' · '+r.mascotas+' '+(r.mascotas===1?'mascota':'mascotas')+'</p></div>'+
+        '<div class="col" style="align-items:flex-end;gap:8px"><b class="d-sm">'+fmtCOP(r.total)+'</b><div class="row gap-8" style="flex-wrap:wrap;justify-content:flex-end">'+
+        '<button class="btn btn-outline btn-sm" data-a="contact" data-id="'+h.hostId+'">'+ic('chat',15)+' Mensaje</button>'+
+        (!canc?'<button class="btn btn-ghost btn-sm" style="color:var(--ph-error)" data-a="cancel-res" data-id="'+r.id+'">Cancelar</button>':'')+
+        '</div></div></div>';
+    }).join('')+'</div>';
+  }
+  var planHtml=plan.length?'<div style="margin-top:48px"><h2 class="d-md mb-16">Plan de actividades de '+(u.mascota&&u.mascota.nombre?esc(u.mascota.nombre):'tu mascota')+'</h2>'+
+    '<div class="grid-cards" style="grid-template-columns:repeat(3,1fr)">'+plan.map(function(p){
+      return '<div class="act-card"><div class="act-photo">'+(p.foto&&p.foto.indexOf('act-')===0&&!PHOTOS[p.foto]?actArt(p.foto.slice(4)):'<img src="'+foto(p.foto||'apto-1')+'" alt="'+esc(p.nombre)+'">')+'</div>'+
+        '<div class="act-body"><h3 class="t-md">'+esc(p.nombre)+'</h3><p class="cap-sm muted">'+(p.desde&&p.hasta?isoShort(p.desde)+' – '+isoShort(p.hasta):'Fecha flexible')+'</p>'+
+        '<div class="act-foot"><b>'+fmtCOP(p.precio)+'</b><button class="btn btn-ghost btn-sm" data-a="del-plan" data-id="'+p.id+'">Quitar</button></div></div></div>';
+    }).join('')+'</div></div>':'';
+  return '<div class="container-narrow" style="padding-top:32px;padding-bottom:64px"><h1 class="d-xl">Mis reservas</h1>'+
+    '<p class="b-md muted mt-8">Hola, <b class="ink">'+esc(u.nombre)+'</b>'+(u.mascota&&u.mascota.nombre?' — '+esc(u.mascota.nombre)+' es la estrella de la casa 🐶':'')+'</p>'+body+planHtml+'</div>';
+}

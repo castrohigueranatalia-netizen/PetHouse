@@ -1,0 +1,414 @@
+
+/* ============================================================
+   ROUTER + ACCIONES
+   ============================================================ */
+function viewFor(path,q){
+  if(path===''||path==='/') return vHome();
+  if(path==='buscar') return vSearch(q);
+  if(path==='mapa') return vMapa(q);
+  if(path.indexOf('hospedaje/')===0) return vDetail(path.split('/')[1],q);
+  if(path==='actividades') return vActivities();
+  if(path==='login') return vLogin();
+  if(path==='registro') return vRegister(q);
+  if(path==='mensajes') return currentUser()?vChat():null;
+  if(path==='mis-reservas') return currentUser()?vStays():null;
+  return vHome();
+}
+function render(){
+  var raw=(location.hash||'#/').replace('#/','');
+  var parts=raw.split('?'), path=parts[0], q=parseQuery(parts[1]||'');
+  var view=viewFor(path,q);
+  if(view===null){ store.setItem('ph_from',location.hash); location.hash='#/login'; return; }
+  document.getElementById('app').innerHTML=navbar()+view+footer()+drawer()+calModal()+confirmModal()+actModal()+pubModal()+aiFab()+aiModal();
+  if(!S.aiOpen&&!S.modal&&!S.calOpen){ window.scrollTo(0,0); }
+  var chatBody=document.getElementById('chat-body');
+  if(chatBody){ try{ chatBody.scrollTop=chatBody.scrollHeight; }catch(e){} }
+  var chatMsg=document.getElementById('chat-msg');
+  if(chatMsg){ chatMsg.focus(); }
+}
+window.addEventListener('hashchange',render);
+
+/* ---------- Delegación de clics ---------- */
+function findAction(el){
+  /* Recorre el árbol manualmente (funciona también con elementos SVG) */
+  while(el&&el!==document){
+    if(el.getAttribute&&el.getAttribute('data-a')) return el;
+    el=el.parentNode;
+  }
+  return null;
+}
+document.addEventListener('click',function(e){
+  var el=findAction(e.target);
+  if(!el) return;
+  var a=el.getAttribute('data-a');
+  var act={
+    'go':function(){ location.hash=el.getAttribute('data-href'); },
+    'do-search':function(){
+      var ciudad=document.getElementById('sb-ciudad');
+      var conv=document.getElementById('sb-conv');
+      var q={};
+      if(ciudad&&ciudad.value.trim()) q.ciudad=ciudad.value.trim();
+      if(S.desde) q.desde=S.desde;
+      if(S.hasta) q.hasta=S.hasta;
+      if(conv&&conv.value!=='cualquiera') q.convivencia=conv.value;
+      var parts=[];
+      for(var k in q){ parts.push(encodeURIComponent(k)+'='+encodeURIComponent(q[k])); }
+      location.hash='#/buscar'+(parts.length?'?'+parts.join('&'):'');
+    },
+    'toggle-menu':function(){ S.menuOpen=!S.menuOpen; render(); },
+    'toggle-drawer':function(){ S.drawerOpen=!S.drawerOpen; render(); },
+    'close-all':function(){ S.drawerOpen=false; S.menuOpen=false; render(); },
+    'back':function(){ if(history.length>1) history.back(); else location.hash='#/'; },
+    'share':function(){ toast('Enlace copiado al portapapeles (demo)','info'); },
+    'fav':function(){
+      var id=el.getAttribute('data-id'), favs=getFavs(), has=favs.indexOf(id)>=0;
+      if(has) favs=favs.filter(function(f){return f!==id;}); else favs.push(id);
+      setFavs(favs);
+      toast(has?'Eliminado de tus favoritos':'Guardado en favoritos ❤️',has?'info':'success');
+      render();
+    },
+    'open-cal':function(){ S.calOpen=true; S.animCal=false; render(); },
+    'close-cal':function(){ S.calOpen=false; render(); },
+    'cal-shift':function(){ S.calView+=Number(el.getAttribute('data-dir')); render(); },
+    'cal-clear':function(){ S.desde=null; S.hasta=null; render(); },
+    'preset':function(){
+      var n=Number(el.getAttribute('data-n')), d=todayISO();
+      S.desde=d; S.hasta=addDays(d,n); S.calOpen=false; render();
+    },
+    'pick':function(){
+      var iso=el.getAttribute('data-date');
+      if(!S.desde||(S.desde&&S.hasta)){ S.desde=iso; S.hasta=null; }
+      else if(iso<S.desde){ S.desde=iso; S.hasta=null; }
+      else { S.hasta=iso; }
+      render();
+    },
+    'f-tipo':function(){
+      var id=el.getAttribute('data-id'), q=parseQuery((location.hash.split('?')[1])||'');
+      if(q.tipo===id) delete q.tipo; else q.tipo=id;
+      delete q.casa; // salir del modo cuidado en casa
+      applySearchQuery(q);
+    },
+    'f-conv':function(){
+      var id=el.getAttribute('data-id'), q=parseQuery((location.hash.split('?')[1])||'');
+      if(q.convivencia===id) delete q.convivencia; else q.convivencia=id;
+      delete q.casa; // salir del modo cuidado en casa
+      applySearchQuery(q);
+    },
+    'clear-filters':function(){ location.hash='#/buscar'; },
+    'map-pick':function(){ S.mapSel=el.getAttribute('data-id'); render(); },
+    'map-clear':function(){ S.mapSel=null; render(); },
+    'stepper':function(){
+      var dir=Number(el.getAttribute('data-dir'));
+      S.mascotas=clamp(S.mascotas+dir,1,S.mascotasMax||8); render();
+    },
+    'reserve':function(){
+      var id=location.hash.split('/')[2].split('?')[0], h=getHosp(id); if(!h) return;
+      if(!S.desde||!S.hasta){ S.calOpen=true; render(); return; }
+      if(!currentUser()){
+        toast('Inicia sesión para completar tu reserva 🔒','info');
+        store.setItem('ph_from','#/hospedaje/'+id);
+        location.hash='#/login'; return;
+      }
+      var noches=nightsBetween(S.desde,S.hasta);
+      var limpieza=Math.round(h.precio*0.6), servicio=Math.round(h.precio*noches*0.1);
+      S.confirm={hospedajeId:h.id,titulo:h.titulo,barrio:h.barrio,ciudad:h.ciudad,desde:S.desde,hasta:S.hasta,noches:noches,
+        mascotas:S.mascotas,precioNoche:h.precio,limpieza:limpieza,servicio:servicio,total:h.precio*noches+limpieza+servicio};
+      S.modal={type:'confirm'}; S.animModal=false; render();
+    },
+    'do-confirm':function(){
+      if(!S.confirm) return;
+      var c=S.confirm;
+      var reserva={id:'PH-'+Math.random().toString(36).slice(2,8).toUpperCase(),hospedajeId:c.hospedajeId,
+        desde:c.desde,hasta:c.hasta,noches:c.noches,mascotas:c.mascotas,precioNoche:c.precioNoche,
+        limpieza:c.limpieza,servicio:c.servicio,total:c.total,estado:'Confirmada',fechaCreacion:new Date().toISOString()};
+      setReservas([reserva].concat(getReservas()));
+      S.modal=null; S.done=reserva; S.done.view=true;
+      toast('¡Reserva confirmada! Código '+reserva.id,'success');
+      render();
+    },
+    'cancel-res':function(){
+      var id=el.getAttribute('data-id');
+      setReservas(getReservas().map(function(r){ return r.id===id?Object.assign({},r,{estado:'Cancelada'}):r; }));
+      toast('Reserva cancelada. El reembolso se procesará en 5-7 días hábiles.','info');
+      render();
+    },
+    'contact':function(){
+      var hostId=el.getAttribute('data-id');
+      if(!currentUser()){ toast('Inicia sesión para escribirle al anfitrión 💬','info'); store.setItem('ph_from',location.hash); location.hash='#/login'; return; }
+      var conv=getOrCreateConv(hostId);
+      S.activeConv=conv.id;
+      location.hash='#/mensajes';
+    },
+    'conv':function(){
+      S.activeConv=el.getAttribute('data-id');
+      var convs=getChat();
+      convs.forEach(function(c){ if(c.id===S.activeConv) c.messages.forEach(function(m){ m.read=true; }); });
+      setChat(convs);
+      render();
+    },
+    'add-act':function(){
+      var id=el.getAttribute('data-id');
+      if(!currentUser()){ toast('Inicia sesión para agregar actividades 🐾','info'); store.setItem('ph_from','#/actividades'); location.hash='#/login'; return; }
+      ACTIVIDADES.forEach(function(a){ if(a.id===id) S.actTarget=a; });
+      S.modal={type:'act'}; S.animModal=false; render();
+    },
+    'open-cal-act':function(){ S.calOpen=true; S.animCal=false; render(); },
+    'do-add-act':function(){
+      if(!S.desde||!S.hasta){ S.calOpen=true; render(); return; }
+      var a=S.actTarget, plan=getPlan();
+      plan.unshift({id:uid(),actividadId:a.id,nombre:a.nombre,precio:a.precio,foto:a.foto,desde:S.desde,hasta:S.hasta});
+      setPlan(plan);
+      S.modal=null;
+      toast('"'+a.nombre+'" agregada al plan de tu mascota 🐾','success');
+      render();
+    },
+    'del-plan':function(){
+      var id=el.getAttribute('data-id');
+      setPlan(getPlan().filter(function(p){ return p.id!==id; }));
+      render();
+    },
+    'act-tipo':function(){ S.actTipo=el.getAttribute('data-id'); render(); },
+    'publish':function(){
+      if(!currentUser()){ toast('Inicia sesión para publicar actividades','info'); store.setItem('ph_from','#/actividades'); location.hash='#/login'; return; }
+      S.pubErr='';
+      if(currentUser().rol!=='anfitrion') S.pubErr='Solo los anfitriones verificados pueden publicar actividades. Usa la cuenta demo de anfitrión.';
+      S.modal={type:'publish'}; S.animModal=false; render();
+    },
+    'do-publish':function(){
+      var nombre=document.getElementById('pub-nombre'), desc=document.getElementById('pub-desc'),
+          precio=document.getElementById('pub-precio'), tipo=document.getElementById('pub-tipo'),
+          duracion=document.getElementById('pub-duracion');
+      if(!nombre.value.trim()||!desc.value.trim()||!Number(precio.value)){ S.pubErr='Completa nombre, descripción y un precio válido.'; render(); return; }
+      ACTIVIDADES.unshift({id:'act-'+Math.random().toString(36).slice(2,7),nombre:nombre.value.trim(),tipo:tipo.value,
+        desc:desc.value.trim(),duracion:duracion.value.trim()||'45 min',precio:Number(precio.value),foto:'act-paseo',tags:['Nueva']});
+      S.modal=null;
+      toast('Actividad publicada. Ya es visible para los dueños 🎉','success');
+      render();
+    },
+    'close-modal':function(){ S.modal=null; render(); },
+    'demo':function(){
+      var rol=el.getAttribute('data-rol');
+      for(var i=0;i<DEMO_USERS.length;i++){ if(DEMO_USERS[i].rol===rol){ setSession(DEMO_USERS[i].id); break; } }
+      toast('¡Bienvenido a Pethouse! 🐾','success');
+      var from=store.getItem('ph_from'); store.removeItem('ph_from');
+      location.hash=from||'#/';
+    },
+    'logout':function(){ clearSession(); S.activeConv=null; S.done=null; toast('Sesión cerrada. ¡Hasta pronto!','info'); location.hash='#/'; },
+    'ai-open':function(){
+      S.aiOpen=true; S.animAI=false;
+      if(!S.aiMsgs.length){
+        var cfg=aiConfig();
+        S.aiMsgs.push({role:'bot',text:'¡Hola! Soy el asistente de salud de Pethouse 🐾 Puedo responder dudas de salud, cuidados, alimentación y comportamiento de tu mascota.'+(cfg.key||cfg.provider==='servidor'?'':' Consulta la configuración (⚙) para conectar la IA.')});
+      }
+      aiProbeServer();
+      render(); scrollAi();
+    },
+    'close-ai':function(){ S.aiOpen=false; render(); },
+    'ai-cfg':function(){ S.aiCfgOpen=!S.aiCfgOpen; render(); },
+    'ai-chip':function(){ aiSend(el.getAttribute('data-q')); },
+    'ai-save':function(){
+      var prov=document.getElementById('ai-prov'), key=document.getElementById('ai-key'),
+          model=document.getElementById('ai-model'), base=document.getElementById('ai-base'),
+          srv=document.getElementById('ai-srvurl');
+      var cfg={provider:prov?prov.value:'servidor',key:(key?key.value:'').trim(),
+        model:(model&&model.value.trim())?model.value.trim():'gemini-2.0-flash',
+        base:base?base.value.trim():'',
+        servidorUrl:(srv&&srv.value.trim())?srv.value.trim():'/api/ia'};
+      aiSaveCfg(cfg);
+      S.aiCfgOpen=false;
+      aiProbeServer();
+      toast(cfg.provider==='servidor'?'Configuración guardada. Se usará la API del servidor.':'IA conectada. ¡Pregunta lo que quieras! ✨','success');
+      render();
+    }
+  };
+  if(act[a]) act[a]();
+});
+function applySearchQuery(q){
+  var parts=[];
+  for(var k in q){ if(q[k]) parts.push(encodeURIComponent(k)+'='+encodeURIComponent(q[k])); }
+  location.hash='#/buscar'+(parts.length?'?'+parts.join('&'):'');
+}
+
+/* ---------- Conexión con la IA ---------- */
+function aiSaveCfg(c){ store.setItem('ph_ai_cfg',JSON.stringify(c)); }
+async function aiAsk(text){
+  var cfg=aiConfig();
+  var errServidor=null;
+
+  /* 1) API del servidor (servidor-ia.js → Gemini). La clave no sale del servidor. */
+  if(cfg.provider==='servidor'){
+    try{
+      if(typeof fetch!=='function') throw new Error('fetch no disponible');
+      var base=(cfg.servidorUrl||'/api/ia').replace(/\/$/,'');
+      var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({consulta:text})});
+      var d= r.ok?await r.json():null;
+      if(r.ok&&d&&d.respuesta) return {text:d.respuesta, real:true};
+      throw new Error((d&&d.error)||('HTTP '+r.status));
+    }catch(err){ errServidor=err.message; }
+  }
+
+  /* 2) Gemini/OpenAI directo desde el navegador (con clave propia) */
+  if(cfg.key){
+    try{
+      var out='';
+      if(cfg.provider==='openai'){
+        var baseO=(cfg.base||'https://api.openai.com/v1').replace(/\/$/,'');
+        var rO=await fetch(baseO+'/chat/completions',{method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+          body:JSON.stringify({model:cfg.model||'gpt-4o-mini',messages:[{role:'system',content:AI_SYSTEM},{role:'user',content:text}],max_tokens:450})});
+        if(!rO.ok) throw new Error('HTTP '+rO.status);
+        var dO=await rO.json();
+        out=dO&&dO.choices&&dO.choices[0]&&dO.choices[0].message?dO.choices[0].message.content:'';
+        if(!out) throw new Error('sin contenido');
+      } else {
+        var r2=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(cfg.model||'gemini-2.0-flash')+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({systemInstruction:{parts:[{text:AI_SYSTEM}]},contents:[{role:'user',parts:[{text:text}]}],generationConfig:{temperature:0.5,maxOutputTokens:450}})});
+        if(!r2.ok) throw new Error('HTTP '+r2.status);
+        var d2=await r2.json();
+        out=d2&&d2.candidates&&d2.candidates[0]&&d2.candidates[0].content&&d2.candidates[0].content.parts?
+          d2.candidates[0].content.parts.map(function(p){return p.text;}).join(''):'';
+        if(!out) throw new Error('sin contenido');
+      }
+      return {text:String(out).trim(), real:true};
+    }catch(err){
+      return {text:offlineReply(text)+'\n\n⚠️ No pude conectar con la IA ('+err.message+'), así que te respondo con mi base de conocimiento local.', real:false};
+    }
+  }
+
+  /* 3) Modo offline: base de conocimiento local */
+  var nota=errServidor?'\n\n⚠️ No pude conectar con la API del servidor ('+errServidor+'). Respondo con mi base de conocimiento local.':'\n\n💡 Conecta la API: ejecuta "node servidor-ia.js" con tu clave en .env, o agrega una clave de Gemini en ⚙.';
+  return {text:offlineReply(text)+nota, real:false};
+}
+async function aiSend(text){
+  var t=String(text||'').trim();
+  if(!t||S.aiTyping) return;
+  S.aiMsgs.push({role:'user',text:t});
+  S.aiTyping=true; render(); scrollAi(); focusAiInput();
+  var res=await aiAsk(t);
+  S.aiTyping=false;
+  S.aiMsgs.push({role:'bot',text:res.text});
+  render(); scrollAi(); focusAiInput();
+}
+
+/* ---------- Delegación de formularios ---------- */
+document.addEventListener('submit',function(e){
+  var form=e.target.closest?e.target.closest('[data-form]'):null;
+  if(!form){ return; }
+  e.preventDefault();
+  var type=form.getAttribute('data-form');
+  if(type==='login'){
+    var email=document.getElementById('lg-email'), pw=document.getElementById('lg-pw');
+    var errBox=document.getElementById('login-err');
+    if(!email.value.trim()||!pw.value){ errBox.innerHTML='<div class="row gap-8 cap-sm" style="background:var(--ph-error-container);color:var(--ph-on-error-container);border-radius:var(--ph-r-sm);padding:12px 14px;margin-bottom:16px">'+ic('warning',17)+' Ingresa tu correo y contraseña para continuar.</div>'; return; }
+    var found=null;
+    USERS.forEach(function(u){ if(u.email.toLowerCase()===email.value.trim().toLowerCase()) found=u; });
+    if(!found){ errBox.innerHTML='<div class="row gap-8 cap-sm" style="background:var(--ph-error-container);color:var(--ph-on-error-container);border-radius:var(--ph-r-sm);padding:12px 14px;margin-bottom:16px">'+ic('warning',17)+' No encontramos una cuenta con ese correo.</div>'; return; }
+    if(found.password!==pw.value){ errBox.innerHTML='<div class="row gap-8 cap-sm" style="background:var(--ph-error-container);color:var(--ph-on-error-container);border-radius:var(--ph-r-sm);padding:12px 14px;margin-bottom:16px">'+ic('warning',17)+' Contraseña incorrecta. Inténtalo de nuevo.</div>'; return; }
+    setSession(found.id);
+    toast('¡Hola de nuevo, '+found.nombre.split(' ')[0]+'! 🐾','success');
+    var from=store.getItem('ph_from'); store.removeItem('ph_from');
+    location.hash=from||'#/';
+  }
+  if(type==='register'){
+    var nombre=document.getElementById('rg-nombre'), tel=document.getElementById('rg-tel'),
+        email2=document.getElementById('rg-email'), pw1=document.getElementById('rg-pw'),
+        pw2=document.getElementById('rg-pw2'), mascota=document.getElementById('rg-mascota'),
+        terms=document.getElementById('rg-terms'), errBox2=document.getElementById('reg-err');
+    var errs=[];
+    if(nombre.value.trim().length<3) errs.push('Ingresa tu nombre completo.');
+    if(tel.value.trim().length<7) errs.push('Ingresa un teléfono válido.');
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email2.value.trim())) errs.push('Ingresa un correo electrónico válido.');
+    if(pw1.value.length<6) errs.push('La contraseña debe tener al menos 6 caracteres.');
+    if(pw1.value!==pw2.value) errs.push('Las contraseñas no coinciden.');
+    if(!terms.checked) errs.push('Debes aceptar los términos y condiciones.');
+    if(errs.length){ errBox2.innerHTML='<div class="col gap-4 cap-sm" style="background:var(--ph-error-container);color:var(--ph-on-error-container);border-radius:var(--ph-r-sm);padding:12px 14px;margin-bottom:16px">'+errs.map(function(x){return '<span class="row gap-4">'+ic('warning',15)+' '+x+'</span>';}).join('')+'</div>'; return; }
+    var dup=false;
+    USERS.forEach(function(u){ if(u.email.toLowerCase()===email2.value.trim().toLowerCase()) dup=true; });
+    if(dup){ errBox2.innerHTML='<div class="row gap-8 cap-sm" style="background:var(--ph-error-container);color:var(--ph-on-error-container);border-radius:var(--ph-r-sm);padding:12px 14px;margin-bottom:16px">'+ic('warning',17)+' Ya existe una cuenta con este correo. Inicia sesión.</div>'; return; }
+    var nuevo={id:'u-'+Math.random().toString(36).slice(2,9),nombre:nombre.value.trim(),telefono:tel.value.trim(),
+      email:email2.value.trim().toLowerCase(),password:pw1.value,rol:'cliente',
+      mascota:mascota&&mascota.value.trim()?{nombre:mascota.value.trim()}:null};
+    USERS.push(nuevo); saveUsers();
+    setSession(nuevo.id);
+    toast('¡Cuenta creada! Bienvenido a Pethouse 🎉','success');
+    var from2=store.getItem('ph_from'); store.removeItem('ph_from');
+    location.hash=from2||'#/';
+  }
+  if(type==='ai'){
+    var aiMsg=document.getElementById('ai-msg');
+    if(!aiMsg||!aiMsg.value.trim()) return;
+    var text=aiMsg.value.trim();
+    aiMsg.value='';
+    aiSend(text);
+  }
+  if(type==='chat'){
+    var msg=document.getElementById('chat-msg');
+    if(!msg||!msg.value.trim()) return;
+    var convs=getChat(), text=msg.value.trim(), convId=S.activeConv;
+    convs.forEach(function(c){ if(c.id===convId) c.messages.push({id:uid(),from:'me',text:text,time:new Date().toISOString(),read:true}); });
+    setChat(convs);
+    render();
+    /* Respuesta simulada del anfitrión */
+    setTimeout(function(){
+      var cv=getChat();
+      var reply=HOST_REPLIES[Math.floor(Math.random()*HOST_REPLIES.length)];
+      cv.forEach(function(c){ if(c.id===convId) c.messages.push({id:uid(),from:'host',text:reply,time:new Date().toISOString(),read:true}); });
+      setChat(cv);
+      if((location.hash||'#/').indexOf('mensajes')>=0){ render(); }
+    },1800+Math.random()*1800);
+  }
+});
+
+/* ---------- Delegación de cambios / escritura ---------- */
+document.addEventListener('change',function(e){
+  var id=e.target.id;
+  if(id==='sel-orden'){ S.orden=e.target.value; render(); }
+  if(id==='ai-prov'){
+    var wrap=document.getElementById('ai-base-wrap');
+    if(wrap) wrap.style.display=e.target.value==='openai'?'':'none';
+    var wrapSrv=document.getElementById('ai-srvurl-wrap');
+    if(wrapSrv) wrapSrv.style.display=e.target.value==='servidor'?'':'none';
+  }
+});
+document.addEventListener('input',function(e){
+  var id=e.target.id;
+  if(id==='act-q'){ S.actQ=e.target.value.toLowerCase(); render(); }
+  if(id==='chat-msg'){
+    var btn=document.getElementById('chat-send');
+    if(btn) btn.disabled=!e.target.value.trim();
+  }
+  if(id==='ai-msg'){
+    var btn2=document.getElementById('ai-send');
+    if(btn2) btn2.disabled=!e.target.value.trim();
+  }
+});
+
+/* ---------- Cerrar menú al hacer clic fuera ---------- */
+document.addEventListener('mousedown',function(e){
+  if(S.menuOpen && e.target.closest && !e.target.closest('#acct-wrap')){ S.menuOpen=false; render(); }
+});
+
+/* ---------- Cerrar modales con Esc ---------- */
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    if(S.aiOpen){ S.aiOpen=false; render(); }
+    else if(S.calOpen){ S.calOpen=false; render(); }
+    else if(S.modal){ S.modal=null; render(); }
+    else if(S.drawerOpen){ S.drawerOpen=false; render(); }
+  }
+});
+
+/* ---------- Inicialización ---------- */
+(function init(){
+  var app=document.getElementById('app');
+  var sb=document.createElement('div');
+  sb.id='snackbar'; sb.className='snackbar';
+  app.after(sb);
+  if(!location.hash) location.hash='#/';
+  render();
+})();
+</script>
+</body>
+</html>
