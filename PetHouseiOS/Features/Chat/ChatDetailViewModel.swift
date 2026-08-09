@@ -57,7 +57,10 @@ public final class ChatDetailViewModel {
         defer { if mostrarLoading { isLoading = false } }
         do {
             let nuevos = try await service.mensajes(conversacionId: conversacion.id)
-            if nuevos.count != mensajes.count { // evita "parpadeos" innecesarios en la lista
+            // Compara contenido completo, no solo la cantidad: un mensaje existente puede
+            // cambiar de `leido` sin que se agregue ninguno nuevo (ej. el otro participante
+            // abre el chat), y ese cambio se tiene que reflejar en la UI igual.
+            if nuevos != mensajes {
                 mensajes = nuevos
             }
             error = nil

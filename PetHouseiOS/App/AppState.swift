@@ -59,17 +59,24 @@ public final class SessionStore {
             let respuesta = try await authService.me()
             aplicarPerfil(respuesta.usuario, mascotas: respuesta.mascotas, desdeCache: false)
             estado = .autenticado
-        } catch AppError.sinConexion, AppError.desconocido(_) {
+        } catch AppError.sesionExpirada {
+            // El único caso que representa una sesión inválida de verdad: `APIClient` ya
+            // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
+            // los tokens aquí es correcto porque ya no sirven.
+            keychain.borrarTodo()
+            estado = .invitado
+        } catch {
+            // Cualquier otro error (sin conexión, 5xx transitorio, respuesta inesperada del
+            // servidor, etc.) NO significa que la sesión sea inválida — los tokens siguen
+            // siendo válidos, solo no se pudo verificar el perfil ahora mismo. Cae a la
+            // caché offline si existe, pero conserva los tokens para reintentar más tarde
+            // en vez de forzar un logout por una falla momentánea del servidor.
             if let cache = leerCache() {
                 aplicarPerfil(cache.comoUsuario, mascotas: cache.mascotas, desdeCache: true)
                 estado = .autenticado
             } else {
                 estado = .invitado
             }
-        } catch {
-            // Sesión inválida/expirada de verdad (401 sin refresh posible, etc.)
-            keychain.borrarTodo()
-            estado = .invitado
         }
     }
 

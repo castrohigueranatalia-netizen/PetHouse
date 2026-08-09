@@ -13,11 +13,17 @@ import Foundation
 public enum PHDate {
 
     /// `YYYY-MM-DD`, sin hora — usado por `reservas.desde` / `reservas.hasta`.
+    ///
+    /// Usa la zona horaria LOCAL del dispositivo, no UTC: estas fechas representan un día
+    /// calendario (el que el usuario ve y elige en el `DatePicker`), no un instante. Si se
+    /// formateara en UTC, un `Date` de la tarde/noche en zonas con offset negativo (ej.
+    /// Bogotá, UTC-5) ya cae en el día UTC siguiente y la reserva se crearía para el día
+    /// equivocado.
     public static let apiDateOnly: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .iso8601)
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
+        f.timeZone = .current
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
