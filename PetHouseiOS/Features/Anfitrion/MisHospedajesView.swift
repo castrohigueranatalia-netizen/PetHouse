@@ -1,0 +1,76 @@
+//
+//  MisHospedajesView.swift
+//  Features/Anfitrion
+//
+
+import SwiftUI
+
+struct MisHospedajesView: View {
+    @State private var viewModel = MisHospedajesViewModel()
+    @State private var mostrarPublicar = false
+    @State private var hospedajeSeleccionado: Hospedaje?
+
+    var body: some View {
+        content
+            .navigationTitle("Mis hospedajes")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "plus", accessibilityLabel: "Publicar hospedaje") {
+                        mostrarPublicar = true
+                    }
+                }
+            }
+            .task { await viewModel.cargar() }
+            .refreshable { await viewModel.cargar() }
+            .sheet(isPresented: $mostrarPublicar) {
+                PublicarHospedajeView { creado in
+                    viewModel.agregarLocal(creado)
+                }
+            }
+            .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
+                HospedajeDetailView(hospedajeId: hospedaje.id)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.isLoading && viewModel.hospedajes.isEmpty {
+            PHLoadingStateView(mensaje: "Cargando tus hospedajes…")
+        } else if let error = viewModel.error, viewModel.hospedajes.isEmpty {
+            // Un 404 de ruta se muestra como "función pendiente" (ver PHErrorStateView),
+            // no como un error rojo — GET /api/hospedajes/mios no existe hoy.
+            PHErrorStateView(error: error) { Task { await viewModel.cargar() } }
+        } else if viewModel.hospedajes.isEmpty {
+            PHEmptyStateView(
+                systemImage: "building.2",
+                titulo: "Aún no has publicado hospedajes",
+                mensaje: "Publica tu primer hospedaje para empezar a recibir huéspedes.",
+                accionTitulo: "Publicar hospedaje"
+            ) {
+                mostrarPublicar = true
+            }
+        } else {
+            ScrollView {
+                LazyVStack(spacing: PHSpacing.s16) {
+                    ForEach(viewModel.hospedajes) { hospedaje in
+                        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+                            Button { hospedajeSeleccionado = hospedaje } label: {
+                                PHHospedajeCard(hospedaje)
+                            }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                ReservasRecibidasView(hospedaje: hospedaje)
+                            } label: {
+                                Label("Ver reservas recibidas", systemImage: "calendar")
+                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
+                            }
+                            .padding(.horizontal, PHSpacing.s4)
+                        }
+                    }
+                }
+                .padding(PHSpacing.s16)
+            }
+        }
+    }
+}
