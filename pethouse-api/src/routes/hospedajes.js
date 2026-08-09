@@ -87,6 +87,44 @@ r.get('/cerca', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ---- Mis hospedajes (anfitrión) ----
+// IMPORTANTE: debe ir antes de GET /:id (si no, Express interpreta "mios" como un :id).
+r.get('/mios', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT h.*, u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado,
+              ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng
+         FROM hospedajes h JOIN usuarios u ON u.id = h.anfitrion_id
+        WHERE h.anfitrion_id = $1
+        ORDER BY h.creado_en DESC`,
+      [req.usuario.id]
+    )
+    res.json({ hospedajes: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Reservas recibidas en un hospedaje propio ----
+r.get('/:id/reservas', auth, async (req, res, next) => {
+  try {
+    const { rows: h } = await pool.query('SELECT anfitrion_id FROM hospedajes WHERE id = $1', [req.params.id])
+    if (!h.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+    if (h[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
+    }
+
+    const { rows } = await pool.query(
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre
+         FROM reservas rs
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios u ON u.id = rs.usuario_id
+        WHERE rs.hospedaje_id = $1
+        ORDER BY rs.desde DESC`,
+      [req.params.id]
+    )
+    res.json({ reservas: rows })
+  } catch (err) { next(err) }
+})
+
 // ---- Detalle: hospedaje + anfitrión + reseñas ----
 r.get('/:id', async (req, res, next) => {
   try {

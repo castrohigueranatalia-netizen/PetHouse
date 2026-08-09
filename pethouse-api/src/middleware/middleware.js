@@ -13,7 +13,7 @@ export async function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     const { rows } = await pool.query(
-      'SELECT id, nombre, email, rol, verificado FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, email, telefono, rol, verificado, foto_url FROM usuarios WHERE id = $1',
       [payload.uid]
     )
     if (!rows.length) return res.status(401).json({ error: 'Sesión inválida.' })

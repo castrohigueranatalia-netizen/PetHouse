@@ -2,13 +2,16 @@
 //  Usuario.swift
 //  Core/Models
 //
-//  Refleja la tabla `usuarios` (db/01-esquema.sql) y las 3 formas en que la API la
-//  devuelve HOY, que no son idénticas entre sí:
+//  Refleja la tabla `usuarios` (db/01-esquema.sql) y las formas en que la API la devuelve,
+//  que no son idénticas entre sí:
 //   - POST /api/auth/registro → RETURNING id, nombre, email, rol, verificado, creado_en
+//                                (sin foto_url: recién creado, todavía no tiene)
 //   - POST /api/auth/login    → fila completa menos password_hash (incluye telefono)
-//   - GET  /api/auth/me       → SOLO id, nombre, email, rol, verificado (sin telefono
-//                                ni creado_en — el middleware `auth` limita la consulta)
-//  Por eso `telefono` y `creadoEn` son opcionales: no asumas que siempre vienen.
+//   - GET  /api/auth/me       → id, nombre, email, telefono, rol, verificado, foto_url
+//                                (sin creado_en — el middleware `auth` limita la consulta;
+//                                ver db/04-perfil-mvp-ios.sql para la columna foto_url)
+//   - PATCH /api/auth/me      → fila completa actualizada, incluye foto_url
+//  Por eso `telefono`, `fotoUrl` y `creadoEn` son opcionales: no asumas que siempre vienen.
 //
 
 import Foundation
@@ -26,10 +29,12 @@ public struct Usuario: Codable, Identifiable, Hashable {
     public let telefono: String?
     public let rol: Rol
     public let verificado: Bool
+    public let fotoUrl: String?
     public let creadoEn: String?
 
     enum CodingKeys: String, CodingKey {
         case id, nombre, email, telefono, rol, verificado
+        case fotoUrl = "foto_url"
         case creadoEn = "creado_en"
     }
 
@@ -40,6 +45,7 @@ public struct Usuario: Codable, Identifiable, Hashable {
         telefono: String? = nil,
         rol: Rol,
         verificado: Bool,
+        fotoUrl: String? = nil,
         creadoEn: String? = nil
     ) {
         self.id = id
@@ -48,6 +54,7 @@ public struct Usuario: Codable, Identifiable, Hashable {
         self.telefono = telefono
         self.rol = rol
         self.verificado = verificado
+        self.fotoUrl = fotoUrl
         self.creadoEn = creadoEn
     }
 }

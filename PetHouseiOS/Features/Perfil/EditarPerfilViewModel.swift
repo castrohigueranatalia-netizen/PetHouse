@@ -2,10 +2,11 @@
 //  EditarPerfilViewModel.swift
 //  Features/Perfil
 //
-//  🔴 `PATCH /api/auth/me` no existe hoy (ver `PerfilService`). Este ViewModel funciona
-//  contra el contrato propuesto; al recibir `AppError.rutaNoImplementada` no lo trata como
-//  un error genérico: `guardado` queda en `.pendienteBackend`, y la vista muestra el
-//  estado informativo correspondiente en vez de un mensaje de error rojo.
+//  `PATCH /api/auth/me` y `POST /api/subidas` (ver `PerfilService`/`ImagenesService`) ya
+//  existen en el backend. Se conserva el manejo de `AppError.rutaNoImplementada` como
+//  respaldo defensivo (por si se apunta a un backend más viejo sin estas rutas): `guardado`
+//  queda en `.pendienteBackend` y la vista muestra el estado informativo correspondiente en
+//  vez de un mensaje de error rojo, en lugar de fingir un éxito que no ocurrió.
 //
 
 import Foundation
@@ -56,10 +57,12 @@ public final class EditarPerfilViewModel {
         resultado = .ninguno
         defer { isLoading = false }
 
-        // La foto se sube primero (si el usuario eligió una) — también pendiente hoy.
-        if fotoPreview != nil {
+        // La foto se sube primero (si el usuario eligió una): PATCH /auth/me guarda la URL
+        // que devuelve POST /api/subidas, no los bytes de la imagen.
+        var fotoUrl: String?
+        if let datos = fotoPreview {
             do {
-                _ = try await imagenesService.subir(datos: fotoPreview!, nombreArchivo: "perfil.jpg", mimeType: "image/jpeg")
+                fotoUrl = try await imagenesService.subir(datos: datos, nombreArchivo: "perfil.jpg", mimeType: "image/jpeg")
             } catch let appError as AppError where appError.esFuncionPendiente {
                 resultado = .pendienteBackend
                 return
@@ -73,7 +76,7 @@ public final class EditarPerfilViewModel {
             _ = try await perfilService.editarPerfil(
                 nombre: nombre.trimmingCharacters(in: .whitespaces),
                 telefono: telefono.isEmpty ? nil : telefono,
-                fotoUrl: nil
+                fotoUrl: fotoUrl
             )
             resultado = .exito
             await session.refrescarPerfilCompleto()

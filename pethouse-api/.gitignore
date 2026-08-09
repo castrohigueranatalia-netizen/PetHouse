@@ -1,3 +1,5 @@
 node_modules/
 .env
 *.log
+# Archivos subidos por POST /api/subidas (ver src/routes/subidas.js) — no son código, no se versionan.
+uploads/

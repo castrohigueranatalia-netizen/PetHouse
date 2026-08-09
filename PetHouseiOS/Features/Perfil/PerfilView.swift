@@ -57,7 +57,7 @@ struct PerfilView: View {
 
     private func encabezado(_ usuario: Usuario) -> some View {
         HStack(spacing: PHSpacing.s16) {
-            PHAvatar(name: usuario.nombre, size: 64)
+            PHAvatar(name: usuario.nombre, urlString: usuario.fotoUrl, size: 64)
             VStack(alignment: .leading, spacing: 4) {
                 Text(usuario.nombre)
                     .phText(PHFont.displaySM, color: PHColor.ink)

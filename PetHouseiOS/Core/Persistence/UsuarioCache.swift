@@ -23,13 +23,14 @@ public final class UsuarioCache {
     public var telefono: String?
     public var rol: String
     public var verificado: Bool
+    public var fotoUrl: String?
     public var creadoEn: String?
     public var mascotasJSON: Data
     public var actualizadoEn: Date
 
     public init(
         id: String, nombre: String, email: String, telefono: String?, rol: String,
-        verificado: Bool, creadoEn: String?, mascotasJSON: Data, actualizadoEn: Date = .now
+        verificado: Bool, fotoUrl: String?, creadoEn: String?, mascotasJSON: Data, actualizadoEn: Date = .now
     ) {
         self.id = id
         self.nombre = nombre
@@ -37,6 +38,7 @@ public final class UsuarioCache {
         self.telefono = telefono
         self.rol = rol
         self.verificado = verificado
+        self.fotoUrl = fotoUrl
         self.creadoEn = creadoEn
         self.mascotasJSON = mascotasJSON
         self.actualizadoEn = actualizadoEn
@@ -50,7 +52,7 @@ public extension UsuarioCache {
         self.init(
             id: usuario.id, nombre: usuario.nombre, email: usuario.email,
             telefono: usuario.telefono, rol: usuario.rol.rawValue, verificado: usuario.verificado,
-            creadoEn: usuario.creadoEn, mascotasJSON: mascotasData, actualizadoEn: .now
+            fotoUrl: usuario.fotoUrl, creadoEn: usuario.creadoEn, mascotasJSON: mascotasData, actualizadoEn: .now
         )
     }
 
@@ -61,7 +63,8 @@ public extension UsuarioCache {
     var comoUsuario: Usuario {
         Usuario(
             id: id, nombre: nombre, email: email, telefono: telefono,
-            rol: Usuario.Rol(rawValue: rol) ?? .cliente, verificado: verificado, creadoEn: creadoEn
+            rol: Usuario.Rol(rawValue: rol) ?? .cliente, verificado: verificado,
+            fotoUrl: fotoUrl, creadoEn: creadoEn
         )
     }
 }

@@ -5,6 +5,18 @@
 
 Leyenda: ✅ backend listo · 🟡 backend parcial (falta algo puntual) · 🔴 pendiente backend
 
+> **Actualización posterior al MVP inicial:** los 6 gaps 🔴 de la tabla (#3 editar perfil,
+> #4 CRUD mascotas, #11→pagos se mantiene sin cambios, #14 favoritos, #16/#17 vista de
+> anfitrión) y el gap bloqueante de subida de imágenes se cerraron implementando el backend
+> propuesto (`PATCH /api/auth/me`, `POST/PATCH/DELETE /api/mascotas`,
+> `GET/POST/DELETE /api/favoritos`, `GET /api/hospedajes/mios`,
+> `GET /api/hospedajes/:id/reservas`, `POST /api/subidas`), además del hardening de
+> seguridad bloqueante (`JWT_SECRET` obligatorio en producción, CORS restringido, rate
+> limiting). El cliente iOS ya estaba escrito contra ese contrato — empezó a funcionar sin
+> tocar Swift. Ver `pethouse-api/README.md` para el detalle de rutas y variables de entorno
+> nuevas. La paginación de `GET /api/hospedajes` (#7) sigue pendiente — el cliente ya la
+> absorbe con paginación del lado del cliente sobre el `LIMIT 100`.
+
 ---
 
 ## 1. Alcance funcional propuesto

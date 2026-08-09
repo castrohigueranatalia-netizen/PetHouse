@@ -96,4 +96,32 @@ r.get('/me', auth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ---- Editar perfil (nombre, teléfono, foto) ----
+// Contrato ya consumido por PetHouseiOS/Networking/Services/PerfilService.swift.
+r.patch('/me', auth, async (req, res, next) => {
+  try {
+    const { nombre, telefono, foto_url: fotoUrl } = req.body || {}
+
+    if (nombre !== undefined && String(nombre).trim().length < 3) {
+      return res.status(400).json({ error: 'Ingresa tu nombre completo.' })
+    }
+
+    const campos = []
+    const valores = []
+    if (nombre !== undefined) { valores.push(String(nombre).trim()); campos.push(`nombre = $${valores.length}`) }
+    if (telefono !== undefined) { valores.push(telefono || null); campos.push(`telefono = $${valores.length}`) }
+    if (fotoUrl !== undefined) { valores.push(fotoUrl || null); campos.push(`foto_url = $${valores.length}`) }
+
+    if (!campos.length) return res.status(400).json({ error: 'No hay nada que actualizar.' })
+
+    valores.push(req.usuario.id)
+    const { rows } = await pool.query(
+      `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${valores.length}
+       RETURNING id, nombre, email, telefono, rol, verificado, foto_url, creado_en`,
+      valores
+    )
+    res.json({ usuario: rows[0] })
+  } catch (err) { next(err) }
+})
+
 export default r

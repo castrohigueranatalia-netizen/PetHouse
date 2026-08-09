@@ -27,13 +27,21 @@ Probar: `curl http://localhost:3001/health`
 
 | Módulo | Rutas | Auth |
 |---|---|---|
-| **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` | login → JWT |
-| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/:id` · `POST /api/hospedajes` | crear: anfitrión |
+| **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` · `PATCH /api/auth/me` | login/editar → JWT |
+| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/mios` · `GET /api/hospedajes/:id` · `GET /api/hospedajes/:id/reservas` · `POST /api/hospedajes` | crear/mios/reservas: anfitrión |
 | **Reservas** | `POST /api/reservas` · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/plan` | ✅ |
 | **Actividades** | `GET /api/actividades?tipo=` · `POST /api/actividades` | crear: anfitrión |
 | **Reseñas** | `POST /api/hospedajes/:id/resenas` | ✅ (una por reserva) |
 | **Chat** | `GET /api/conversaciones` · `POST /api/conversaciones` · `GET/POST /api/conversaciones/:id/mensajes` · `POST /api/conversaciones/:id/leidas` | ✅ |
-| **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública |
+| **Mascotas** | `POST /api/mascotas` · `PATCH /api/mascotas/:id` · `DELETE /api/mascotas/:id` | ✅ (dueño de la mascota) |
+| **Favoritos** | `GET /api/favoritos` · `POST /api/favoritos` · `DELETE /api/favoritos/:hospedajeId` | ✅ |
+| **Subidas** | `POST /api/subidas` (multipart, campo `archivo`) → `201 { url }`, servido desde `/uploads` | ✅ |
+| **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública (con rate limit) |
+
+Los módulos de Mascotas, Favoritos y Subidas, más `GET /api/hospedajes/mios`, `GET /api/hospedajes/:id/reservas`
+y `PATCH /api/auth/me`, se agregaron para cerrar los gaps documentados en
+[`../ARCHITECTURE_AUDIT.md`](../ARCHITECTURE_AUDIT.md) — el cliente iOS (`../PetHouseiOS/`) ya
+los consume, dejaron de responder 404 de "ruta no implementada".
 
 ### Búsqueda con filtros (igual que el buscador de la app)
 
@@ -54,6 +62,13 @@ GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
 - SQL 100% parametrizado (sin inyección).
 - **Anti-doble-reserva**: transacción con `FOR UPDATE` + restricción EXCLUDE en la BD → 409.
 - La clave de Gemini solo vive en el servidor (`GEMINI_API_KEY`).
+- **`JWT_SECRET` obligatorio en producción**: el servidor no arranca si falta y
+  `NODE_ENV=production`. En desarrollo se genera uno aleatorio por ejecución si no se
+  configura (ver `src/config.js`) — nunca hay un secreto público conocido.
+- **CORS restringido** vía `ALLOWED_ORIGINS` (lista separada por coma). Sin configurar
+  queda abierto, solo aceptable en desarrollo.
+- **Rate limiting**: `/api/auth/*` (20 intentos/15min por IP) y `/api/ia` (30/15min por IP),
+  ver `src/middleware/rateLimit.js`.
 
 ## Probar la API (test de integración)
 
