@@ -3,6 +3,8 @@
 // ============================================================
 import express from 'express'
 import cors from 'cors'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import authRoutes from './routes/auth.js'
 import hospedajesRoutes from './routes/hospedajes.js'
@@ -19,6 +21,7 @@ import { limitadorAuth, limitadorIA } from './middleware/rateLimit.js'
 import { ALLOWED_ORIGINS } from './config.js'
 
 const app = express()
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Sin ALLOWED_ORIGINS configurado, `cors()` sigue abierto (ver config.js) — necesario para
 // no romper apps nativas (no envían Origin) ni el desarrollo local.
@@ -26,6 +29,11 @@ app.use(cors(ALLOWED_ORIGINS ? { origin: ALLOWED_ORIGINS } : undefined))
 app.use(express.json({ limit: '1mb' }))
 // Archivos subidos vía POST /api/subidas (ver routes/subidas.js) — servidos como estáticos.
 app.use('/uploads', express.static(uploadsDir))
+// Fotos reales de ejemplo (db/02-seed.sql las referencia como rutas relativas
+// "/semilla/g1.jpg" etc. — antes eran nombres sin sentido como "guarderia-1", que no
+// resolvían a ninguna imagen real desde un cliente nativo). Copiadas de ../_src/ (las
+// mismas fotos de marca que usa index.html) a public/semilla con extensión real.
+app.use('/semilla', express.static(path.join(__dirname, '..', 'public', 'semilla')))
 
 app.get('/health', (_req, res) => res.json({ ok: true, servicio: 'pethouse-api', hora: new Date().toISOString() }))
 

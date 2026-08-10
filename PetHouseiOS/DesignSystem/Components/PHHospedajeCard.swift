@@ -23,7 +23,7 @@ public struct PHHospedajeCard: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
             ZStack(alignment: .topTrailing) {
-                PHCachedAsyncImage(urlString: hospedaje.fotos?.first) {
+                PHCachedAsyncImage(urlString: MediaURL.resolver(hospedaje.fotos?.first)) {
                     Rectangle()
                         .fill(PHColor.surfaceStrong)
                         .overlay(
