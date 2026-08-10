@@ -35,9 +35,12 @@ public final class PublicarHospedajeViewModel {
     private let service: HospedajesServicing
     private let locationProvider: LocationProvider
 
-    public init(service: HospedajesServicing = HospedajesService(), locationProvider: LocationProvider = LocationProvider()) {
+    // Ver el comentario equivalente en BuscarViewModel.swift: `LocationProvider()` no puede
+    // ser el valor por defecto del parámetro (Swift no aísla al MainActor las expresiones
+    // de default aunque la clase lo sea) — se crea dentro del cuerpo del init en su lugar.
+    public init(service: HospedajesServicing = HospedajesService(), locationProvider: LocationProvider? = nil) {
         self.service = service
-        self.locationProvider = locationProvider
+        self.locationProvider = locationProvider ?? LocationProvider()
     }
 
     public var puedeUsarUbicacionActual: Bool { true }

@@ -51,9 +51,16 @@ public final class BuscarViewModel {
     private let service: HospedajesServicing
     private let locationProvider: LocationProvider
 
-    public init(service: HospedajesServicing = HospedajesService(), locationProvider: LocationProvider = LocationProvider()) {
+    // `locationProvider` NO puede tener `LocationProvider()` como valor por defecto en la
+    // firma del init: Swift no trata las expresiones de valores por defecto como aisladas
+    // al MainActor aunque la clase entera lo sea, así que llamar ahí al init de
+    // `LocationProvider` (también @MainActor) falla en compilación ("Call to main
+    // actor-isolated initializer in a synchronous nonisolated context"). Se resuelve
+    // aceptando `nil` como default y creándolo dentro del cuerpo del init, que sí corre
+    // aislado al MainActor.
+    public init(service: HospedajesServicing = HospedajesService(), locationProvider: LocationProvider? = nil) {
         self.service = service
-        self.locationProvider = locationProvider
+        self.locationProvider = locationProvider ?? LocationProvider()
     }
 
     public var resultadosVisibles: [Hospedaje] {
