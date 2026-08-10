@@ -16,7 +16,13 @@ struct RootView: View {
         Group {
             switch session.estado {
             case .verificando:
-                PHLoadingStateView(mensaje: "Verificando tu sesión…")
+                VStack(spacing: PHSpacing.s24) {
+                    PHLogo(height: 72)
+                    PHLoadingStateView(mensaje: "Verificando tu sesión…")
+                        .frame(maxHeight: 120)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(PHColor.canvas)
             case .invitado:
                 AuthFlowView()
             case .autenticado:

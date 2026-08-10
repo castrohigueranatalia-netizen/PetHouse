@@ -13,9 +13,12 @@ struct RegistroView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s20) {
+                PHLogo(height: 40)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, PHSpacing.s16)
+
                 Text("Crea tu cuenta")
                     .phText(PHFont.displayMD, color: PHColor.ink)
-                    .padding(.top, PHSpacing.s16)
 
                 if let viewModel {
                     Picker("Tipo de cuenta", selection: Binding(get: { viewModel.rol }, set: { viewModel.rol = $0 })) {

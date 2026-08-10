@@ -81,9 +81,8 @@ struct LoginView: View {
 
     private var encabezado: some View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
-            Text("🐾")
-                .font(.system(size: 40))
-                .accessibilityHidden(true)
+            PHLogo(height: 56)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("Bienvenido a PetHouse")
                 .phText(PHFont.displayMD, color: PHColor.ink)
             Text("Encuentra el mejor hospedaje para tu mascota.")
