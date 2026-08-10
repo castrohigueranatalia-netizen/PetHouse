@@ -14,6 +14,9 @@ struct MisHospedajesView: View {
         content
             .navigationTitle("Mis hospedajes")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    PHLogo(height: 28)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     PHIconButton(systemImage: "plus", accessibilityLabel: "Publicar hospedaje") {
                         mostrarPublicar = true

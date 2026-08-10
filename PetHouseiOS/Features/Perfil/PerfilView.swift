@@ -40,6 +40,11 @@ struct PerfilView: View {
         }
         .background(PHColor.canvas)
         .navigationTitle("Perfil")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                PHLogo(height: 28)
+            }
+        }
         .refreshable { await viewModel?.refrescar() }
         .onAppear {
             if viewModel == nil { viewModel = PerfilViewModel(session: session) }

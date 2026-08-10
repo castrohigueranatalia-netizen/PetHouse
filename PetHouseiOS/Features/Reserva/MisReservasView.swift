@@ -14,6 +14,11 @@ struct MisReservasView: View {
     var body: some View {
         content
             .navigationTitle("Mis reservas")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    PHLogo(height: 28)
+                }
+            }
             .task { await viewModel.cargar(modelContext: modelContext) }
             .refreshable { await viewModel.cargar(modelContext: modelContext) }
             .sheet(item: $reservaParaResena) { reserva in

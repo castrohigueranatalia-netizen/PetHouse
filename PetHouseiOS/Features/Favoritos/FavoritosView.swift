@@ -12,6 +12,11 @@ struct FavoritosView: View {
     var body: some View {
         content
             .navigationTitle("Favoritos")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    PHLogo(height: 28)
+                }
+            }
             .task { await viewModel.cargar() }
             .refreshable { await viewModel.cargar() }
             .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in

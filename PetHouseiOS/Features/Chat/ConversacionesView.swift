@@ -11,6 +11,11 @@ struct ConversacionesView: View {
     var body: some View {
         content
             .navigationTitle("Mensajes")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    PHLogo(height: 28)
+                }
+            }
             .task { await viewModel.cargar() }
             .refreshable { await viewModel.cargar() }
     }
