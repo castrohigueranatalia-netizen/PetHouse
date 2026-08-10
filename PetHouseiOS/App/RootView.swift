@@ -34,10 +34,12 @@ struct RootView: View {
 }
 
 /// Contenedor de login/registro. Sin `TabView`, es un flujo lineal simple.
+/// Empieza en `BienvenidaView` (elegir cliente/anfitrión) en vez de ir directo al login —
+/// ver el comentario en ese archivo sobre por qué el rol se elige ahí y no en el login.
 private struct AuthFlowView: View {
     var body: some View {
         NavigationStack {
-            LoginView()
+            BienvenidaView()
         }
     }
 }

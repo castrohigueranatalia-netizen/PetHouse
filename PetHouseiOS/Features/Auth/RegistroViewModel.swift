@@ -16,7 +16,7 @@ public final class RegistroViewModel {
     public var email = ""
     public var password = ""
     public var telefono = ""
-    public var rol: Usuario.Rol = .cliente
+    public var rol: Usuario.Rol
     public var mascotaNombre = ""
 
     public private(set) var isLoading = false
@@ -27,8 +27,12 @@ public final class RegistroViewModel {
 
     private let session: SessionStore
 
-    public init(session: SessionStore) {
+    /// `rolInicial`: qué eligió el usuario en la pantalla de bienvenida (ver
+    /// `BienvenidaView`) antes de llegar aquí — sigue siendo editable en el formulario
+    /// (el Picker de RegistroView), esto solo evita que tenga que elegirlo dos veces.
+    public init(session: SessionStore, rolInicial: Usuario.Rol = .cliente) {
         self.session = session
+        self.rol = rolInicial
     }
 
     public var puedeEnviar: Bool {

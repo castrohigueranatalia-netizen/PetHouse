@@ -9,6 +9,11 @@ struct RegistroView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: RegistroViewModel?
+    let rolInicial: Usuario.Rol
+
+    init(rolInicial: Usuario.Rol = .cliente) {
+        self.rolInicial = rolInicial
+    }
 
     var body: some View {
         ScrollView {
@@ -94,7 +99,7 @@ struct RegistroView: View {
         .navigationTitle("Registro")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if viewModel == nil { viewModel = RegistroViewModel(session: session) }
+            if viewModel == nil { viewModel = RegistroViewModel(session: session, rolInicial: rolInicial) }
         }
         .scrollDismissesKeyboard(.interactively)
     }
