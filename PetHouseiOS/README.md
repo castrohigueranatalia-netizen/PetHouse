@@ -53,8 +53,22 @@ en `project.yml` (`settings.base.API_BASE_URL`). Para apuntar a un backend despl
 ### Simulador vs. dispositivo físico
 
 `http://localhost:3001` funciona tal cual en el Simulador de iOS (comparte el loopback de
-red de la Mac). Para probar en un iPhone físico contra la API corriendo en tu Mac, usa la
-IP local de tu Mac en la red Wi-Fi (ej. `http://192.168.1.23:3001`) en vez de `localhost`.
+red de la Mac). Para probar en un **iPhone físico** conectado por cable, contra la API
+corriendo en tu Mac:
+
+1. Averigua la IP local de tu Mac en su red Wi-Fi: **Ajustes del Sistema → Wi-Fi → Detalles**
+   (o en Terminal: `ipconfig getifaddr en0`). Se ve como `192.168.1.23`.
+2. En `project.yml`, cambia `API_BASE_URL: "http://localhost:3001"` por
+   `API_BASE_URL: "http://<esa-ip>:3001"`.
+3. Corre `xcodegen generate` de nuevo y vuelve a compilar (▶) con el iPhone seleccionado
+   como destino en vez de un simulador.
+4. El iPhone debe estar en la **misma red Wi-Fi** que la Mac (el cable USB solo instala la
+   app y le da permiso de depuración; el tráfico HTTP hacia la API sigue yendo por Wi-Fi).
+5. La API debe seguir corriendo (`npm start` en `pethouse-api/`) mientras uses la app.
+
+`NSAllowsLocalNetworking` en `project.yml` ya permite HTTP sin TLS hacia cualquier IP de
+red local — no hace falta agregar la IP específica como excepción de ATS, solo cambiar
+`API_BASE_URL`.
 
 ---
 

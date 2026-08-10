@@ -66,9 +66,13 @@ targets:
           de tu mascota o de tu hospedaje. Solo se usa cuando tú lo decides.
         ITSAppUsesNonExemptEncryption: false
         API_BASE_URL: "$(API_BASE_URL)"
-        # Excepción de ATS solo para desarrollo local (http://localhost:3001, sin TLS).
+        # Excepción de ATS solo para desarrollo local. NSAllowsLocalNetworking permite HTTP
+        # sin TLS hacia cualquier IP de red local (192.168.x.x, 10.x.x.x, etc.) o dominios
+        # .local — cubre tanto el Simulador (localhost) como un iPhone físico en la misma
+        # red WiFi que la Mac (API_BASE_URL con la IP local de la Mac, ver PetHouseiOS/README.md).
         # En producción la API debe servirse por HTTPS y esta excepción debe retirarse.
         NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
           NSExceptionDomains:
             localhost:
               NSExceptionAllowsInsecureHTTPLoads: true
