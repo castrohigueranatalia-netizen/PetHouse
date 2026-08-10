@@ -22,6 +22,9 @@ struct BuscarView: View {
         .navigationTitle("Buscar")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                PHLogo(height: 28)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 PHIconButton(systemImage: "map", accessibilityLabel: "Ver en el mapa") {
                     mostrarMapa = true
