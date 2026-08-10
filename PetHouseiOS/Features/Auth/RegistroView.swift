@@ -9,11 +9,6 @@ struct RegistroView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: RegistroViewModel?
-    let rolInicial: Usuario.Rol
-
-    init(rolInicial: Usuario.Rol = .cliente) {
-        self.rolInicial = rolInicial
-    }
 
     var body: some View {
         ScrollView {
@@ -26,13 +21,6 @@ struct RegistroView: View {
                     .phText(PHFont.displayMD, color: PHColor.ink)
 
                 if let viewModel {
-                    Picker("Tipo de cuenta", selection: Binding(get: { viewModel.rol }, set: { viewModel.rol = $0 })) {
-                        Text("Dueño de mascota").tag(Usuario.Rol.cliente)
-                        Text("Anfitrión").tag(Usuario.Rol.anfitrion)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel("Tipo de cuenta")
-
                     PHTextField(
                         label: "Nombre completo",
                         placeholder: "Tu nombre",
@@ -67,15 +55,29 @@ struct RegistroView: View {
                         keyboardType: .phonePad
                     )
 
-                    if viewModel.rol == .cliente {
-                        PHTextField(
-                            label: "Nombre de tu mascota (opcional)",
-                            placeholder: "Ej. Firulais",
-                            text: Binding(get: { viewModel.mascotaNombre }, set: { viewModel.mascotaNombre = $0 })
-                        )
-                        Text("Podrás agregar la especie, raza y más mascotas después desde tu perfil.")
-                            .phText(PHFont.micro, color: PHColor.mutedSoft)
+                    PHTextField(
+                        label: "Nombre de tu mascota (opcional)",
+                        placeholder: "Ej. Firulais",
+                        text: Binding(get: { viewModel.mascotaNombre }, set: { viewModel.mascotaNombre = $0 })
+                    )
+                    Text("Podrás agregar la especie, raza y más mascotas después desde tu perfil.")
+                        .phText(PHFont.micro, color: PHColor.mutedSoft)
+
+                    // Aditivo, no exclusivo: activarlo no le quita a la cuenta la
+                    // posibilidad de reservar — ambas cosas conviven en el mismo perfil.
+                    // Quien no lo active aquí puede hacerlo después desde Perfil.
+                    Toggle(isOn: Binding(get: { viewModel.quiereOfrecerHospedaje }, set: { viewModel.quiereOfrecerHospedaje = $0 })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("También quiero ofrecer hospedaje")
+                                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                            Text("Podrás publicar espacios para hospedar mascotas además de reservar. Se puede activar después desde tu perfil.")
+                                .phText(PHFont.captionSM, color: PHColor.muted)
+                        }
                     }
+                    .tint(PHColor.primary)
+                    .padding(PHSpacing.s12)
+                    .background(PHColor.surfaceSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
 
                     if let errorGeneral = viewModel.errorGeneral {
                         Text(errorGeneral)
@@ -99,7 +101,7 @@ struct RegistroView: View {
         .navigationTitle("Registro")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if viewModel == nil { viewModel = RegistroViewModel(session: session, rolInicial: rolInicial) }
+            if viewModel == nil { viewModel = RegistroViewModel(session: session) }
         }
         .scrollDismissesKeyboard(.interactively)
     }

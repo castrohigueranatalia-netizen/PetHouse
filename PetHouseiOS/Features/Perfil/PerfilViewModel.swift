@@ -16,13 +16,34 @@ public final class PerfilViewModel {
     public private(set) var isRefreshing = false
     public private(set) var eliminandoMascotaId: String?
     public private(set) var errorEliminarMascota: AppError?
+    public private(set) var activandoAnfitrion = false
+    public private(set) var errorActivarAnfitrion: String?
 
     private let mascotasService: MascotasServicing
+    private let authService: AuthServicing
     private let session: SessionStore
 
-    public init(session: SessionStore, mascotasService: MascotasServicing = MascotasService()) {
+    public init(
+        session: SessionStore, mascotasService: MascotasServicing = MascotasService(),
+        authService: AuthServicing = AuthService()
+    ) {
         self.session = session
         self.mascotasService = mascotasService
+        self.authService = authService
+    }
+
+    /// "Conviértete en anfitrión" — aditivo (ver Usuario.esAnfitrion), no crea otra cuenta.
+    public func convertirseEnAnfitrion() async {
+        activandoAnfitrion = true
+        errorActivarAnfitrion = nil
+        defer { activandoAnfitrion = false }
+        do {
+            try await session.convertirseEnAnfitrion()
+        } catch let appError as AppError {
+            errorActivarAnfitrion = appError.localizedDescription
+        } catch {
+            errorActivarAnfitrion = error.localizedDescription
+        }
     }
 
     public func refrescar() async {

@@ -69,7 +69,12 @@ struct PerfilView: View {
                 Text(usuario.email)
                     .phText(PHFont.bodySM, color: PHColor.muted)
                 HStack(spacing: PHSpacing.s8) {
-                    PHBadge(usuario.rol == .anfitrion ? "Anfitrión" : "Dueño de mascota")
+                    // Dueño de mascota y anfitrión ya no son excluyentes — una cuenta
+                    // puede tener ambas insignias a la vez (ver Usuario.esAnfitrion).
+                    PHBadge("Dueño de mascota")
+                    if usuario.esAnfitrion {
+                        PHBadge("Anfitrión")
+                    }
                     if usuario.verificado {
                         PHBadge("Verificado", style: .success)
                     }
@@ -129,6 +134,44 @@ struct PerfilView: View {
                 FavoritosView()
             } label: {
                 filaCuenta("Favoritos", icono: "heart")
+            }
+
+            if session.usuario?.esAnfitrion == false {
+                conviertete
+            }
+        }
+    }
+
+    /// Aditivo: activa la capacidad de anfitrión en la MISMA cuenta, sin crear otra ni
+    /// cerrar la sesión actual (ver PerfilViewModel.convertirseEnAnfitrion).
+    private var conviertete: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Button {
+                Task { await viewModel?.convertirseEnAnfitrion() }
+            } label: {
+                HStack {
+                    Image(systemName: "house.and.flag").foregroundStyle(PHColor.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Conviértete en anfitrión")
+                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                        Text("Publica un espacio y empieza a hospedar mascotas, sin dejar de poder reservar.")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                    }
+                    Spacer()
+                    if viewModel?.activandoAnfitrion == true {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft).font(.caption)
+                    }
+                }
+                .padding(PHSpacing.s12)
+                .background(PHColor.primaryContainer)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+            }
+            .disabled(viewModel?.activandoAnfitrion == true)
+
+            if let error = viewModel?.errorActivarAnfitrion {
+                Text(error).phText(PHFont.captionSM, color: PHColor.error)
             }
         }
     }

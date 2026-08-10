@@ -13,7 +13,7 @@ export async function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     const { rows } = await pool.query(
-      'SELECT id, nombre, email, telefono, rol, verificado, foto_url FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion FROM usuarios WHERE id = $1',
       [payload.uid]
     )
     if (!rows.length) return res.status(401).json({ error: 'Sesión inválida.' })
@@ -25,9 +25,13 @@ export async function auth(req, res, next) {
 }
 
 // ---- Solo anfitriones ----
+// `es_anfitrion` es una CAPACIDAD que cualquier cuenta puede activar (ver
+// POST /api/auth/convertirse-anfitrion), no un rol exclusivo — una cuenta puede reservar
+// Y publicar hospedajes a la vez. `rol` se conserva solo como intención/display; 'admin'
+// sigue con acceso total.
 export function soloAnfitrion(req, res, next) {
-  if (req.usuario?.rol !== 'anfitrion' && req.usuario?.rol !== 'admin') {
-    return res.status(403).json({ error: 'Solo los anfitriones pueden hacer esto.' })
+  if (!req.usuario?.es_anfitrion && req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ error: 'Necesitas activar el modo anfitrión para hacer esto.' })
   }
   next()
 }

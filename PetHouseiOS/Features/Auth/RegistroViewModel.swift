@@ -6,6 +6,12 @@
 //  'perro' en el servidor — ver `pethouse-api/src/routes/auth.js` línea 36). Agregar más
 //  mascotas o cambiar la especie queda para después, en Perfil (CRUD "pendiente backend").
 //
+//  "Ofrecer hospedaje" es ADITIVO, no un tipo de cuenta exclusivo: cualquiera puede
+//  reservar Y publicar hospedajes con la MISMA cuenta (ver db/05-multi-rol.sql). El
+//  registro manda `esAnfitrion` además de `rol` (que se conserva solo como intención
+//  principal) — quien no lo active aquí puede hacerlo después desde Perfil sin crear una
+//  cuenta nueva.
+//
 
 import Foundation
 
@@ -17,6 +23,8 @@ public final class RegistroViewModel {
     public var password = ""
     public var telefono = ""
     public var rol: Usuario.Rol
+    /// Toggle "También quiero ofrecer hospedaje" — aditivo, no exclusivo con `rol`.
+    public var quiereOfrecerHospedaje: Bool
     public var mascotaNombre = ""
 
     public private(set) var isLoading = false
@@ -27,12 +35,10 @@ public final class RegistroViewModel {
 
     private let session: SessionStore
 
-    /// `rolInicial`: qué eligió el usuario en la pantalla de bienvenida (ver
-    /// `BienvenidaView`) antes de llegar aquí — sigue siendo editable en el formulario
-    /// (el Picker de RegistroView), esto solo evita que tenga que elegirlo dos veces.
-    public init(session: SessionStore, rolInicial: Usuario.Rol = .cliente) {
+    public init(session: SessionStore) {
         self.session = session
-        self.rol = rolInicial
+        self.rol = .cliente
+        self.quiereOfrecerHospedaje = false
     }
 
     public var puedeEnviar: Bool {
@@ -53,6 +59,7 @@ public final class RegistroViewModel {
                 password: password,
                 telefono: telefono.isEmpty ? nil : telefono,
                 rol: rol,
+                esAnfitrion: quiereOfrecerHospedaje,
                 mascotaNombre: mascotaNombre.isEmpty ? nil : mascotaNombre
             )
             return true

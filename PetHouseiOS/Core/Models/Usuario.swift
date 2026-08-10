@@ -30,11 +30,19 @@ public struct Usuario: Codable, Identifiable, Hashable {
     public let rol: Rol
     public let verificado: Bool
     public let fotoUrl: String?
+    /// Capacidad de anfitrión (publicar hospedajes, ver reservas recibidas) — ADITIVA, no
+    /// exclusiva con `rol`: una cuenta puede reservar Y ofrecer hospedaje a la vez. `rol`
+    /// se conserva solo como intención principal para mostrar en UI; la autorización real
+    /// de acciones de anfitrión depende de este campo (ver `soloAnfitrion` en el backend y
+    /// db/05-multi-rol.sql). `false` si el backend no lo manda (compatibilidad con
+    /// respuestas viejas antes de esta migración).
+    public let esAnfitrion: Bool
     public let creadoEn: String?
 
     enum CodingKeys: String, CodingKey {
         case id, nombre, email, telefono, rol, verificado
         case fotoUrl = "foto_url"
+        case esAnfitrion = "es_anfitrion"
         case creadoEn = "creado_en"
     }
 
@@ -46,6 +54,7 @@ public struct Usuario: Codable, Identifiable, Hashable {
         rol: Rol,
         verificado: Bool,
         fotoUrl: String? = nil,
+        esAnfitrion: Bool = false,
         creadoEn: String? = nil
     ) {
         self.id = id
@@ -55,7 +64,21 @@ public struct Usuario: Codable, Identifiable, Hashable {
         self.rol = rol
         self.verificado = verificado
         self.fotoUrl = fotoUrl
+        self.esAnfitrion = esAnfitrion
         self.creadoEn = creadoEn
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        nombre = try c.decode(String.self, forKey: .nombre)
+        email = try c.decode(String.self, forKey: .email)
+        telefono = try c.decodeIfPresent(String.self, forKey: .telefono)
+        rol = try c.decode(Rol.self, forKey: .rol)
+        verificado = try c.decode(Bool.self, forKey: .verificado)
+        fotoUrl = try c.decodeIfPresent(String.self, forKey: .fotoUrl)
+        esAnfitrion = try c.decodeIfPresent(Bool.self, forKey: .esAnfitrion) ?? false
+        creadoEn = try c.decodeIfPresent(String.self, forKey: .creadoEn)
     }
 }
 

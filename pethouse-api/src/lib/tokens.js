@@ -30,17 +30,25 @@ export async function emitirTokens(usuario, userAgent) {
   return { accessToken: access, refreshToken: refresh, expiraEn: '15m' }
 }
 
-// Renueva el par si el refresh existe y no ha expirado
+// Renueva el par si el refresh existe y no ha expirado.
+//
+// Devuelve la fila COMPLETA del usuario (no solo id+rol): el cliente decodifica esto como
+// el mismo `AuthResponse` que login/registro, que requiere nombre/email/verificado (no son
+// opcionales en el modelo `Usuario` de PetHouseiOS). Antes solo se devolvía {id, rol}, lo
+// que hacía fallar la decodificación en el cliente y forzaba un logout silencioso cada vez
+// que el access token expiraba (cada 15 min) — bug real encontrado al revisar este archivo,
+// no solo teórico: `APIClient.hacerRefresh()` descarta la sesión entera si el `try
+// decoder.decode(AuthResponse.self, ...)` lanza.
 export async function renovarRefresh(refreshToken) {
   const { rows } = await pool.query(
-    `SELECT s.usuario_id, u.rol
+    `SELECT u.id, u.nombre, u.email, u.telefono, u.rol, u.verificado, u.foto_url, u.es_anfitrion, u.creado_en
        FROM sesiones s
        JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.refresh_token = $1 AND s.expira_en > now()`,
     [refreshToken]
   )
   if (!rows.length) return null
-  return { id: rows[0].usuario_id, rol: rows[0].rol }
+  return rows[0]
 }
 
 export async function revocarRefresh(refreshToken) {

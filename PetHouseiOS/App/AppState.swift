@@ -92,16 +92,23 @@ public final class SessionStore {
 
     public func registro(
         nombre: String, email: String, password: String, telefono: String?,
-        rol: Usuario.Rol, mascotaNombre: String?
+        rol: Usuario.Rol, esAnfitrion: Bool, mascotaNombre: String?
     ) async throws {
         let respuesta = try await authService.registro(
             nombre: nombre, email: email, password: password,
-            telefono: telefono, rol: rol, mascotaNombre: mascotaNombre
+            telefono: telefono, rol: rol, esAnfitrion: esAnfitrion, mascotaNombre: mascotaNombre
         )
         try guardarTokens(respuesta)
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
         estado = .autenticado
         Task { await refrescarPerfilCompleto() }
+    }
+
+    /// "Conviértete en anfitrión" desde Perfil — aditivo, no crea otra cuenta ni cierra la
+    /// sesión actual. Ver db/05-multi-rol.sql.
+    public func convertirseEnAnfitrion() async throws {
+        let usuarioActualizado = try await authService.convertirseEnAnfitrion()
+        aplicarPerfil(usuarioActualizado, mascotas: mascotas, desdeCache: false)
     }
 
     public func cerrarSesion() async {

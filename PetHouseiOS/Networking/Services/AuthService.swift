@@ -9,10 +9,13 @@
 import Foundation
 
 public protocol AuthServicing: Sendable {
-    func registro(nombre: String, email: String, password: String, telefono: String?, rol: Usuario.Rol, mascotaNombre: String?) async throws -> AuthResponse
+    func registro(nombre: String, email: String, password: String, telefono: String?, rol: Usuario.Rol, esAnfitrion: Bool, mascotaNombre: String?) async throws -> AuthResponse
     func login(email: String, password: String) async throws -> AuthResponse
     func logout(refreshToken: String) async throws
     func me() async throws -> MeResponse
+    /// `POST /api/auth/convertirse-anfitrion` — activa la capacidad de anfitrión en la
+    /// cuenta ya logueada (aditivo, ver Usuario.esAnfitrion).
+    func convertirseEnAnfitrion() async throws -> Usuario
 }
 
 public final class AuthService: AuthServicing, @unchecked Sendable {
@@ -24,13 +27,16 @@ public final class AuthService: AuthServicing, @unchecked Sendable {
 
     public func registro(
         nombre: String, email: String, password: String, telefono: String?,
-        rol: Usuario.Rol, mascotaNombre: String?
+        rol: Usuario.Rol, esAnfitrion: Bool, mascotaNombre: String?
     ) async throws -> AuthResponse {
         struct Body: Encodable {
             let nombre: String, email: String, password: String
-            let telefono: String?, rol: String, mascotaNombre: String?
+            let telefono: String?, rol: String, esAnfitrion: Bool, mascotaNombre: String?
         }
-        let body = Body(nombre: nombre, email: email, password: password, telefono: telefono, rol: rol.rawValue, mascotaNombre: mascotaNombre)
+        let body = Body(
+            nombre: nombre, email: email, password: password, telefono: telefono,
+            rol: rol.rawValue, esAnfitrion: esAnfitrion, mascotaNombre: mascotaNombre
+        )
         let data = try JSONEncoder().encode(body)
         let request = APIRequest(method: "POST", path: "/auth/registro", body: data)
         return try await client.send(request)
@@ -53,5 +59,11 @@ public final class AuthService: AuthServicing, @unchecked Sendable {
     public func me() async throws -> MeResponse {
         let request = APIRequest(method: "GET", path: "/auth/me", requiresAuth: true)
         return try await client.send(request)
+    }
+
+    public func convertirseEnAnfitrion() async throws -> Usuario {
+        let request = APIRequest(method: "POST", path: "/auth/convertirse-anfitrion", requiresAuth: true)
+        let response: EditarPerfilResponse = try await client.send(request)
+        return response.usuario
     }
 }
