@@ -68,7 +68,12 @@ r.post('/', auth, (req, res, next) => {
     if (err) return res.status(400).json({ error: err.message })
     if (!req.file) return res.status(400).json({ error: 'Falta el archivo (campo "archivo").' })
 
-    const url = `${PUBLIC_BASE_URL}/uploads/${req.file.filename}`
+    // Sin PUBLIC_BASE_URL forzado por variable de entorno (caso normal en desarrollo):
+    // usa el host real con el que llegó ESTA petición (req.protocol + req.get('host')), no
+    // un valor fijo. Así la URL sirve tanto si la app la llama por "localhost" (Simulador)
+    // como por la IP de red (iPhone físico) — ver el comentario largo en config.js.
+    const base = PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`
+    const url = `${base}/uploads/${req.file.filename}`
     res.status(201).json({ url })
   })
 })

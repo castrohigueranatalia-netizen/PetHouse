@@ -90,7 +90,9 @@ public final class EditarPerfilViewModel {
     }
 
     private func procesarFotoSeleccionada() async {
-        guard let item = fotoSeleccionada else { return }
-        fotoPreview = try? await item.loadTransferable(type: Data.self)
+        guard let item = fotoSeleccionada, let datos = try? await item.loadTransferable(type: Data.self) else { return }
+        // Comprimida desde ya: es lo mismo que se sube Y lo que se muestra en el preview
+        // (ver `guardar()`) — evita cargar en memoria/subir una foto de cámara sin editar.
+        fotoPreview = ImagenComprimida.comprimir(datos)
     }
 }

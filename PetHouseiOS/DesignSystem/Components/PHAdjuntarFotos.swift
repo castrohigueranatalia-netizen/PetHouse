@@ -11,6 +11,12 @@
 //  VerificacionAnfitrionViewModel), este componente solo maneja el picker, las miniaturas
 //  y el estado de carga/error de la subida.
 //
+//  Cada foto se comprime antes de subirla (máx. 1600px de lado, JPEG calidad 0.7): una
+//  foto de cámara sin comprimir puede pesar varios MB, lo que hace la subida lenta y deja
+//  guardado un archivo pesado que después hay que volver a descargar/decodificar cada vez
+//  que se muestra (ver PHCachedAsyncImage) — causa real de lentitud en pantallas con varias
+//  fotos, como la verificación de anfitrión.
+//
 
 import SwiftUI
 import PhotosUI
@@ -105,7 +111,8 @@ public struct PHAdjuntarFotos: View {
         defer { subiendo = false; seleccion = [] }
 
         for item in items {
-            guard let datos = try? await item.loadTransferable(type: Data.self) else { continue }
+            guard let datosOriginales = try? await item.loadTransferable(type: Data.self) else { continue }
+            let datos = ImagenComprimida.comprimir(datosOriginales)
             if let url = await subir(datos) {
                 urls.append(url)
             } else {

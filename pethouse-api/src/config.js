@@ -52,7 +52,16 @@ if (!ALLOWED_ORIGINS) {
 
 // Base pública para construir URLs de archivos subidos (ver src/routes/subidas.js).
 // Ej. "https://api.pethouse.co" → https://api.pethouse.co/uploads/archivo.jpg
-export const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`
+//
+// SIN configurar (caso normal en desarrollo): `null` a propósito, NO "http://localhost:PORT"
+// como antes. Ese default fijo era un bug real — "localhost" solo tiene sentido en la
+// misma máquina que corre la API; un iPhone físico en la misma red WiFi no puede resolver
+// "localhost" a la Mac, así que toda foto subida quedaba con una URL que ningún otro
+// dispositivo podía cargar (ni el anfitrión que la subió desde su iPhone, ni el admin
+// revisándola después). `routes/subidas.js` arma la URL con el host real de cada petición
+// cuando esto es `null`, así que la URL siempre es alcanzable sin importar si la API se
+// llama por localhost, por la IP de red, o por un dominio real en producción.
+export const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null
 
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://pethouse:pethouse@localhost:5432/pethouse',

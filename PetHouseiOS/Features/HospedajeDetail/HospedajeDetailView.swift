@@ -120,7 +120,7 @@ struct HospedajeDetailView: View {
                     .overlay(Image(systemName: "photo").font(.largeTitle).foregroundStyle(PHColor.mutedSoft))
             } else {
                 ForEach(fotos, id: \.self) { url in
-                    PHCachedAsyncImage(urlString: MediaURL.resolver(url)) {
+                    PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
                         Rectangle().fill(PHColor.surfaceStrong)
                     }
                 }
