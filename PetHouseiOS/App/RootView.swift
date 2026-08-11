@@ -42,43 +42,61 @@ private struct AuthFlowView: View {
     }
 }
 
+private enum Pestana: Hashable {
+    case buscar, favoritos, reservas, mensajes, anfitrion, perfil
+}
+
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
+    @State private var pestanaSeleccionada: Pestana = .buscar
 
     var body: some View {
-        TabView {
+        TabView(selection: $pestanaSeleccionada) {
             NavigationStack {
                 BuscarView()
             }
             .tabItem { Label("Buscar", systemImage: "magnifyingglass") }
+            .tag(Pestana.buscar)
 
             NavigationStack {
                 FavoritosView()
             }
             .tabItem { Label("Favoritos", systemImage: "heart") }
+            .tag(Pestana.favoritos)
 
             NavigationStack {
                 MisReservasView()
             }
             .tabItem { Label("Reservas", systemImage: "calendar") }
+            .tag(Pestana.reservas)
 
             NavigationStack {
                 ConversacionesView()
             }
             .tabItem { Label("Mensajes", systemImage: "message") }
+            .tag(Pestana.mensajes)
 
             if session.usuario?.esAnfitrion == true {
                 NavigationStack {
                     MisHospedajesView()
                 }
                 .tabItem { Label("Anfitrión", systemImage: "building.2.fill") }
+                .tag(Pestana.anfitrion)
             }
 
             NavigationStack {
                 PerfilView()
             }
             .tabItem { Label("Perfil", systemImage: "person.circle") }
+            .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
+        // Justo después de un registro con "También quiero ofrecer hospedaje" marcado
+        // (ver SessionStore.abrirVerificacionAlEntrar): salta a la pestaña Perfil, que a su
+        // vez empuja VerificacionAnfitrionView al ver la misma señal en `true`.
+        .task { if session.abrirVerificacionAlEntrar { pestanaSeleccionada = .perfil } }
+        .onChange(of: session.abrirVerificacionAlEntrar) { _, abrir in
+            if abrir { pestanaSeleccionada = .perfil }
+        }
     }
 }

@@ -28,10 +28,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export const uploadsDir = path.join(__dirname, '..', '..', 'uploads')
 fs.mkdirSync(uploadsDir, { recursive: true })
 
-const TIPOS_PERMITIDOS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+// image/* para fotos (perfil, mascota, hospedaje, verificación de anfitrión) y
+// application/pdf para documentos (ej. certificado de antecedentes policiales, si el
+// anfitrión prefiere adjuntar el PDF original en vez de una foto del documento — el
+// cliente iOS del MVP solo ofrece adjuntar fotos, pero el endpoint ya acepta ambos).
+const TIPOS_PERMITIDOS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
 const EXTENSION_POR_TIPO = {
   'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
-  'image/heic': '.heic', 'image/heif': '.heif'
+  'image/heic': '.heic', 'image/heif': '.heif', 'application/pdf': '.pdf'
 }
 
 const storage = multer.diskStorage({
@@ -47,7 +51,7 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
   fileFilter: (_req, file, cb) => {
     if (!TIPOS_PERMITIDOS.has(file.mimetype)) {
-      return cb(new Error('Formato no soportado. Sube una imagen JPEG, PNG, WEBP o HEIC.'))
+      return cb(new Error('Formato no soportado. Sube una imagen JPEG, PNG, WEBP, HEIC o un PDF.'))
     }
     cb(null, true)
   }

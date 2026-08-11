@@ -63,14 +63,17 @@ struct RegistroView: View {
                     Text("Podrás agregar la especie, raza y más mascotas después desde tu perfil.")
                         .phText(PHFont.micro, color: PHColor.mutedSoft)
 
-                    // Aditivo, no exclusivo: activarlo no le quita a la cuenta la
+                    // Aditivo, no exclusivo: marcarlo no le quita a la cuenta la
                     // posibilidad de reservar — ambas cosas conviven en el mismo perfil.
-                    // Quien no lo active aquí puede hacerlo después desde Perfil.
+                    // No activa nada directo: crea la cuenta y de una vez lleva a la
+                    // verificación de seguridad obligatoria (ver RegistroViewModel /
+                    // SessionStore.abrirVerificacionAlEntrar). Quien no lo marque aquí
+                    // puede hacer lo mismo después desde Perfil.
                     Toggle(isOn: Binding(get: { viewModel.quiereOfrecerHospedaje }, set: { viewModel.quiereOfrecerHospedaje = $0 })) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("También quiero ofrecer hospedaje")
                                 .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                            Text("Podrás publicar espacios para hospedar mascotas además de reservar. Se puede activar después desde tu perfil.")
+                            Text("Después de crear tu cuenta te pedimos algunos datos de verificación. Se puede activar después desde tu perfil si prefieres.")
                                 .phText(PHFont.captionSM, color: PHColor.muted)
                         }
                     }

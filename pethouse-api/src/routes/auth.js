@@ -15,12 +15,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // ---- Registro (datos personales + correo + contraseña) ----
 r.post('/registro', async (req, res, next) => {
   try {
-    // `esAnfitrion` es opcional y ADITIVO: no reemplaza a `rol` (que se conserva como
-    // intención principal para mostrar en UI), solo activa la capacidad de publicar
-    // hospedajes desde ya. Quien no la marque al registrarse puede activarla después con
-    // POST /api/auth/convertirse-anfitrion — una cuenta nunca queda "atrapada" en un solo
-    // tipo de perfil.
-    const { nombre, telefono, email, password, rol = 'cliente', esAnfitrion = false, mascotaNombre } = req.body || {}
+    // `es_anfitrion` NO se puede activar desde el registro (ni con ningún atajo): la
+    // única forma de activarla es completar la verificación de seguridad
+    // (POST /api/anfitrion/verificacion — nombre legal, cédula, certificado de
+    // antecedentes, fotos). `rol` se conserva solo como intención principal para mostrar
+    // en UI. El cliente puede mandar `esAnfitrion` únicamente para decidir, del lado de
+    // la app, si lleva al usuario derecho al formulario de verificación después de
+    // registrarse — el servidor lo ignora para efectos de autorización.
+    const { nombre, telefono, email, password, rol = 'cliente', mascotaNombre } = req.body || {}
 
     if (!nombre || String(nombre).trim().length < 3) return res.status(400).json({ error: 'Ingresa tu nombre completo.' })
     if (!email || !EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Correo electrónico inválido.' })
@@ -29,10 +31,10 @@ r.post('/registro', async (req, res, next) => {
 
     const hash = await bcrypt.hash(String(password), 10)
     const { rows } = await pool.query(
-      `INSERT INTO usuarios (nombre, email, telefono, password_hash, rol, es_anfitrion)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO usuarios (nombre, email, telefono, password_hash, rol)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, nombre, email, rol, verificado, es_anfitrion, creado_en`,
-      [String(nombre).trim(), String(email).trim().toLowerCase(), telefono || null, hash, rol, Boolean(esAnfitrion) || rol === 'anfitrion']
+      [String(nombre).trim(), String(email).trim().toLowerCase(), telefono || null, hash, rol]
     )
     const usuario = rows[0]
 
@@ -124,19 +126,6 @@ r.patch('/me', auth, async (req, res, next) => {
       `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${valores.length}
        RETURNING id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion, creado_en`,
       valores
-    )
-    res.json({ usuario: rows[0] })
-  } catch (err) { next(err) }
-})
-
-// ---- Activar la capacidad de anfitrión (aditivo: no reemplaza nada, la cuenta sigue
-// pudiendo reservar igual que antes) — "Conviértete en anfitrión" desde el Perfil. ----
-r.post('/convertirse-anfitrion', auth, async (req, res, next) => {
-  try {
-    const { rows } = await pool.query(
-      `UPDATE usuarios SET es_anfitrion = TRUE WHERE id = $1
-       RETURNING id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion, creado_en`,
-      [req.usuario.id]
     )
     res.json({ usuario: rows[0] })
   } catch (err) { next(err) }

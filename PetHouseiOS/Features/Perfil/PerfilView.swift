@@ -58,6 +58,16 @@ struct PerfilView: View {
             }
             Button("Cancelar", role: .cancel) {}
         }
+        // Consume la señal de "También quiero ofrecer hospedaje" marcada en el registro
+        // (ver SessionStore.abrirVerificacionAlEntrar y MainTabView, que ya saltó a esta
+        // pestaña) empujando la verificación automáticamente. `isPresented` limpia la
+        // señal sola al volver (se pone en `false` cuando el usuario cierra/completa).
+        .navigationDestination(isPresented: Binding(
+            get: { session.abrirVerificacionAlEntrar },
+            set: { session.abrirVerificacionAlEntrar = $0 }
+        )) {
+            VerificacionAnfitrionView()
+        }
     }
 
     private func encabezado(_ usuario: Usuario) -> some View {
@@ -142,38 +152,29 @@ struct PerfilView: View {
         }
     }
 
-    /// Aditivo: activa la capacidad de anfitrión en la MISMA cuenta, sin crear otra ni
-    /// cerrar la sesión actual (ver PerfilViewModel.convertirseEnAnfitrion).
+    /// Aditivo: activar la capacidad de anfitrión requiere pasar por la verificación de
+    /// seguridad primero (ver VerificacionAnfitrionView) — no hay atajo directo. La MISMA
+    /// cuenta gana la capacidad, no se crea otra ni se cierra la sesión actual.
     private var conviertete: some View {
-        VStack(alignment: .leading, spacing: PHSpacing.s8) {
-            Button {
-                Task { await viewModel?.convertirseEnAnfitrion() }
-            } label: {
-                HStack {
-                    Image(systemName: "house.and.flag").foregroundStyle(PHColor.primary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Conviértete en anfitrión")
-                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                        Text("Publica un espacio y empieza a hospedar mascotas, sin dejar de poder reservar.")
-                            .phText(PHFont.captionSM, color: PHColor.muted)
-                    }
-                    Spacer()
-                    if viewModel?.activandoAnfitrion == true {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft).font(.caption)
-                    }
+        NavigationLink {
+            VerificacionAnfitrionView()
+        } label: {
+            HStack {
+                Image(systemName: "house.and.flag").foregroundStyle(PHColor.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Conviértete en anfitrión")
+                        .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    Text("Publica un espacio y empieza a hospedar mascotas, sin dejar de poder reservar.")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
                 }
-                .padding(PHSpacing.s12)
-                .background(PHColor.primaryContainer)
-                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft).font(.caption)
             }
-            .disabled(viewModel?.activandoAnfitrion == true)
-
-            if let error = viewModel?.errorActivarAnfitrion {
-                Text(error).phText(PHFont.captionSM, color: PHColor.error)
-            }
+            .padding(PHSpacing.s12)
+            .background(PHColor.primaryContainer)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
         }
+        .buttonStyle(.plain)
     }
 
     private func filaCuenta(_ titulo: String, icono: String) -> some View {

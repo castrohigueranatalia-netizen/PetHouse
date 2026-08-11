@@ -7,10 +7,12 @@
 //  mascotas o cambiar la especie queda para después, en Perfil (CRUD "pendiente backend").
 //
 //  "Ofrecer hospedaje" es ADITIVO, no un tipo de cuenta exclusivo: cualquiera puede
-//  reservar Y publicar hospedajes con la MISMA cuenta (ver db/05-multi-rol.sql). El
-//  registro manda `esAnfitrion` además de `rol` (que se conserva solo como intención
-//  principal) — quien no lo active aquí puede hacerlo después desde Perfil sin crear una
-//  cuenta nueva.
+//  reservar Y publicar hospedajes con la MISMA cuenta (ver db/05-multi-rol.sql). Pero
+//  activarlo de verdad SIEMPRE requiere pasar por la verificación de seguridad
+//  (VerificacionAnfitrionView) — el registro nunca activa `es_anfitrion` directo, el
+//  servidor ignora cualquier intento de hacerlo desde aquí. `quiereOfrecerHospedaje` es
+//  puramente una señal local: si está marcado, `RegistroView` navega a la verificación
+//  justo después de crear la cuenta, en vez de cerrar el formulario.
 //
 
 import Foundation
@@ -59,9 +61,11 @@ public final class RegistroViewModel {
                 password: password,
                 telefono: telefono.isEmpty ? nil : telefono,
                 rol: rol,
-                esAnfitrion: quiereOfrecerHospedaje,
                 mascotaNombre: mascotaNombre.isEmpty ? nil : mascotaNombre
             )
+            if quiereOfrecerHospedaje {
+                session.abrirVerificacionAlEntrar = true
+            }
             return true
         } catch {
             errorGeneral = (error as? AppError)?.localizedDescription ?? error.localizedDescription

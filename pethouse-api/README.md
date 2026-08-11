@@ -35,7 +35,9 @@ Probar: `curl http://localhost:3001/health`
 | **Chat** | `GET /api/conversaciones` · `POST /api/conversaciones` · `GET/POST /api/conversaciones/:id/mensajes` · `POST /api/conversaciones/:id/leidas` | ✅ |
 | **Mascotas** | `POST /api/mascotas` · `PATCH /api/mascotas/:id` · `DELETE /api/mascotas/:id` | ✅ (dueño de la mascota) |
 | **Favoritos** | `GET /api/favoritos` · `POST /api/favoritos` · `DELETE /api/favoritos/:hospedajeId` | ✅ |
-| **Subidas** | `POST /api/subidas` (multipart, campo `archivo`) → `201 { url }`, servido desde `/uploads` | ✅ |
+| **Subidas** | `POST /api/subidas` (multipart, campo `archivo`, imagen o PDF) → `201 { url }`, servido desde `/uploads` | ✅ |
+| **Verificación anfitrión** | `POST/GET /api/anfitrion/verificacion` (nombre legal, cédula, certificado policial, referencias, fotos) — enviarla activa `usuarios.es_anfitrion` | ✅ |
+| **Preferencias anfitrión** | `POST/GET /api/anfitrion/preferencias` (especies, modalidades días/horas, tamaños) | ✅ |
 | **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública (con rate limit) |
 
 Los módulos de Mascotas, Favoritos y Subidas, más `GET /api/hospedajes/mios`, `GET /api/hospedajes/:id/reservas`
@@ -69,6 +71,14 @@ GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
   queda abierto, solo aceptable en desarrollo.
 - **Rate limiting**: `/api/auth/*` (20 intentos/15min por IP) y `/api/ia` (30/15min por IP),
   ver `src/middleware/rateLimit.js`.
+- **`usuarios.es_anfitrion` solo se activa completando la verificación de seguridad**
+  (`POST /api/anfitrion/verificacion`) — no existe ningún atajo/endpoint que lo active
+  directo. Datos sensibles (cédula, certificado de antecedentes) quedan en
+  `verificaciones_anfitrion` con estado `pendiente` (no hay panel de revisión todavía en
+  este MVP, ver `db/06-verificacion-anfitrion.sql`). **Antes de manejar estos datos en
+  producción real, revisar cumplimiento de la Ley 1581 de 2012 (protección de datos
+  personales en Colombia)** — cifrado en reposo, política de privacidad, retención, etc.
+  no están cubiertos por este MVP.
 
 ## Probar la API (test de integración)
 

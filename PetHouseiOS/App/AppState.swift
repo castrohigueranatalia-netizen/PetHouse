@@ -34,6 +34,16 @@ public final class SessionStore {
     /// fresca del servidor — las vistas pueden usarlo para mostrar un aviso sutil.
     public private(set) var perfilEsDeCache = false
 
+    /// Señal para continuar directo a la verificación de anfitrión justo después de un
+    /// registro con "También quiero ofrecer hospedaje" marcado. Necesaria porque en cuanto
+    /// `estado` pasa a `.autenticado`, `RootView` reemplaza TODO el stack de navegación del
+    /// login/registro por `MainTabView` — cualquier navegación programada desde dentro de
+    /// `RegistroView` se perdería, así que se coordina acá en vez de ahí. `MainTabView`
+    /// selecciona la pestaña Perfil al ver esto en `true`, y `PerfilView` la consume
+    /// empujando `VerificacionAnfitrionView` (ver `.navigationDestination(isPresented:)` en
+    /// ambas vistas).
+    public var abrirVerificacionAlEntrar = false
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private var modelContext: ModelContext?
@@ -92,23 +102,16 @@ public final class SessionStore {
 
     public func registro(
         nombre: String, email: String, password: String, telefono: String?,
-        rol: Usuario.Rol, esAnfitrion: Bool, mascotaNombre: String?
+        rol: Usuario.Rol, mascotaNombre: String?
     ) async throws {
         let respuesta = try await authService.registro(
             nombre: nombre, email: email, password: password,
-            telefono: telefono, rol: rol, esAnfitrion: esAnfitrion, mascotaNombre: mascotaNombre
+            telefono: telefono, rol: rol, mascotaNombre: mascotaNombre
         )
         try guardarTokens(respuesta)
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
         estado = .autenticado
         Task { await refrescarPerfilCompleto() }
-    }
-
-    /// "Conviértete en anfitrión" desde Perfil — aditivo, no crea otra cuenta ni cierra la
-    /// sesión actual. Ver db/05-multi-rol.sql.
-    public func convertirseEnAnfitrion() async throws {
-        let usuarioActualizado = try await authService.convertirseEnAnfitrion()
-        aplicarPerfil(usuarioActualizado, mascotas: mascotas, desdeCache: false)
     }
 
     public func cerrarSesion() async {
