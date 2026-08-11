@@ -8,6 +8,7 @@ import SwiftUI
 struct BuscarView: View {
     @State private var viewModel = BuscarViewModel()
     @State private var favoritosViewModel = FavoritosViewModel()
+    @State private var mostrarBuscador = false
     @State private var mostrarFiltros = false
     @State private var mostrarMapa = false
     @State private var hospedajeSeleccionado: Hospedaje?
@@ -31,6 +32,11 @@ struct BuscarView: View {
                 }
             }
         }
+        .sheet(isPresented: $mostrarBuscador) {
+            BuscadorSheet(viewModel: viewModel) {
+                Task { await viewModel.buscar() }
+            }
+        }
         .sheet(isPresented: $mostrarFiltros) {
             FiltrosView(viewModel: viewModel) {
                 Task { await viewModel.buscar() }
@@ -49,23 +55,39 @@ struct BuscarView: View {
         }
     }
 
+    /// Barra principal: ciudad + fechas + convivencia, en un solo control tocable que abre
+    /// `BuscadorSheet` — mismo patrón que el buscador de Airbnb (un resumen colapsado que
+    /// se expande a un formulario completo), en vez de 3 campos sueltos compitiendo por
+    /// espacio en una sola fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
+    /// opciones secundarias.
     private var barraBusqueda: some View {
         HStack(spacing: PHSpacing.s8) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(PHColor.muted)
-                TextField("Ciudad, tipo de hospedaje…", text: $viewModel.textoLibre)
-                    .textInputAutocapitalization(.never)
-                    .submitLabel(.search)
-                    .onSubmit { Task { await viewModel.buscar() } }
-                    .accessibilityLabel("Buscar hospedajes")
+            Button {
+                mostrarBuscador = true
+            } label: {
+                HStack(spacing: PHSpacing.s8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(PHColor.primary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Buscar hospedaje")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                        Text(viewModel.resumenBusqueda)
+                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, PHSpacing.s16)
+                .padding(.vertical, PHSpacing.s12)
+                .background(PHColor.surfaceSoft)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous))
+                .phShadow(PHShadow.level1)
             }
-            .padding(.horizontal, PHSpacing.s12)
-            .padding(.vertical, PHSpacing.s8)
-            .background(PHColor.surfaceSoft)
-            .clipShape(RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous))
+            .buttonStyle(.plain)
+            .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
+            .accessibilityHint("Abre el buscador de ciudad, fechas y convivencia")
 
-            PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Filtros") {
+            PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
                 mostrarFiltros = true
             }
         }

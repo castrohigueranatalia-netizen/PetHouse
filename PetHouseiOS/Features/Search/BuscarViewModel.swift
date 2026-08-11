@@ -38,6 +38,29 @@ public final class BuscarViewModel {
     public var orden: Orden = .relevancia
     public var cercaDeMi = false
 
+    /// Barra de búsqueda principal (ver BuscarView/BuscadorSheet): ciudad + fechas +
+    /// convivencia — a diferencia de `ciudad`/`convivencia` de arriba (que ya existían para
+    /// el sheet de "Filtros" avanzados), estos son los 3 campos prominentes que arman el
+    /// filtro principal, junto con las fechas, que antes no se usaban en la búsqueda para
+    /// nada (solo en el flujo de reserva). `usarFechas` es explícito: sin fechas es una
+    /// búsqueda válida ("cualquier fecha"), no hay forma de "vaciar" un DatePicker.
+    public var usarFechas = false
+    public var desde: Date = .now
+    public var hasta: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
+
+    /// Texto corto para mostrar en la barra colapsada (ver BuscarView).
+    public var resumenBusqueda: String {
+        var partes: [String] = []
+        partes.append(ciudad.isEmpty ? "Cualquier ciudad" : ciudad)
+        if usarFechas {
+            partes.append("\(PHDate.displayShort.string(from: desde)) – \(PHDate.displayShort.string(from: hasta))")
+        }
+        if let convivencia, convivencia != .cualquiera {
+            partes.append(convivencia.etiqueta)
+        }
+        return partes.joined(separator: " · ")
+    }
+
     public private(set) var resultados: [Hospedaje] = []
     public private(set) var isLoading = false
     public private(set) var error: AppError?
@@ -91,6 +114,8 @@ public final class BuscarViewModel {
             ciudad: ciudad.isEmpty ? nil : ciudad,
             tipo: tipo,
             convivencia: convivencia,
+            desde: usarFechas ? PHDate.toAPIDateOnly(desde) : nil,
+            hasta: usarFechas ? PHDate.toAPIDateOnly(hasta) : nil,
             lat: lat,
             lng: lng,
             radio: lat != nil ? 15_000 : nil,
@@ -127,5 +152,8 @@ public final class BuscarViewModel {
         convivencia = nil
         orden = .relevancia
         cercaDeMi = false
+        usarFechas = false
+        desde = .now
+        hasta = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
     }
 }

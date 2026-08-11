@@ -2,10 +2,10 @@
 //  FiltrosView.swift
 //  Features/Search
 //
-//  Hoja modal con los filtros que soporta `GET /api/hospedajes` hoy: ciudad, tipo,
-//  convivencia, orden y "cerca de mí" (lat/lng vía `LocationProvider`). Fechas
-//  (`desde`/`hasta`) también son soportadas por el backend pero se dejan fuera de este
-//  filtro rápido — se usan directamente en el flujo de reserva, donde importan más.
+//  Filtros SECUNDARIOS: palabra clave, tipo de hospedaje, orden y "cerca de mí" (lat/lng
+//  vía `LocationProvider`). Ciudad, fechas y convivencia son los 3 campos PRIMARIOS y
+//  viven en `BuscadorSheet` (la barra de búsqueda principal, ver BuscarView) — a propósito
+//  no se repiten aquí, para no tener el mismo dato editable en dos lugares distintos.
 //
 
 import SwiftUI
@@ -18,9 +18,9 @@ struct FiltrosView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Ciudad") {
-                    TextField("Ej. Bogotá", text: $viewModel.ciudad)
-                        .textInputAutocapitalization(.words)
+                Section("Palabra clave") {
+                    TextField("Ej. piscina, patio, guardería…", text: $viewModel.textoLibre)
+                        .textInputAutocapitalization(.never)
                 }
 
                 Section("Tipo de hospedaje") {
@@ -28,16 +28,6 @@ struct FiltrosView: View {
                         Text("Cualquiera").tag(TipoHospedaje?.none)
                         ForEach(TipoHospedaje.allCases) { tipo in
                             Text(tipo.etiqueta).tag(TipoHospedaje?.some(tipo))
-                        }
-                    }
-                    .pickerStyle(.navigationLink)
-                }
-
-                Section("Convivencia") {
-                    Picker("Convivencia", selection: $viewModel.convivencia) {
-                        Text("Cualquiera").tag(Convivencia?.none)
-                        ForEach(Convivencia.allCases) { opcion in
-                            Text(opcion.etiqueta).tag(Convivencia?.some(opcion))
                         }
                     }
                     .pickerStyle(.navigationLink)
