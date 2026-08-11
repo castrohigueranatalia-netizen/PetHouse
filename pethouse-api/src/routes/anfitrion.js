@@ -2,11 +2,11 @@
 // PETHOUSE API · Verificación de seguridad + preferencias de anfitrión
 // POST/GET /api/anfitrion/verificacion · POST/GET /api/anfitrion/preferencias
 //
-// Paso obligatorio antes de poder publicar hospedajes (ver PetHouseiOS: el botón
-// "Conviértete en anfitrión" ya no activa la capacidad directo, ahora lleva a este
-// formulario). Enviar la verificación activa usuarios.es_anfitrion de una vez
-// (self-serve, sin panel de revisión en este MVP — ver comentario en
-// db/06-verificacion-anfitrion.sql) y deja el registro en estado 'pendiente'.
+// Paso obligatorio antes de poder publicar hospedajes. Enviar la verificación deja el
+// registro en estado 'pendiente' — YA NO activa usuarios.es_anfitrion de una vez: eso
+// ahora requiere que un administrador la apruebe (ver routes/admin.js,
+// POST /api/admin/verificaciones/:id/aprobar). Antes era self-serve porque no existía
+// panel de revisión; ahora que existe, la aprobación real es la única forma de activarla.
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
@@ -52,35 +52,26 @@ r.post('/verificacion', auth, async (req, res, next) => {
     if (!fotosPersonaArr.length) return res.status(400).json({ error: 'Adjunta al menos una foto tuya.' })
     if (!fotosViviendaArr.length) return res.status(400).json({ error: 'Adjunta al menos una foto del lugar donde vives.' })
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      const { rows } = await client.query(
-        `INSERT INTO verificaciones_anfitrion
-           (usuario_id, nombre_legal, cedula, certificado_policial_url, referencias, fotos_persona, fotos_vivienda, estado, actualizado_en)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendiente', now())
-         ON CONFLICT (usuario_id) DO UPDATE SET
-           nombre_legal = EXCLUDED.nombre_legal,
-           cedula = EXCLUDED.cedula,
-           certificado_policial_url = EXCLUDED.certificado_policial_url,
-           referencias = EXCLUDED.referencias,
-           fotos_persona = EXCLUDED.fotos_persona,
-           fotos_vivienda = EXCLUDED.fotos_vivienda,
-           estado = 'pendiente',
-           actualizado_en = now()
-         RETURNING *`,
-        [req.usuario.id, String(nombreLegal).trim(), String(cedula).trim(), certificadoPolicialUrl,
-         comoArreglo(referencias), fotosPersonaArr, fotosViviendaArr]
-      )
-      await client.query('UPDATE usuarios SET es_anfitrion = TRUE WHERE id = $1', [req.usuario.id])
-      await client.query('COMMIT')
-      res.status(201).json({ verificacion: rows[0] })
-    } catch (err) {
-      await client.query('ROLLBACK')
-      throw err
-    } finally {
-      client.release()
-    }
+    // Re-enviar una verificación (ej. tras un rechazo, corrigiendo datos) vuelve a dejarla
+    // en 'pendiente' — nunca reactiva es_anfitrion por su cuenta, eso lo decide un admin.
+    const { rows } = await pool.query(
+      `INSERT INTO verificaciones_anfitrion
+         (usuario_id, nombre_legal, cedula, certificado_policial_url, referencias, fotos_persona, fotos_vivienda, estado, actualizado_en)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendiente', now())
+       ON CONFLICT (usuario_id) DO UPDATE SET
+         nombre_legal = EXCLUDED.nombre_legal,
+         cedula = EXCLUDED.cedula,
+         certificado_policial_url = EXCLUDED.certificado_policial_url,
+         referencias = EXCLUDED.referencias,
+         fotos_persona = EXCLUDED.fotos_persona,
+         fotos_vivienda = EXCLUDED.fotos_vivienda,
+         estado = 'pendiente',
+         actualizado_en = now()
+       RETURNING *`,
+      [req.usuario.id, String(nombreLegal).trim(), String(cedula).trim(), certificadoPolicialUrl,
+       comoArreglo(referencias), fotosPersonaArr, fotosViviendaArr]
+    )
+    res.status(201).json({ verificacion: rows[0] })
   } catch (err) { next(err) }
 })
 

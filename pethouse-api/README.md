@@ -36,8 +36,9 @@ Probar: `curl http://localhost:3001/health`
 | **Mascotas** | `POST /api/mascotas` · `PATCH /api/mascotas/:id` · `DELETE /api/mascotas/:id` | ✅ (dueño de la mascota) |
 | **Favoritos** | `GET /api/favoritos` · `POST /api/favoritos` · `DELETE /api/favoritos/:hospedajeId` | ✅ |
 | **Subidas** | `POST /api/subidas` (multipart, campo `archivo`, imagen o PDF) → `201 { url }`, servido desde `/uploads` | ✅ |
-| **Verificación anfitrión** | `POST/GET /api/anfitrion/verificacion` (nombre legal, cédula, certificado policial, referencias, fotos) — enviarla activa `usuarios.es_anfitrion` | ✅ |
+| **Verificación anfitrión** | `POST/GET /api/anfitrion/verificacion` (nombre legal, cédula, certificado policial, referencias, fotos) — deja la solicitud en `pendiente`, ver Admin | ✅ |
 | **Preferencias anfitrión** | `POST/GET /api/anfitrion/preferencias` (especies, modalidades días/horas, tamaños) | ✅ |
+| **Admin** | `GET /api/admin/solicitudes?estado=` · `POST /api/admin/solicitudes/:id/aprobar` (única forma de activar `es_anfitrion`) · `/rechazar` · `GET /api/admin/estadisticas` (usuarios, anfitriones, reservas, reservas por ciudad) | rol admin |
 | **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública (con rate limit) |
 
 Los módulos de Mascotas, Favoritos y Subidas, más `GET /api/hospedajes/mios`, `GET /api/hospedajes/:id/reservas`

@@ -25,13 +25,21 @@ export async function auth(req, res, next) {
 }
 
 // ---- Solo anfitriones ----
-// `es_anfitrion` es una CAPACIDAD que cualquier cuenta puede activar (ver
-// POST /api/auth/convertirse-anfitrion), no un rol exclusivo — una cuenta puede reservar
-// Y publicar hospedajes a la vez. `rol` se conserva solo como intención/display; 'admin'
-// sigue con acceso total.
+// `es_anfitrion` es una CAPACIDAD (no un rol exclusivo — una cuenta puede reservar Y
+// publicar hospedajes a la vez) que solo un admin activa al aprobar
+// POST /api/admin/verificaciones/:id/aprobar (ver routes/admin.js). `rol` se conserva
+// solo como intención/display; 'admin' sigue con acceso total.
 export function soloAnfitrion(req, res, next) {
   if (!req.usuario?.es_anfitrion && req.usuario?.rol !== 'admin') {
     return res.status(403).json({ error: 'Necesitas activar el modo anfitrión para hacer esto.' })
+  }
+  next()
+}
+
+// ---- Solo administradores ----
+export function soloAdmin(req, res, next) {
+  if (req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ error: 'Solo un administrador puede hacer esto.' })
   }
   next()
 }

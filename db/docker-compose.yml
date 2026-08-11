@@ -13,6 +13,7 @@
 #   05-multi-rol.sql        → columna usuarios.es_anfitrion (una cuenta puede ser
 #                              cliente Y anfitrión a la vez, no roles exclusivos)
 #   06-verificacion-anfitrion.sql → tablas verificaciones_anfitrion + preferencias_anfitrion
+#   07-admin-seed.sql       → cuenta admin@pethouse.co / demo123 (rol admin)
 # (03-consultas.sql NO se monta aquí a propósito: son consultas de ejemplo para correr
 # manualmente, no una migración — ver db/README.md)
 #
@@ -47,6 +48,7 @@ services:
       - ./04-perfil-mvp-ios.sql:/docker-entrypoint-initdb.d/04-perfil-mvp-ios.sql:ro
       - ./05-multi-rol.sql:/docker-entrypoint-initdb.d/05-multi-rol.sql:ro
       - ./06-verificacion-anfitrion.sql:/docker-entrypoint-initdb.d/06-verificacion-anfitrion.sql:ro
+      - ./07-admin-seed.sql:/docker-entrypoint-initdb.d/07-admin-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pethouse -d pethouse"]
       interval: 10s

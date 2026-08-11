@@ -43,7 +43,7 @@ private struct AuthFlowView: View {
 }
 
 private enum Pestana: Hashable {
-    case buscar, favoritos, reservas, mensajes, anfitrion, perfil
+    case buscar, favoritos, reservas, mensajes, anfitrion, admin, perfil
 }
 
 struct MainTabView: View {
@@ -82,6 +82,14 @@ struct MainTabView: View {
                 }
                 .tabItem { Label("Anfitrión", systemImage: "building.2.fill") }
                 .tag(Pestana.anfitrion)
+            }
+
+            if session.usuario?.rol == .admin {
+                NavigationStack {
+                    AdminView()
+                }
+                .tabItem { Label("Admin", systemImage: "shield.fill") }
+                .tag(Pestana.admin)
             }
 
             NavigationStack {

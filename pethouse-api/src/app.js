@@ -17,6 +17,7 @@ import mascotasRoutes from './routes/mascotas.js'
 import favoritosRoutes from './routes/favoritos.js'
 import subidasRoutes, { uploadsDir } from './routes/subidas.js'
 import anfitrionVerificacionRoutes from './routes/anfitrion.js'
+import adminRoutes from './routes/admin.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
 import { limitadorAuth, limitadorIA } from './middleware/rateLimit.js'
 import { ALLOWED_ORIGINS } from './config.js'
@@ -49,6 +50,7 @@ app.use('/api/mascotas', mascotasRoutes)
 app.use('/api/favoritos', favoritosRoutes)
 app.use('/api/subidas', subidasRoutes)
 app.use('/api/anfitrion', anfitrionVerificacionRoutes)
+app.use('/api/admin', adminRoutes)
 
 app.use(noEncontrado)
 app.use(manejadorErrores)
