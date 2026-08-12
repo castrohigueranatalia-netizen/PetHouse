@@ -211,7 +211,12 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
 }
 
 public struct HospedajesListResponse: Codable {
+    /// Total de hospedajes que matchean el filtro completo (no solo los de esta página) —
+    /// viene de `COUNT(*) OVER()` en el servidor. `pagina`/`porPagina` son `nil` en
+    /// `GET /api/hospedajes/cerca`, que no pagina (siempre devuelve todo el radio).
     public let total: Int
+    public let pagina: Int?
+    public let porPagina: Int?
     public let hospedajes: [Hospedaje]
 }
 

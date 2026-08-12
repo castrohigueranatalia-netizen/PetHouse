@@ -52,11 +52,17 @@ los consume, dejaron de responder 404 de "ruta no implementada".
 GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
                    &desde=2026-12-01&hasta=2026-12-05
                    &lat=4.711&lng=-74.072&radio=5000&q=guardería&orden=precio-asc
+                   &pagina=1&porPagina=20
 ```
 
 - `lat+lng+radio` → búsqueda espacial con **índice GIST** (PostGIS).
 - `desde+hasta` → solo hospedajes sin reservas confirmadas solapadas.
 - `q` → búsqueda de texto (`to_tsvector` español).
+- `pagina` (default 1) + `porPagina` (default 20, máx 50) → paginación real contra la base
+  con `COUNT(*) OVER()` (total del filtro completo, no solo de la página) + `LIMIT/OFFSET`.
+  La respuesta es `{ total, pagina, porPagina, hospedajes }`. Reemplaza el `LIMIT 100` fijo
+  que existía antes (el cliente iOS hacía "paginación" revelando de a poco ese máximo ya
+  descargado — ver `MVP_SCOPE.md` #7); ahora pide páginas nuevas de verdad al hacer scroll.
 
 ## Seguridad implementada
 

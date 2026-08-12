@@ -14,8 +14,10 @@ Leyenda: ✅ backend listo · 🟡 backend parcial (falta algo puntual) · 🔴 
 > seguridad bloqueante (`JWT_SECRET` obligatorio en producción, CORS restringido, rate
 > limiting). El cliente iOS ya estaba escrito contra ese contrato — empezó a funcionar sin
 > tocar Swift. Ver `pethouse-api/README.md` para el detalle de rutas y variables de entorno
-> nuevas. La paginación de `GET /api/hospedajes` (#7) sigue pendiente — el cliente ya la
-> absorbe con paginación del lado del cliente sobre el `LIMIT 100`.
+> nuevas. La paginación de `GET /api/hospedajes` (#7) también se cerró: `pagina`/`porPagina`
+> reales contra la base (`COUNT(*) OVER()` + `LIMIT/OFFSET`) en vez del `LIMIT 100` fijo que
+> el cliente completaba con paginación local — `BuscarViewModel` ahora pide páginas nuevas
+> de verdad al hacer scroll.
 
 ---
 
@@ -29,7 +31,7 @@ Leyenda: ✅ backend listo · 🟡 backend parcial (falta algo puntual) · 🔴 
 | 4 | CRUD de mascotas (agregar/editar/eliminar más de una) | 🔴 (solo se crea 1 al registrarse) | Sí, versión mínima | Requiere `POST/PATCH/DELETE /api/mascotas` |
 | 5 | Búsqueda y listado (ciudad, tipo, fechas, convivencia, texto) | ✅ | Sí | Ya soporta todos los filtros del prototipo HTML |
 | 6 | Búsqueda por cercanía / mapa | ✅ (`/cerca`, `lat/lng/radio`) | Sí | En iOS: MapKit nativo, no el SVG del prototipo |
-| 7 | Paginación / scroll infinito en resultados | 🔴 (`LIMIT 100` fijo) | Sí | Backend: agregar `page`/`limit` o cursor antes de construir la lista en iOS |
+| 7 | Paginación / scroll infinito en resultados | ✅ (`pagina`/`porPagina` reales) | Sí | Cerrado — ver nota de actualización arriba |
 | 8 | Detalle de hospedaje (fotos, servicios, reglas, host, reseñas) | ✅ | Sí | |
 | 9 | Flujo de reserva (solicitud → confirmación) | ✅ (sin cobro real, ver #11) | Sí | Transacción anti-doble-reserva ya robusta |
 | 10 | Mis reservas (ver, cancelar) | ✅ | Sí | |

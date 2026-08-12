@@ -33,7 +33,7 @@ public struct BuscarHospedajesFiltros: Sendable {
 }
 
 public protocol HospedajesServicing: Sendable {
-    func buscar(_ filtros: BuscarHospedajesFiltros) async throws -> HospedajesListResponse
+    func buscar(_ filtros: BuscarHospedajesFiltros, pagina: Int, porPagina: Int) async throws -> HospedajesListResponse
     func cerca(lat: Double, lng: Double, radio: Int) async throws -> HospedajesListResponse
     func detalle(id: String) async throws -> HospedajeDetailResponse
     func crear(_ payload: CrearHospedajeRequest) async throws -> CrearHospedajeResponse
@@ -46,7 +46,7 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         self.client = client
     }
 
-    public func buscar(_ filtros: BuscarHospedajesFiltros) async throws -> HospedajesListResponse {
+    public func buscar(_ filtros: BuscarHospedajesFiltros, pagina: Int, porPagina: Int) async throws -> HospedajesListResponse {
         var items: [URLQueryItem] = []
         if let v = filtros.ciudad, !v.isEmpty { items.append(.init(name: "ciudad", value: v)) }
         if let v = filtros.tipo { items.append(.init(name: "tipo", value: v.rawValue)) }
@@ -58,6 +58,8 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         if let v = filtros.radio { items.append(.init(name: "radio", value: String(v))) }
         if let v = filtros.q, !v.isEmpty { items.append(.init(name: "q", value: v)) }
         if let v = filtros.orden { items.append(.init(name: "orden", value: v)) }
+        items.append(.init(name: "pagina", value: String(pagina)))
+        items.append(.init(name: "porPagina", value: String(porPagina)))
 
         let request = APIRequest(method: "GET", path: "/hospedajes", queryItems: items)
         return try await client.send(request)

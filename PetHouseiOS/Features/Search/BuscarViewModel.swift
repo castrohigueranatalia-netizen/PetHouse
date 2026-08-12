@@ -2,11 +2,11 @@
 //  BuscarViewModel.swift
 //  Features/Search
 //
-//  GET /api/hospedajes no pagina (`LIMIT 100` fijo en el servidor, ver
-//  ARCHITECTURE_AUDIT.md §5). Este ViewModel trae ese máximo de 100 en una sola llamada
-//  y hace la "paginación" del lado del cliente, revelando resultados en tandas mientras
-//  el usuario hace scroll (`cargarMasSiHaceFalta`) — cuando el backend agregue `page`/
-//  `limit` de verdad, esto se reemplaza por fetches incrementales sin cambiar la vista.
+//  GET /api/hospedajes pagina de verdad contra la base (`pagina`/`porPagina`, ver
+//  pethouse-api/README.md). Este ViewModel pide una página de `tamanoPagina` resultados por
+//  vez; cuando el usuario hace scroll cerca del final (`cargarMasSiHaceFalta`) pide la
+//  siguiente página al servidor y la agrega a `resultados`, en vez de revelar de a poco un
+//  lote ya descargado completo.
 //
 
 import Foundation
@@ -66,10 +66,16 @@ public final class BuscarViewModel {
     public private(set) var error: AppError?
     public private(set) var totalCargados = 0
 
-    /// Cuántos elementos de `resultados` se muestran ya en la lista — crece de a
-    /// `tamanoPagina` conforme el usuario llega al final (paginación de cliente).
-    public private(set) var visibleCount = 0
+    /// `true` mientras se pide una página adicional en segundo plano (scroll) — separado
+    /// de `isLoading`, que es solo para la búsqueda inicial (esa sí bloquea toda la lista).
+    public private(set) var cargandoMas = false
+    private var paginaActual = 1
     private let tamanoPagina = 20
+
+    /// Coordenadas capturadas al iniciar una búsqueda con `cercaDeMi` activo — se reusan al
+    /// pedir páginas siguientes para no volver a pedir permiso de ubicación en cada scroll.
+    private var latActual: Double?
+    private var lngActual: Double?
 
     private let service: HospedajesServicing
     private let locationProvider: LocationProvider
@@ -86,12 +92,8 @@ public final class BuscarViewModel {
         self.locationProvider = locationProvider ?? LocationProvider()
     }
 
-    public var resultadosVisibles: [Hospedaje] {
-        Array(resultados.prefix(visibleCount))
-    }
-
     public var hayMasPorMostrar: Bool {
-        visibleCount < resultados.count
+        resultados.count < totalCargados
     }
 
     public func buscar() async {
@@ -99,50 +101,71 @@ public final class BuscarViewModel {
         error = nil
         defer { isLoading = false }
 
-        var lat: Double?
-        var lng: Double?
+        latActual = nil
+        lngActual = nil
         if cercaDeMi {
             if let coordenada = await locationProvider.solicitarUbicacion() {
-                lat = coordenada.latitude
-                lng = coordenada.longitude
+                latActual = coordenada.latitude
+                lngActual = coordenada.longitude
             } else {
                 cercaDeMi = false // el usuario negó el permiso o falló: no bloquea la búsqueda
             }
         }
 
-        let filtros = BuscarHospedajesFiltros(
-            ciudad: ciudad.isEmpty ? nil : ciudad,
-            tipo: tipo,
-            convivencia: convivencia,
-            desde: usarFechas ? PHDate.toAPIDateOnly(desde) : nil,
-            hasta: usarFechas ? PHDate.toAPIDateOnly(hasta) : nil,
-            lat: lat,
-            lng: lng,
-            radio: lat != nil ? 15_000 : nil,
-            q: textoLibre.isEmpty ? nil : textoLibre,
-            orden: orden == .relevancia ? nil : orden.rawValue
-        )
-
+        paginaActual = 1
         do {
-            let respuesta = try await service.buscar(filtros)
+            let respuesta = try await service.buscar(construirFiltros(), pagina: paginaActual, porPagina: tamanoPagina)
             resultados = respuesta.hospedajes
             totalCargados = respuesta.total
-            visibleCount = min(tamanoPagina, resultados.count)
         } catch let appError as AppError {
             error = appError
             resultados = []
+            totalCargados = 0
         } catch {
             self.error = .desconocido(error.localizedDescription)
             resultados = []
+            totalCargados = 0
         }
     }
 
     public func cargarMasSiHaceFalta(elementoActual: Hospedaje) {
         guard let index = resultados.firstIndex(where: { $0.id == elementoActual.id }) else { return }
-        let umbral = visibleCount - 5
-        if index >= umbral, hayMasPorMostrar {
-            visibleCount = min(visibleCount + tamanoPagina, resultados.count)
+        let umbral = resultados.count - 5
+        guard index >= umbral, hayMasPorMostrar, !cargandoMas else { return }
+        Task { await cargarSiguientePagina() }
+    }
+
+    private func cargarSiguientePagina() async {
+        guard !cargandoMas, hayMasPorMostrar else { return }
+        cargandoMas = true
+        defer { cargandoMas = false }
+
+        let siguiente = paginaActual + 1
+        do {
+            let respuesta = try await service.buscar(construirFiltros(), pagina: siguiente, porPagina: tamanoPagina)
+            resultados.append(contentsOf: respuesta.hospedajes)
+            totalCargados = respuesta.total
+            paginaActual = siguiente
+        } catch {
+            // Silencioso a propósito: ya hay resultados visibles en pantalla, no vale la
+            // pena reemplazarlos por un estado de error solo porque falló traer una página
+            // más — el usuario puede reintentar volviendo a hacer scroll.
         }
+    }
+
+    private func construirFiltros() -> BuscarHospedajesFiltros {
+        BuscarHospedajesFiltros(
+            ciudad: ciudad.isEmpty ? nil : ciudad,
+            tipo: tipo,
+            convivencia: convivencia,
+            desde: usarFechas ? PHDate.toAPIDateOnly(desde) : nil,
+            hasta: usarFechas ? PHDate.toAPIDateOnly(hasta) : nil,
+            lat: latActual,
+            lng: lngActual,
+            radio: latActual != nil ? 15_000 : nil,
+            q: textoLibre.isEmpty ? nil : textoLibre,
+            orden: orden == .relevancia ? nil : orden.rawValue
+        )
     }
 
     public func limpiarFiltros() {

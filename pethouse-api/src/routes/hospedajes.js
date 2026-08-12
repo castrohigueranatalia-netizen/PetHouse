@@ -1,6 +1,6 @@
 // ============================================================
 // PETHOUSE API · Módulo Hospedajes (PostGIS)
-// GET /api/hospedajes?ciudad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden
+// GET /api/hospedajes?ciudad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden&pagina&porPagina
 // GET /api/hospedajes/cerca?lat&lng&radio
 // GET /api/hospedajes/:id
 // POST /api/hospedajes   (anfitrión)
@@ -15,6 +15,12 @@ const r = Router()
 r.get('/', async (req, res, next) => {
   try {
     const { ciudad, tipo, convivencia, desde, hasta, lat, lng, radio, q, orden } = req.query
+    // Antes esto era un `LIMIT 100` fijo sin forma de pedir más — el cliente hacía su
+    // propia "paginación" revelando de a poco ese máximo de 100 ya descargado (ver
+    // MVP_SCOPE.md #7). Ahora pagina de verdad contra la base.
+    const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1)
+    const porPagina = Math.min(50, Math.max(1, parseInt(req.query.porPagina, 10) || 20))
+    const offset = (pagina - 1) * porPagina
 
     const condiciones = ['h.activo = TRUE']
     const params = []
@@ -41,7 +47,8 @@ r.get('/', async (req, res, next) => {
       SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.convivencia,
              h.max_mascotas, h.rating, h.num_resenas, h.destacado, h.servicios, h.fotos,
              ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng,
-             u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado`
+             u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado,
+             COUNT(*) OVER() AS total_filtrado`
     let ordenSql = 'h.destacado DESC, h.rating DESC, h.num_resenas DESC'
 
     if (lat && lng) {
@@ -59,10 +66,21 @@ r.get('/', async (req, res, next) => {
       case 'rating': ordenSql = 'h.rating DESC, h.num_resenas DESC'; break
     }
 
+    params.push(porPagina, offset)
+    const limiteParam = params.length - 1
+    const offsetParam = params.length
+
     const sql = `${seleccion} FROM hospedajes h JOIN usuarios u ON u.id = h.anfitrion_id
-                 WHERE ${condiciones.join(' AND ')} ORDER BY ${ordenSql} LIMIT 100`
+                 WHERE ${condiciones.join(' AND ')} ORDER BY ${ordenSql}
+                 LIMIT $${limiteParam} OFFSET $${offsetParam}`
     const { rows } = await pool.query(sql, params)
-    res.json({ total: rows.length, hospedajes: rows })
+    // `COUNT(*) OVER()` cuenta las filas que matchean el filtro ANTES del LIMIT/OFFSET
+    // (Postgres evalúa las funciones de ventana antes de truncar con LIMIT), así que da el
+    // total real sin una segunda consulta — pero solo viene en las filas devueltas, por eso
+    // el fallback a 0 cuando la página no trae ninguna.
+    const total = rows.length ? Number(rows[0].total_filtrado) : 0
+    const hospedajes = rows.map(({ total_filtrado, ...resto }) => resto)
+    res.json({ total, pagina, porPagina, hospedajes })
   } catch (err) { next(err) }
 })
 

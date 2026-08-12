@@ -133,7 +133,7 @@ struct BuscarView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: PHSpacing.s16) {
-                    ForEach(viewModel.resultadosVisibles) { hospedaje in
+                    ForEach(viewModel.resultados) { hospedaje in
                         Button {
                             hospedajeSeleccionado = hospedaje
                         } label: {
@@ -149,7 +149,7 @@ struct BuscarView: View {
                         .onAppear { viewModel.cargarMasSiHaceFalta(elementoActual: hospedaje) }
                     }
 
-                    if viewModel.hayMasPorMostrar {
+                    if viewModel.cargandoMas {
                         ProgressView()
                             .padding(.vertical, PHSpacing.s16)
                     }
