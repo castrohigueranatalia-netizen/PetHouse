@@ -72,7 +72,7 @@ struct BuscarView: View {
         }
     }
 
-    /// Barra principal: ciudad + fechas + convivencia, en un solo control tocable que abre
+    /// Barra principal: localidad + fechas + convivencia, en un solo control tocable que abre
     /// `BuscadorSheet` — mismo patrón que el buscador de Airbnb (un resumen colapsado que
     /// se expande a un formulario completo), en vez de 3 campos sueltos compitiendo por
     /// espacio en una sola fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
@@ -102,7 +102,7 @@ struct BuscarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
-            .accessibilityHint("Abre el buscador de ciudad, fechas y convivencia")
+            .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
 
             PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
                 mostrarFiltros = true
@@ -124,7 +124,7 @@ struct BuscarView: View {
             PHEmptyStateView(
                 systemImage: "magnifyingglass",
                 titulo: "Sin resultados",
-                mensaje: "Prueba con otra ciudad, tipo de hospedaje o quita algunos filtros.",
+                mensaje: "Prueba con otra localidad, tipo de hospedaje o quita algunos filtros.",
                 accionTitulo: "Limpiar filtros"
             ) {
                 viewModel.limpiarFiltros()
