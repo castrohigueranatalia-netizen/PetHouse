@@ -49,8 +49,14 @@ struct AdminView: View {
                 .accessibilityLabel("Ir al listado de hospedajes")
             }
         }
-        .refreshable { await viewModel.cargar() }
-        .task { if viewModel.estadisticas == nil { await viewModel.cargar() } }
+        .refreshable {
+            await viewModel.cargar()
+            await session.actualizarContadores()
+        }
+        .task {
+            if viewModel.estadisticas == nil { await viewModel.cargar() }
+            await session.actualizarContadores()
+        }
     }
 
     private func tarjetas(_ estadisticas: EstadisticasAdmin) -> some View {

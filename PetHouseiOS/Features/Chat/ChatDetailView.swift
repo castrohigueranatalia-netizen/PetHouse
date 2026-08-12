@@ -47,7 +47,12 @@ struct ChatDetailView: View {
         }
         .navigationTitle(conversacion.otroNombre ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.iniciar() }
+        .task {
+            await viewModel.iniciar()
+            // `iniciar()` ya marcó esta conversación como leída — refresca el badge de la
+            // pestaña Mensajes para que baje sin esperar a volver a Conversaciones.
+            await session.actualizarContadores()
+        }
         .onDisappear { viewModel.detener() }
     }
 

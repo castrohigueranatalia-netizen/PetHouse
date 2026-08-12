@@ -52,13 +52,30 @@ public final class SessionStore {
     /// consumidor la apaga después de reaccionar, así que no importa el orden en que la vean.
     public var volverABuscar = false
 
+    /// Cuántos mensajes sin leer tiene el usuario en total (suma de `no_leidos` de todas
+    /// sus conversaciones) y, si es admin, cuántas solicitudes de anfitrión están
+    /// pendientes. `MainTabView` los muestra como badge en las pestañas Mensajes/Admin. No
+    /// hay push notifications (ADR-7 lo difiere a fase 2), así que esto se actualiza por
+    /// polling puntual — ver `actualizarContadores()`.
+    public private(set) var mensajesNoLeidos = 0
+    public private(set) var solicitudesPendientes = 0
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
+    private let chatService: ChatServicing
+    private let adminService: AdminServicing
     private var modelContext: ModelContext?
 
-    public init(authService: AuthServicing = AuthService(), keychain: KeychainStoring = KeychainStore.shared) {
+    public init(
+        authService: AuthServicing = AuthService(),
+        keychain: KeychainStoring = KeychainStore.shared,
+        chatService: ChatServicing = ChatService(),
+        adminService: AdminServicing = AdminService()
+    ) {
         self.authService = authService
         self.keychain = keychain
+        self.chatService = chatService
+        self.adminService = adminService
     }
 
     /// Se llama una vez desde `PetHouseApp` cuando el `ModelContainer` ya está listo.
@@ -77,6 +94,7 @@ public final class SessionStore {
             let respuesta = try await authService.me()
             aplicarPerfil(respuesta.usuario, mascotas: respuesta.mascotas, desdeCache: false)
             estado = .autenticado
+            await actualizarContadores()
         } catch AppError.sesionExpirada {
             // El único caso que representa una sesión inválida de verdad: `APIClient` ya
             // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
@@ -105,7 +123,10 @@ public final class SessionStore {
         try guardarTokens(respuesta)
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
         estado = .autenticado
-        Task { await refrescarPerfilCompleto() }
+        Task {
+            await refrescarPerfilCompleto()
+            await actualizarContadores()
+        }
     }
 
     public func registro(
@@ -119,7 +140,10 @@ public final class SessionStore {
         try guardarTokens(respuesta)
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
         estado = .autenticado
-        Task { await refrescarPerfilCompleto() }
+        Task {
+            await refrescarPerfilCompleto()
+            await actualizarContadores()
+        }
     }
 
     public func cerrarSesion() async {
@@ -130,6 +154,8 @@ public final class SessionStore {
         usuario = nil
         mascotas = []
         perfilEsDeCache = false
+        mensajesNoLeidos = 0
+        solicitudesPendientes = 0
         estado = .invitado
         borrarCache()
     }
@@ -139,6 +165,8 @@ public final class SessionStore {
         keychain.borrarTodo()
         usuario = nil
         mascotas = []
+        mensajesNoLeidos = 0
+        solicitudesPendientes = 0
         estado = .invitado
     }
 
@@ -147,6 +175,21 @@ public final class SessionStore {
     public func refrescarPerfilCompleto() async {
         guard let respuesta = try? await authService.me() else { return }
         aplicarPerfil(respuesta.usuario, mascotas: respuesta.mascotas, desdeCache: false)
+    }
+
+    /// Recalcula los contadores de los badges (mensajes sin leer, y solicitudes
+    /// pendientes si es admin). Se llama al arrancar la sesión y desde las pantallas que
+    /// pueden cambiarlos (abrir un chat lo marca leído, aprobar/rechazar una solicitud la
+    /// saca de "pendientes") — nunca en un timer, porque no hay push notifications que
+    /// avisen cuándo vale la pena volver a preguntar.
+    public func actualizarContadores() async {
+        if let conversaciones = try? await chatService.conversaciones() {
+            mensajesNoLeidos = conversaciones.reduce(0) { $0 + ($1.noLeidos ?? 0) }
+        }
+        guard usuario?.rol == .admin else { return }
+        if let estadisticas = try? await adminService.estadisticas() {
+            solicitudesPendientes = estadisticas.solicitudesPendientes
+        }
     }
 
     // MARK: - Privado

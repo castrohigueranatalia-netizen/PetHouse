@@ -20,8 +20,14 @@ struct ConversacionesView: View {
                     .accessibilityLabel("Ir al listado de hospedajes")
                 }
             }
-            .task { await viewModel.cargar() }
-            .refreshable { await viewModel.cargar() }
+            .task {
+                await viewModel.cargar()
+                await session.actualizarContadores()
+            }
+            .refreshable {
+                await viewModel.cargar()
+                await session.actualizarContadores()
+            }
     }
 
     @ViewBuilder

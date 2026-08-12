@@ -74,6 +74,7 @@ struct MainTabView: View {
                 ConversacionesView()
             }
             .tabItem { Label("Mensajes", systemImage: "message") }
+            .badge(session.mensajesNoLeidos)
             .tag(Pestana.mensajes)
 
             if session.usuario?.esAnfitrion == true {
@@ -89,6 +90,7 @@ struct MainTabView: View {
                     AdminView()
                 }
                 .tabItem { Label("Admin", systemImage: "shield.fill") }
+                .badge(session.solicitudesPendientes)
                 .tag(Pestana.admin)
             }
 

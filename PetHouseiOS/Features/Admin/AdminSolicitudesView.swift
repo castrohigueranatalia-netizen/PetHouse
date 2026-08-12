@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct AdminSolicitudesView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = AdminSolicitudesViewModel()
     @State private var solicitudSeleccionada: SolicitudAnfitrion?
 
@@ -21,7 +22,12 @@ struct AdminSolicitudesView: View {
         .task { await viewModel.cargar() }
         .navigationDestination(item: $solicitudSeleccionada) { solicitud in
             AdminSolicitudDetailView(solicitud: solicitud) {
-                Task { await viewModel.cargar() }
+                Task {
+                    await viewModel.cargar()
+                    // La solicitud resuelta ya no cuenta como pendiente — refresca el
+                    // badge de la pestaña Admin.
+                    await session.actualizarContadores()
+                }
             }
         }
     }
