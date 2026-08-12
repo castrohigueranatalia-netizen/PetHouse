@@ -89,9 +89,21 @@ r.get('/', async (req, res, next) => {
     const { rows } = await pool.query(sql, params)
     // `COUNT(*) OVER()` cuenta las filas que matchean el filtro ANTES del LIMIT/OFFSET
     // (Postgres evalúa las funciones de ventana antes de truncar con LIMIT), así que da el
-    // total real sin una segunda consulta — pero solo viene en las filas devueltas, por eso
-    // el fallback a 0 cuando la página no trae ninguna.
-    const total = rows.length ? Number(rows[0].total_filtrado) : 0
+    // total real sin una segunda consulta — pero solo viene en las filas devueltas. Si se
+    // pide una página vacía (offset más allá del total, ej. el total bajó entre un scroll y
+    // el siguiente porque se desactivó un hospedaje) no hay de dónde leerlo, así que ahí sí
+    // se hace una segunda consulta liviana — el caso normal (con filas) no paga ese costo.
+    let total
+    if (rows.length) {
+      total = Number(rows[0].total_filtrado)
+    } else {
+      const paramsSinPaginacion = params.slice(0, params.length - 2)
+      const { rows: conteo } = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM hospedajes h WHERE ${condiciones.join(' AND ')}`,
+        paramsSinPaginacion
+      )
+      total = conteo[0].total
+    }
     const hospedajes = rows.map(({ total_filtrado, ...resto }) => resto)
     res.json({ total, pagina, porPagina, hospedajes })
   } catch (err) { next(err) }
