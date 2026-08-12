@@ -43,7 +43,7 @@ public final class MisHospedajesViewModel {
         // para poder reusar `PHHospedajeCard` sin cambios.
         let placeholder = Hospedaje(
             id: hospedaje.id, titulo: hospedaje.titulo, tipo: hospedaje.tipo,
-            ciudad: hospedaje.ciudad, precioNoche: hospedaje.precioNoche
+            ciudad: hospedaje.ciudad, localidad: hospedaje.localidad, precioNoche: hospedaje.precioNoche
         )
         hospedajes.insert(placeholder, at: 0)
     }

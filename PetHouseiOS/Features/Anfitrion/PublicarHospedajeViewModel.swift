@@ -17,7 +17,9 @@ public final class PublicarHospedajeViewModel {
     public var titulo = ""
     public var tipo: TipoHospedaje = .guarderia
     public var descripcion = ""
-    public var ciudad = ""
+    /// La app es solo de Bogotá: no hay campo de ciudad, se elige la localidad directamente
+    /// (ver Core/Models/Localidad.swift) — el servidor rechaza la publicación sin esto.
+    public var localidad: Localidad?
     public var barrio = ""
     public var latTexto = ""
     public var lngTexto = ""
@@ -52,13 +54,14 @@ public final class PublicarHospedajeViewModel {
     }
 
     public var puedePublicar: Bool {
-        !titulo.isEmpty && !descripcion.isEmpty && !ciudad.isEmpty
+        !titulo.isEmpty && !descripcion.isEmpty && localidad != nil
             && Double(latTexto) != nil && Double(lngTexto) != nil
             && Double(precioNocheTexto) != nil && !isLoading
     }
 
     public func publicar() async {
         guard puedePublicar,
+              let localidad,
               let lat = Double(latTexto), let lng = Double(lngTexto),
               let precio = Double(precioNocheTexto) else { return }
 
@@ -67,7 +70,7 @@ public final class PublicarHospedajeViewModel {
         defer { isLoading = false }
 
         let payload = CrearHospedajeRequest(
-            titulo: titulo, tipo: tipo, descripcion: descripcion, ciudad: ciudad,
+            titulo: titulo, tipo: tipo, descripcion: descripcion, localidad: localidad.rawValue,
             barrio: barrio.isEmpty ? nil : barrio, lat: lat, lng: lng, coberturaRadioM: nil,
             precioNoche: precio, convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
             servicios: lista(serviciosTexto), reglas: lista(reglasTexto), fotos: lista(fotosURLsTexto)

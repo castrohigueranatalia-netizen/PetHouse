@@ -1,6 +1,9 @@
 // ============================================================
 // PETHOUSE API · Módulo Hospedajes (PostGIS)
-// GET /api/hospedajes?ciudad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden&pagina&porPagina
+// GET /api/hospedajes?localidad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden&pagina&porPagina
+//   La app opera solo en Bogotá — todo listado/búsqueda se filtra a `ciudad = 'Bogotá'`
+//   siempre, y se segmenta por `localidad` en vez de una `ciudad` de texto libre.
+// GET /api/hospedajes/localidades  → conteo de hospedajes por cada una de las 20 localidades
 // GET /api/hospedajes/cerca?lat&lng&radio
 // GET /api/hospedajes/:id
 // POST /api/hospedajes   (anfitrión)
@@ -11,10 +14,21 @@ import { auth, soloAnfitrion } from '../middleware/middleware.js'
 
 const r = Router()
 
+// Las 20 localidades oficiales del Distrito Capital, en su orden numérico oficial
+// (Usaquén = 1 … Sumapaz = 20). Duplicada en PetHouseiOS/Core/Models/Localidad.swift y en
+// el CHECK de `hospedajes.localidad` (ver db/08-localidades-bogota.sql) — cambiar acá
+// implica cambiar los tres lugares.
+const LOCALIDADES_BOGOTA = [
+  'Usaquén', 'Chapinero', 'Santa Fe', 'San Cristóbal', 'Usme', 'Tunjuelito', 'Bosa',
+  'Kennedy', 'Fontibón', 'Engativá', 'Suba', 'Barrios Unidos', 'Teusaquillo',
+  'Los Mártires', 'Antonio Nariño', 'Puente Aranda', 'La Candelaria',
+  'Rafael Uribe Uribe', 'Ciudad Bolívar', 'Sumapaz'
+]
+
 // ---- Listado con filtros (equivale a buscar_hospedajes() + detalle) ----
 r.get('/', async (req, res, next) => {
   try {
-    const { ciudad, tipo, convivencia, desde, hasta, lat, lng, radio, q, orden } = req.query
+    const { localidad, tipo, convivencia, desde, hasta, lat, lng, radio, q, orden } = req.query
     // Antes esto era un `LIMIT 100` fijo sin forma de pedir más — el cliente hacía su
     // propia "paginación" revelando de a poco ese máximo de 100 ya descargado (ver
     // MVP_SCOPE.md #7). Ahora pagina de verdad contra la base.
@@ -22,15 +36,14 @@ r.get('/', async (req, res, next) => {
     const porPagina = Math.min(50, Math.max(1, parseInt(req.query.porPagina, 10) || 20))
     const offset = (pagina - 1) * porPagina
 
-    const condiciones = ['h.activo = TRUE']
+    // La app es solo de Bogotá (ver encabezado del archivo): esta condición no depende de
+    // ningún query param, siempre está.
+    const condiciones = ['h.activo = TRUE', "h.ciudad = 'Bogotá'"]
     const params = []
 
     if (tipo) { params.push(tipo); condiciones.push(`h.tipo = $${params.length}`) }
     if (convivencia) { params.push(convivencia); condiciones.push(`h.convivencia = $${params.length}`) }
-    if (ciudad) {
-      params.push(`%${ciudad}%`)
-      condiciones.push(`(h.ciudad ILIKE $${params.length} OR h.barrio ILIKE $${params.length})`)
-    }
+    if (localidad) { params.push(localidad); condiciones.push(`h.localidad = $${params.length}`) }
     if (q) {
       params.push(q)
       condiciones.push(`to_tsvector('spanish', h.titulo || ' ' || h.descripcion || ' ' || h.ciudad) @@ plainto_tsquery('spanish', $${params.length})`)
@@ -44,7 +57,7 @@ r.get('/', async (req, res, next) => {
     }
 
     let seleccion = `
-      SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.convivencia,
+      SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.convivencia,
              h.max_mascotas, h.rating, h.num_resenas, h.destacado, h.servicios, h.fotos,
              ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng,
              u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado,
@@ -93,15 +106,37 @@ r.get('/cerca', async (req, res, next) => {
       return res.status(400).json({ error: 'Parámetros lat y lng requeridos.' })
     }
     const { rows } = await pool.query(
-      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.rating,
+      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.rating,
               ROUND(ST_Distance(h.ubicacion, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography)) AS distancia_m
          FROM hospedajes h
         WHERE h.activo
+          AND h.ciudad = 'Bogotá'
           AND ST_DWithin(h.ubicacion, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)
         ORDER BY distancia_m`,
       [lat, lng, radio]
     )
     res.json({ total: rows.length, hospedajes: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Conteo de hospedajes activos por localidad (mapa/búsqueda segmentados) ----
+// IMPORTANTE: debe ir antes de GET /:id (si no, Express interpreta "localidades" como un :id).
+r.get('/localidades', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT localidad, COUNT(*)::int AS hospedajes
+         FROM hospedajes
+        WHERE activo = TRUE AND ciudad = 'Bogotá' AND localidad IS NOT NULL
+        GROUP BY localidad`
+    )
+    const conteos = Object.fromEntries(rows.map((fila) => [fila.localidad, fila.hospedajes]))
+    // Incluye TODAS las localidades, aunque tengan 0 hospedajes — así la lista/mapa del
+    // cliente no tiene que saber de antemano cuáles son las 20 para completar los ceros.
+    const localidades = LOCALIDADES_BOGOTA.map((nombre) => ({
+      localidad: nombre,
+      hospedajes: conteos[nombre] || 0
+    }))
+    res.json({ localidades })
   } catch (err) { next(err) }
 })
 
@@ -168,20 +203,23 @@ r.get('/:id', async (req, res, next) => {
 // ---- Crear hospedaje (anfitrión) ----
 r.post('/', auth, soloAnfitrion, async (req, res, next) => {
   try {
-    const { titulo, tipo, descripcion, ciudad, barrio, lat, lng, coberturaRadioM,
+    const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
             precioNoche, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
 
-    if (!titulo || !tipo || !descripcion || !ciudad || lat == null || lng == null || !precioNoche) {
-      return res.status(400).json({ error: 'Faltan campos obligatorios (titulo, tipo, descripcion, ciudad, lat, lng, precioNoche).' })
+    if (!titulo || !tipo || !descripcion || !localidad || lat == null || lng == null || !precioNoche) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios (titulo, tipo, descripcion, localidad, lat, lng, precioNoche).' })
+    }
+    if (!LOCALIDADES_BOGOTA.includes(localidad)) {
+      return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
     }
 
     const { rows } = await pool.query(
       `INSERT INTO hospedajes
-         (anfitrion_id, tipo, titulo, descripcion, ciudad, barrio, ubicacion, cobertura_radio_m,
+         (anfitrion_id, tipo, titulo, descripcion, ciudad, barrio, localidad, ubicacion, cobertura_radio_m,
           precio_noche, convivencia, max_mascotas, servicios, reglas, fotos)
-       VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15)
-       RETURNING id, titulo, tipo, ciudad, precio_noche`,
-      [req.usuario.id, tipo, titulo, descripcion, ciudad, barrio || null, Number(lng), Number(lat),
+       VALUES ($1, $2, $3, $4, 'Bogotá', $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15)
+       RETURNING id, titulo, tipo, ciudad, localidad, precio_noche`,
+      [req.usuario.id, tipo, titulo, descripcion, barrio || null, localidad, Number(lng), Number(lat),
        coberturaRadioM || null, Number(precioNoche), convivencia || 'cualquiera',
        Number(maxMascotas || 1), servicios || [], reglas || [], fotos || []]
     )

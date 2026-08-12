@@ -28,7 +28,7 @@ Probar: `curl http://localhost:3001/health`
 | Módulo | Rutas | Auth |
 |---|---|---|
 | **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` · `PATCH /api/auth/me` | login/editar → JWT |
-| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/mios` · `GET /api/hospedajes/:id` · `GET /api/hospedajes/:id/reservas` · `POST /api/hospedajes` | crear/mios/reservas: anfitrión |
+| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/localidades` · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/mios` · `GET /api/hospedajes/:id` · `GET /api/hospedajes/:id/reservas` · `POST /api/hospedajes` | crear/mios/reservas: anfitrión |
 | **Reservas** | `POST /api/reservas` · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/plan` | ✅ |
 | **Actividades** | `GET /api/actividades?tipo=` · `POST /api/actividades` | crear: anfitrión |
 | **Reseñas** | `POST /api/hospedajes/:id/resenas` | ✅ (una por reserva) |
@@ -48,13 +48,25 @@ los consume, dejaron de responder 404 de "ruta no implementada".
 
 ### Búsqueda con filtros (igual que el buscador de la app)
 
+La app opera **solo en Bogotá**: `GET /api/hospedajes` y `GET /api/hospedajes/cerca` siempre
+filtran a `ciudad = 'Bogotá'` en el servidor (no es un parámetro, no se puede desactivar
+desde el cliente). La segmentación geográfica es por **localidad** (las 20 localidades
+oficiales del Distrito), no por una `ciudad` de texto libre.
+
 ```
-GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
+GET /api/hospedajes?localidad=Chapinero&tipo=guarderia&convivencia=compartida
                    &desde=2026-12-01&hasta=2026-12-05
                    &lat=4.711&lng=-74.072&radio=5000&q=guardería&orden=precio-asc
                    &pagina=1&porPagina=20
 ```
 
+- `localidad` → coincidencia exacta con una de las 20 localidades (ver `LOCALIDADES_BOGOTA`
+  en `src/routes/hospedajes.js`, duplicada en `PetHouseiOS/Core/Models/Localidad.swift` y en
+  el `CHECK` de `hospedajes.localidad`, `db/08-localidades-bogota.sql`). Sin este parámetro,
+  la búsqueda es en toda Bogotá.
+- `GET /api/hospedajes/localidades` → `{ localidades: [{ localidad, hospedajes }, …] }`, las
+  20 localidades con el conteo de hospedajes activos en cada una (incluye las que tienen 0) —
+  lo usa el mapa/lista de la app para mostrar "Chapinero (3)", "Suba (2)", etc.
 - `lat+lng+radio` → búsqueda espacial con **índice GIST** (PostGIS).
 - `desde+hasta` → solo hospedajes sin reservas confirmadas solapadas.
 - `q` → búsqueda de texto (`to_tsvector` español).

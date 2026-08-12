@@ -2,15 +2,18 @@
 //  HospedajesService.swift
 //  Networking/Services
 //
-//  Envuelve `GET /api/hospedajes`, `GET /api/hospedajes/cerca`, `GET /api/hospedajes/:id`
-//  y `POST /api/hospedajes` (existentes hoy). `crear` usa `CrearHospedajeRequest`, que se
-//  serializa en camelCase a propósito — ver el comentario en Core/Models/Hospedaje.swift.
+//  Envuelve `GET /api/hospedajes`, `GET /api/hospedajes/localidades`, `GET /api/hospedajes/cerca`,
+//  `GET /api/hospedajes/:id` y `POST /api/hospedajes` (existentes hoy). `crear` usa
+//  `CrearHospedajeRequest`, que se serializa en camelCase a propósito — ver el comentario en
+//  Core/Models/Hospedaje.swift.
 //
 
 import Foundation
 
 public struct BuscarHospedajesFiltros: Sendable {
-    public var ciudad: String?
+    /// La app es solo de Bogotá (ver pethouse-api/src/routes/hospedajes.js) — se segmenta
+    /// por localidad, no por una ciudad de texto libre. `nil` busca en toda Bogotá.
+    public var localidad: Localidad?
     public var tipo: TipoHospedaje?
     public var convivencia: Convivencia?
     public var desde: String?   // YYYY-MM-DD
@@ -22,11 +25,11 @@ public struct BuscarHospedajesFiltros: Sendable {
     public var orden: String?   // "precio-asc" | "precio-desc" | "rating"
 
     public init(
-        ciudad: String? = nil, tipo: TipoHospedaje? = nil, convivencia: Convivencia? = nil,
+        localidad: Localidad? = nil, tipo: TipoHospedaje? = nil, convivencia: Convivencia? = nil,
         desde: String? = nil, hasta: String? = nil, lat: Double? = nil, lng: Double? = nil,
         radio: Int? = nil, q: String? = nil, orden: String? = nil
     ) {
-        self.ciudad = ciudad; self.tipo = tipo; self.convivencia = convivencia
+        self.localidad = localidad; self.tipo = tipo; self.convivencia = convivencia
         self.desde = desde; self.hasta = hasta; self.lat = lat; self.lng = lng
         self.radio = radio; self.q = q; self.orden = orden
     }
@@ -37,6 +40,9 @@ public protocol HospedajesServicing: Sendable {
     func cerca(lat: Double, lng: Double, radio: Int) async throws -> HospedajesListResponse
     func detalle(id: String) async throws -> HospedajeDetailResponse
     func crear(_ payload: CrearHospedajeRequest) async throws -> CrearHospedajeResponse
+    /// GET /api/hospedajes/localidades — conteo de hospedajes activos por cada una de las
+    /// 20 localidades (incluye las que tienen 0), usado por el mapa/lista segmentados.
+    func localidades() async throws -> [LocalidadConteo]
 }
 
 public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
@@ -48,7 +54,7 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
 
     public func buscar(_ filtros: BuscarHospedajesFiltros, pagina: Int, porPagina: Int) async throws -> HospedajesListResponse {
         var items: [URLQueryItem] = []
-        if let v = filtros.ciudad, !v.isEmpty { items.append(.init(name: "ciudad", value: v)) }
+        if let v = filtros.localidad { items.append(.init(name: "localidad", value: v.rawValue)) }
         if let v = filtros.tipo { items.append(.init(name: "tipo", value: v.rawValue)) }
         if let v = filtros.convivencia { items.append(.init(name: "convivencia", value: v.rawValue)) }
         if let v = filtros.desde { items.append(.init(name: "desde", value: v)) }
@@ -84,5 +90,11 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         let data = try JSONEncoder().encode(payload)
         let request = APIRequest(method: "POST", path: "/hospedajes", body: data, requiresAuth: true)
         return try await client.send(request)
+    }
+
+    public func localidades() async throws -> [LocalidadConteo] {
+        let request = APIRequest(method: "GET", path: "/hospedajes/localidades")
+        let response: LocalidadesResponse = try await client.send(request)
+        return response.localidades
     }
 }

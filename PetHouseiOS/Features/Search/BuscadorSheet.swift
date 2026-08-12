@@ -2,10 +2,11 @@
 //  BuscadorSheet.swift
 //  Features/Search
 //
-//  Los 3 campos prominentes de la búsqueda (ver BuscarView): ciudad, fechas y
+//  Los 3 campos prominentes de la búsqueda (ver BuscarView): localidad, fechas y
 //  convivencia. Separado del "Filtros" avanzado (FiltrosView: tipo, orden, cerca de mí)
 //  a propósito — mismo patrón que Airbnb: la barra principal es Dónde/Cuándo/Con quién,
-//  todo lo demás es secundario.
+//  todo lo demás es secundario. "Dónde" es un Picker de localidad, no texto libre — la
+//  app es solo de Bogotá, segmentada por sus 20 localidades (ver Localidad.swift).
 //
 
 import SwiftUI
@@ -18,9 +19,15 @@ struct BuscadorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Ciudad") {
-                    TextField("¿A dónde va tu mascota?", text: $viewModel.ciudad)
-                        .textInputAutocapitalization(.words)
+                Section("Localidad") {
+                    Picker("Localidad", selection: $viewModel.localidad) {
+                        Text("Toda Bogotá").tag(Localidad?.none)
+                        ForEach(Localidad.allCases) { localidad in
+                            Text(localidad.etiqueta).tag(Localidad?.some(localidad))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
 
                 Section {

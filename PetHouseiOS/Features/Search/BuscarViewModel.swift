@@ -32,18 +32,19 @@ public final class BuscarViewModel {
     }
 
     public var textoLibre = ""
-    public var ciudad = ""
+    /// La app es solo de Bogotá — se segmenta por localidad, no por una ciudad de texto
+    /// libre (ver Core/Models/Localidad.swift). `nil` busca en toda la ciudad.
+    public var localidad: Localidad?
     public var tipo: TipoHospedaje?
     public var convivencia: Convivencia?
     public var orden: Orden = .relevancia
     public var cercaDeMi = false
 
-    /// Barra de búsqueda principal (ver BuscarView/BuscadorSheet): ciudad + fechas +
-    /// convivencia — a diferencia de `ciudad`/`convivencia` de arriba (que ya existían para
-    /// el sheet de "Filtros" avanzados), estos son los 3 campos prominentes que arman el
-    /// filtro principal, junto con las fechas, que antes no se usaban en la búsqueda para
-    /// nada (solo en el flujo de reserva). `usarFechas` es explícito: sin fechas es una
-    /// búsqueda válida ("cualquier fecha"), no hay forma de "vaciar" un DatePicker.
+    /// Barra de búsqueda principal (ver BuscarView/BuscadorSheet): localidad + fechas +
+    /// convivencia — los 3 campos prominentes que arman el filtro principal, junto con las
+    /// fechas, que antes no se usaban en la búsqueda para nada (solo en el flujo de
+    /// reserva). `usarFechas` es explícito: sin fechas es una búsqueda válida ("cualquier
+    /// fecha"), no hay forma de "vaciar" un DatePicker.
     public var usarFechas = false
     public var desde: Date = .now
     public var hasta: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
@@ -51,7 +52,7 @@ public final class BuscarViewModel {
     /// Texto corto para mostrar en la barra colapsada (ver BuscarView).
     public var resumenBusqueda: String {
         var partes: [String] = []
-        partes.append(ciudad.isEmpty ? "Cualquier ciudad" : ciudad)
+        partes.append(localidad?.etiqueta ?? "Toda Bogotá")
         if usarFechas {
             partes.append("\(PHDate.displayShort.string(from: desde)) – \(PHDate.displayShort.string(from: hasta))")
         }
@@ -155,7 +156,7 @@ public final class BuscarViewModel {
 
     private func construirFiltros() -> BuscarHospedajesFiltros {
         BuscarHospedajesFiltros(
-            ciudad: ciudad.isEmpty ? nil : ciudad,
+            localidad: localidad,
             tipo: tipo,
             convivencia: convivencia,
             desde: usarFechas ? PHDate.toAPIDateOnly(desde) : nil,
@@ -170,7 +171,7 @@ public final class BuscarViewModel {
 
     public func limpiarFiltros() {
         textoLibre = ""
-        ciudad = ""
+        localidad = nil
         tipo = nil
         convivencia = nil
         orden = .relevancia

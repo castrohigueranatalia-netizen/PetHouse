@@ -54,8 +54,18 @@ struct PublicarHospedajeView: View {
                         .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
                 }
 
-                PHTextField(label: "Ciudad", placeholder: "Ej. Bogotá", text: $viewModel.ciudad)
-                PHTextField(label: "Barrio (opcional)", placeholder: "Ej. Chapinero", text: $viewModel.barrio)
+                VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                    Text("Localidad").phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
+                    Picker("Localidad", selection: $viewModel.localidad) {
+                        Text("Elige una localidad").tag(Localidad?.none)
+                        ForEach(Localidad.allCases) { localidad in
+                            Text(localidad.etiqueta).tag(Localidad?.some(localidad))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(PHColor.ink)
+                }
+                PHTextField(label: "Barrio (opcional)", placeholder: "Ej. Chapinero Alto", text: $viewModel.barrio)
 
                 HStack {
                     PHTextField(label: "Latitud", placeholder: "4.71", text: $viewModel.latTexto, keyboardType: .numbersAndPunctuation)

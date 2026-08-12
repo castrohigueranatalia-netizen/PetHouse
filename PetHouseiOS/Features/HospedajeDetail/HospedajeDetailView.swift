@@ -54,7 +54,9 @@ struct HospedajeDetailView: View {
                             }
                         }
                         PHStarRatingDisplay(rating: hospedaje.rating, numResenas: hospedaje.numResenas)
-                        Text([hospedaje.barrio, hospedaje.ciudad].compactMap { $0 }.joined(separator: ", "))
+                        // `localidad` en vez de `ciudad`: con la app restringida a Bogotá,
+                        // `ciudad` es siempre "Bogotá" — no aporta nada que el usuario no sepa ya.
+                        Text([hospedaje.barrio, hospedaje.localidad ?? hospedaje.ciudad].compactMap { $0 }.joined(separator: ", "))
                             .phText(PHFont.bodySM, color: PHColor.muted)
                         PHBadge(hospedaje.tipo.etiqueta, style: .primary)
                     }

@@ -18,6 +18,13 @@ Leyenda: ✅ backend listo · 🟡 backend parcial (falta algo puntual) · 🔴 
 > reales contra la base (`COUNT(*) OVER()` + `LIMIT/OFFSET`) en vez del `LIMIT 100` fijo que
 > el cliente completaba con paginación local — `BuscarViewModel` ahora pide páginas nuevas
 > de verdad al hacer scroll.
+>
+> **Decisión de producto (no un gap del audit original):** la app pasó a operar solo en
+> **Bogotá**, segmentada por sus 20 localidades oficiales en vez de una `ciudad` de texto
+> libre — búsqueda, mapa y publicación de hospedajes (`POST /api/hospedajes`) filtran/exigen
+> `localidad` siempre. El seed original tenía hospedajes en 8 ciudades más (Medellín, Cali,
+> Cartagena, etc.); esos registros se quedan en la base pero la API ya no los devuelve en
+> ningún listado. Ver `pethouse-api/README.md` y `Core/Models/Localidad.swift`.
 
 ---
 

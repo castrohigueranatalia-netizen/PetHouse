@@ -28,16 +28,20 @@ check "login con clave mala → 401" "$([ "$CODE" = "401" ] && echo true)"
 R=$(curl -s -X POST $B/api/auth/registro -H "Content-Type: application/json" -d '{"nombre":"Test Usuario","email":"test-api@pethouse.co","password":"clave123","telefono":"3000000000","mascotaNombre":"Firulais"}')
 check "registro crea usuario" "$(echo "$R" | grep -c '"accessToken"')"
 
-# 5. Búsqueda por tipo+ciudad (URL codificada)
-R=$(curl -s "$B/api/hospedajes?tipo=guarderia&ciudad=Bogot%C3%A1")
-check "búsqueda guardería Bogotá" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(1 if d['total']>=1 else 0)")"
+# 5. Búsqueda por tipo+localidad (URL codificada) — la app es solo de Bogotá
+R=$(curl -s "$B/api/hospedajes?tipo=guarderia&localidad=Chapinero")
+check "búsqueda guardería en Chapinero" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(1 if d['total']>=1 else 0)")"
+
+# 5b. Localidades: 20 localidades con conteo, incluyendo las de 0 hospedajes
+R=$(curl -s "$B/api/hospedajes/localidades")
+check "conteo por localidad (20 localidades)" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(1 if len(d['localidades'])==20 else 0)")"
 
 # 6. Búsqueda por radio (PostGIS)
 R=$(curl -s "$B/api/hospedajes?lat=4.711&lng=-74.072&radio=6000")
 check "búsqueda por radio PostGIS" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(1 if d['total']>=1 and 'distancia_m' in d['hospedajes'][0] else 0)")"
 
 # 7. Paginación real: porPagina=1 trae 1, pero total refleja el filtro completo
-R=$(curl -s "$B/api/hospedajes?ciudad=Bogot%C3%A1&pagina=1&porPagina=1")
+R=$(curl -s "$B/api/hospedajes?localidad=Chapinero&pagina=1&porPagina=1")
 check "paginación: 1 resultado, total completo" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); print(1 if len(d['hospedajes'])==1 and d['total']>=1 and d.get('pagina')==1 and d.get('porPagina')==1 else 0)")"
 
 # 8. Detalle con reseñas

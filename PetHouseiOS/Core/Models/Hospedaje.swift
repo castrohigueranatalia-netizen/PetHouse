@@ -6,8 +6,8 @@
 //  (ver ARCHITECTURE_AUDIT.md §2.1 y §3):
 //   - GET /api/hospedajes        → lista "rica" con casi todos los campos + lat/lng.
 //   - GET /api/hospedajes/cerca  → lista "pobre": solo id, titulo, tipo, ciudad, barrio,
-//                                   precio_noche, rating, distancia_m (sin fotos, servicios,
-//                                   convivencia, max_mascotas, lat/lng, anfitrión...).
+//                                   localidad, precio_noche, rating, distancia_m (sin fotos,
+//                                   servicios, convivencia, max_mascotas, lat/lng, anfitrión...).
 //   - GET /api/hospedajes/:id    → `h.*` completo (incluye descripcion, reglas, direccion,
 //                                   activo, anfitrion_id, cobertura_radio_m, creado_en).
 //  Este modelo unifica las tres con campos opcionales fuera del núcleo común
@@ -64,6 +64,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     public let tipo: TipoHospedaje
     public let ciudad: String
     public let barrio: String?
+    /// Una de las 20 localidades de Bogotá (ver Core/Models/Localidad.swift) — `nil` en los
+    /// hospedajes del seed original fuera de Bogotá, que la API ya no devuelve en ningún
+    /// listado (ver pethouse-api/src/routes/hospedajes.js), pero pueden seguir en la base.
+    public let localidad: String?
     public let precioNoche: Double
     public let rating: Double
 
@@ -92,7 +96,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     public let creadoEn: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, titulo, tipo, ciudad, barrio, convivencia, servicios, fotos, reglas, activo, lat, lng
+        case id, titulo, tipo, ciudad, barrio, localidad, convivencia, servicios, fotos, reglas, activo, lat, lng
         case precioNoche = "precio_noche"
         case rating
         case maxMascotas = "max_mascotas"
@@ -115,6 +119,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     /// `MisHospedajesView` sin esperar a `GET /api/hospedajes/mios` (🔴 pendiente).
     public init(
         id: String, titulo: String, tipo: TipoHospedaje, ciudad: String, barrio: String? = nil,
+        localidad: String? = nil,
         precioNoche: Double, rating: Double = 0, convivencia: Convivencia? = nil, maxMascotas: Int? = nil,
         numResenas: Int? = nil, destacado: Bool? = nil, servicios: [String]? = nil, fotos: [String]? = nil,
         lat: Double? = nil, lng: Double? = nil, anfitrionNombre: String? = nil, anfitrionVerificado: Bool? = nil,
@@ -126,6 +131,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         self.tipo = tipo
         self.ciudad = ciudad
         self.barrio = barrio
+        self.localidad = localidad
         self.precioNoche = precioNoche
         self.rating = rating
         self.convivencia = convivencia
@@ -155,6 +161,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         tipo = try c.decode(TipoHospedaje.self, forKey: .tipo)
         ciudad = try c.decode(String.self, forKey: .ciudad)
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
+        localidad = try c.decodeIfPresent(String.self, forKey: .localidad)
         precioNoche = try c.decodeFlexibleDouble(forKey: .precioNoche)
         rating = try c.decodeFlexibleDoubleIfPresent(forKey: .rating) ?? 0
 
@@ -187,6 +194,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         try c.encode(tipo, forKey: .tipo)
         try c.encode(ciudad, forKey: .ciudad)
         try c.encodeIfPresent(barrio, forKey: .barrio)
+        try c.encodeIfPresent(localidad, forKey: .localidad)
         try c.encode(precioNoche, forKey: .precioNoche)
         try c.encode(rating, forKey: .rating)
         try c.encodeIfPresent(convivencia, forKey: .convivencia)
@@ -226,15 +234,18 @@ public struct HospedajeDetailResponse: Codable {
 }
 
 /// Body de `POST /api/hospedajes` — a diferencia de TODAS las respuestas (snake_case),
-/// esta ruta espera el body en **camelCase** (ver `pethouse-api/src/routes/hospedajes.js`
-/// líneas 115-116: `coberturaRadioM, precioNoche, maxMascotas`). Inconsistencia real del
+/// esta ruta espera el body en **camelCase** (ver `pethouse-api/src/routes/hospedajes.js`,
+/// ruta `POST /`: `coberturaRadioM, precioNoche, maxMascotas`). Inconsistencia real del
 /// backend, no un error de este cliente — de ahí que este DTO tenga su propio
 /// `CodingKeys` distinto al de `Hospedaje`.
+/// `ciudad` no se manda: el servidor la fija en `'Bogotá'` siempre (la app opera solo ahí,
+/// ver `pethouse-api/src/routes/hospedajes.js`) — en su lugar se manda `localidad`,
+/// obligatoria y validada contra las 20 localidades oficiales.
 public struct CrearHospedajeRequest: Encodable {
     public let titulo: String
     public let tipo: TipoHospedaje
     public let descripcion: String
-    public let ciudad: String
+    public let localidad: String
     public let barrio: String?
     public let lat: Double
     public let lng: Double
@@ -248,14 +259,14 @@ public struct CrearHospedajeRequest: Encodable {
     public let fotos: [String]
 
     public init(
-        titulo: String, tipo: TipoHospedaje, descripcion: String, ciudad: String, barrio: String?,
+        titulo: String, tipo: TipoHospedaje, descripcion: String, localidad: String, barrio: String?,
         lat: Double, lng: Double, coberturaRadioM: Int?, precioNoche: Double, convivencia: Convivencia,
         maxMascotas: Int, servicios: [String], reglas: [String], fotos: [String]
     ) {
         self.titulo = titulo
         self.tipo = tipo
         self.descripcion = descripcion
-        self.ciudad = ciudad
+        self.localidad = localidad
         self.barrio = barrio
         self.lat = lat
         self.lng = lng
@@ -278,10 +289,11 @@ public struct HospedajeCreado: Decodable {
     public let titulo: String
     public let tipo: TipoHospedaje
     public let ciudad: String
+    public let localidad: String?
     public let precioNoche: Double
 
     enum CodingKeys: String, CodingKey {
-        case id, titulo, tipo, ciudad
+        case id, titulo, tipo, ciudad, localidad
         case precioNoche = "precio_noche"
     }
 
@@ -291,6 +303,7 @@ public struct HospedajeCreado: Decodable {
         titulo = try c.decode(String.self, forKey: .titulo)
         tipo = try c.decode(TipoHospedaje.self, forKey: .tipo)
         ciudad = try c.decode(String.self, forKey: .ciudad)
+        localidad = try c.decodeIfPresent(String.self, forKey: .localidad)
         precioNoche = try c.decodeFlexibleDouble(forKey: .precioNoche)
     }
 }

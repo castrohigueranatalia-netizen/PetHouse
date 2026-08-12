@@ -74,14 +74,17 @@ public struct PHHospedajeCard: View {
         .accessibilityLabel("\(hospedaje.titulo), \(hospedaje.tipo.etiqueta), \(lugarTexto), \(PHFormato.precio(hospedaje.precioNoche)) por noche")
     }
 
+    // Prefiere `localidad` sobre `ciudad`: con la app restringida a Bogotá, `ciudad` es
+    // siempre "Bogotá" — no dice nada útil sobre dónde queda el hospedaje. `localidad` cae
+    // a `ciudad` solo para hospedajes viejos del seed que quedaron sin localidad asignada.
     private var lugarTexto: String {
         if let distancia = hospedaje.distanciaM {
             let km = distancia / 1000
-            return String(format: "%@ · a %.1f km", hospedaje.ciudad, km)
+            return String(format: "%@ · a %.1f km", hospedaje.localidad ?? hospedaje.ciudad, km)
         }
-        if let barrio = hospedaje.barrio, !barrio.isEmpty {
-            return "\(barrio), \(hospedaje.ciudad)"
+        if let barrio = hospedaje.barrio, !barrio.isEmpty, let localidad = hospedaje.localidad {
+            return "\(barrio), \(localidad)"
         }
-        return hospedaje.ciudad
+        return hospedaje.localidad ?? hospedaje.ciudad
     }
 }
