@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct AdminView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = AdminViewModel()
 
     var body: some View {
@@ -41,7 +42,12 @@ struct AdminView: View {
         .navigationTitle("Panel de administración")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { PHLogo(height: 28) }
+            ToolbarItem(placement: .topBarLeading) {
+                Button { session.volverABuscar = true } label: {
+                    PHLogo(height: 28)
+                }
+                .accessibilityLabel("Ir al listado de hospedajes")
+            }
         }
         .refreshable { await viewModel.cargar() }
         .task { if viewModel.estadisticas == nil { await viewModel.cargar() } }

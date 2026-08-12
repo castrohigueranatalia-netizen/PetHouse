@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct ConversacionesView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = ConversacionesViewModel()
 
     var body: some View {
@@ -13,7 +14,10 @@ struct ConversacionesView: View {
             .navigationTitle("Mensajes")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    PHLogo(height: 28)
+                    Button { session.volverABuscar = true } label: {
+                        PHLogo(height: 28)
+                    }
+                    .accessibilityLabel("Ir al listado de hospedajes")
                 }
             }
             .task { await viewModel.cargar() }

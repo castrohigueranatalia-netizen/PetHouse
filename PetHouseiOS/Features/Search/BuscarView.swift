@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct BuscarView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = BuscarViewModel()
     @State private var favoritosViewModel = FavoritosViewModel()
     @State private var mostrarBuscador = false
@@ -24,7 +25,12 @@ struct BuscarView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                PHLogo(height: 28)
+                // El logo es el botón de "inicio": ya estando en Buscar, vuelve al listado
+                // completo (cierra cualquier hospedaje abierto) — ver el `onChange` abajo.
+                Button { session.volverABuscar = true } label: {
+                    PHLogo(height: 28)
+                }
+                .accessibilityLabel("Ir al listado de hospedajes")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 PHIconButton(systemImage: "map", accessibilityLabel: "Ver en el mapa") {
@@ -52,6 +58,17 @@ struct BuscarView: View {
         }
         .task {
             if viewModel.resultados.isEmpty { await viewModel.buscar() }
+        }
+        // Consume la señal del botón de inicio (ver AppState.swift): cierra el hospedaje
+        // abierto y cualquier hoja modal, para que "volver" muestre de verdad el listado
+        // completo y no lo que hubiera quedado abierto en este stack.
+        .onChange(of: session.volverABuscar) { _, volver in
+            guard volver else { return }
+            hospedajeSeleccionado = nil
+            mostrarBuscador = false
+            mostrarFiltros = false
+            mostrarMapa = false
+            session.volverABuscar = false
         }
     }
 

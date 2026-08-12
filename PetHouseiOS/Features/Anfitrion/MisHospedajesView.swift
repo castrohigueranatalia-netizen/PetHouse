@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct MisHospedajesView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = MisHospedajesViewModel()
     @State private var mostrarPublicar = false
     @State private var hospedajeSeleccionado: Hospedaje?
@@ -15,7 +16,10 @@ struct MisHospedajesView: View {
             .navigationTitle("Mis hospedajes")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    PHLogo(height: 28)
+                    Button { session.volverABuscar = true } label: {
+                        PHLogo(height: 28)
+                    }
+                    .accessibilityLabel("Ir al listado de hospedajes")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     PHIconButton(systemImage: "plus", accessibilityLabel: "Publicar hospedaje") {

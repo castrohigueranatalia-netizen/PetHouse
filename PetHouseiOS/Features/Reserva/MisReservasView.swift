@@ -7,6 +7,7 @@ import SwiftUI
 import SwiftData
 
 struct MisReservasView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = MisReservasViewModel()
     @Environment(\.modelContext) private var modelContext
     @State private var reservaParaResena: Reserva?
@@ -16,7 +17,10 @@ struct MisReservasView: View {
             .navigationTitle("Mis reservas")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    PHLogo(height: 28)
+                    Button { session.volverABuscar = true } label: {
+                        PHLogo(height: 28)
+                    }
+                    .accessibilityLabel("Ir al listado de hospedajes")
                 }
             }
             .task { await viewModel.cargar(modelContext: modelContext) }

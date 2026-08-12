@@ -106,5 +106,12 @@ struct MainTabView: View {
         .onChange(of: session.abrirVerificacionAlEntrar) { _, abrir in
             if abrir { pestanaSeleccionada = .perfil }
         }
+        // El logo en cada pestaña funciona como botón de inicio (ver SessionStore.
+        // volverABuscar): salta a la pestaña Buscar. BuscarView, además, reacciona a la
+        // misma señal para cerrar cualquier hospedaje que hubiera quedado abierto en su
+        // propio stack — ver el comentario largo en AppState.swift.
+        .onChange(of: session.volverABuscar) { _, volver in
+            if volver { pestanaSeleccionada = .buscar }
+        }
     }
 }

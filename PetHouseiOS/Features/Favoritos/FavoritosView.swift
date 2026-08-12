@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct FavoritosView: View {
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = FavoritosViewModel()
     @State private var hospedajeSeleccionado: Hospedaje?
 
@@ -14,7 +15,10 @@ struct FavoritosView: View {
             .navigationTitle("Favoritos")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    PHLogo(height: 28)
+                    Button { session.volverABuscar = true } label: {
+                        PHLogo(height: 28)
+                    }
+                    .accessibilityLabel("Ir al listado de hospedajes")
                 }
             }
             .task { await viewModel.cargar() }

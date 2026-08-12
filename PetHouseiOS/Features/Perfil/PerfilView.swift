@@ -42,7 +42,10 @@ struct PerfilView: View {
         .navigationTitle("Perfil")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                PHLogo(height: 28)
+                Button { session.volverABuscar = true } label: {
+                    PHLogo(height: 28)
+                }
+                .accessibilityLabel("Ir al listado de hospedajes")
             }
         }
         .refreshable { await viewModel?.refrescar() }

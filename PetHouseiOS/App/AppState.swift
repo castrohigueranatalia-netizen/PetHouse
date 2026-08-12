@@ -44,6 +44,14 @@ public final class SessionStore {
     /// ambas vistas).
     public var abrirVerificacionAlEntrar = false
 
+    /// Señal de "volver al listado de hospedajes" — el logo en cada pestaña la activa (ver
+    /// las vistas de cada pestaña) para funcionar como botón de inicio. `MainTabView` la usa
+    /// para saltar a la pestaña Buscar; `BuscarView` la usa ADEMÁS para cerrar cualquier
+    /// hospedaje que hubiera quedado abierto en su propio stack de navegación (cambiar de
+    /// pestaña y volver no resetea eso solo — `NavigationStack` conserva su estado). Cada
+    /// consumidor la apaga después de reaccionar, así que no importa el orden en que la vean.
+    public var volverABuscar = false
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private var modelContext: ModelContext?
