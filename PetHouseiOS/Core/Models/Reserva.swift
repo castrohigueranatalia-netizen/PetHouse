@@ -46,6 +46,10 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public let hospedajeId: String?
     public let anfitrionId: String?
     public let hospedajeTitulo: String?
+    /// Nombre del huésped que reservó — solo presente en `GET /api/hospedajes/:id/reservas`
+    /// (la vista del anfitrión, `ReservasRecibidasView`). El anfitrión lo necesita para
+    /// saber a quién le está escribiendo al tocar "Escribir al huésped".
+    public let usuarioNombre: String?
 
     // Snapshot del hospedaje, solo presente en GET /api/reservas/mias.
     public let ciudad: String?
@@ -62,6 +66,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         case hospedajeId = "hospedaje_id"
         case anfitrionId = "anfitrion_id"
         case hospedajeTitulo = "hospedaje_titulo"
+        case usuarioNombre = "usuario_nombre"
         case ciudad, barrio, tipo, fotos
     }
 
@@ -72,8 +77,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         id: String, codigo: String, estado: EstadoReserva, desde: String?, hasta: String?,
         noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?, limpieza: Double?,
         servicio: Double?, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
-        anfitrionId: String?, hospedajeTitulo: String?, ciudad: String?, barrio: String?,
-        tipo: TipoHospedaje?, fotos: [String]?
+        anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
+        ciudad: String?, barrio: String?, tipo: TipoHospedaje?, fotos: [String]?
     ) {
         self.id = id
         self.codigo = codigo
@@ -91,6 +96,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.hospedajeId = hospedajeId
         self.anfitrionId = anfitrionId
         self.hospedajeTitulo = hospedajeTitulo
+        self.usuarioNombre = usuarioNombre
         self.ciudad = ciudad
         self.barrio = barrio
         self.tipo = tipo
@@ -115,6 +121,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         hospedajeId = try c.decodeIfPresent(String.self, forKey: .hospedajeId)
         anfitrionId = try c.decodeIfPresent(String.self, forKey: .anfitrionId)
         hospedajeTitulo = try c.decodeIfPresent(String.self, forKey: .hospedajeTitulo)
+        usuarioNombre = try c.decodeIfPresent(String.self, forKey: .usuarioNombre)
         ciudad = try c.decodeIfPresent(String.self, forKey: .ciudad)
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
         tipo = try c.decodeIfPresent(TipoHospedaje.self, forKey: .tipo)
