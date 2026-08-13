@@ -97,6 +97,14 @@ public final class BuscarViewModel {
         resultados.count < totalCargados
     }
 
+    /// `true` si hay algo elegido en el buscador principal (localidad/fechas/convivencia).
+    /// Controla si se muestra el botón de "quitar selección" junto a la barra de búsqueda
+    /// en BuscarView — sin esto no había forma de volver a "toda Bogotá, cualquier fecha"
+    /// sin abrir el buscador y deshacer cada campo a mano.
+    public var hayBusquedaActiva: Bool {
+        localidad != nil || usarFechas || convivencia != nil
+    }
+
     public func buscar() async {
         isLoading = true
         error = nil

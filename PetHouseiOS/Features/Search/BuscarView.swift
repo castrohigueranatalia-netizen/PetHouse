@@ -104,6 +104,15 @@ struct BuscarView: View {
             .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
             .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
 
+            // Solo aparece si hay algo elegido (localidad/fechas/convivencia) — quita esa
+            // selección y vuelve a buscar en toda Bogotá sin tener que abrir el buscador.
+            if viewModel.hayBusquedaActiva {
+                PHIconButton(systemImage: "xmark.circle.fill", accessibilityLabel: "Quitar selección de búsqueda") {
+                    viewModel.limpiarFiltros()
+                    Task { await viewModel.buscar() }
+                }
+            }
+
             PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
                 mostrarFiltros = true
             }
