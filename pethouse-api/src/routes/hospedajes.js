@@ -178,8 +178,14 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
       return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
     }
 
+    // usuario_rating/usuario_num_resenas: la evaluación del huésped (ver
+    // db/15-resenas-huesped.sql) — el anfitrión la ve de un vistazo al revisar la solicitud,
+    // antes de aceptar o rechazar; el detalle completo (comentarios) está en
+    // GET /api/usuarios/:id/resenas.
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
+              u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
+              ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs
          JOIN hospedajes h ON h.id = rs.hospedaje_id
          JOIN usuarios u ON u.id = rs.usuario_id

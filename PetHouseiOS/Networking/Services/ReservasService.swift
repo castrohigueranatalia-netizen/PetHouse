@@ -11,7 +11,9 @@
 //  anfitrión dueño del hospedaje, no del huésped que reservó. `resueltasSinNotificar`/
 //  `marcarNotificada` son el aviso al huésped de que su solicitud se resolvió — mismo
 //  patrón que `AnfitrionService.marcarVerificacionNotificada` (sin push, ADR-7), ver
-//  `SessionStore.revisarResolucionesReserva()`.
+//  `SessionStore.revisarResolucionesReserva()`. `calificarHuesped` es el espejo de
+//  `ResenasService.crear`: ahí el huésped califica el hospedaje, acá el anfitrión califica
+//  al huésped (ver db/15-resenas-huesped.sql).
 //
 
 import Foundation
@@ -25,6 +27,7 @@ public protocol ReservasServicing: Sendable {
     func rechazar(id: String) async throws -> ReservaAccionResponse
     func resueltasSinNotificar() async throws -> [Reserva]
     func marcarNotificada(id: String) async throws
+    func calificarHuesped(reservaId: String, rating: Int, titulo: String?, texto: String?) async throws -> Resena
     func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad
 }
 
@@ -76,6 +79,16 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
     public func marcarNotificada(id: String) async throws {
         let request = APIRequest(method: "POST", path: "/reservas/\(id)/notificado", requiresAuth: true)
         try await client.sendNoBody(request)
+    }
+
+    /// El anfitrión califica al huésped de una reserva propia — espejo de
+    /// `ResenasService.crear` (el huésped califica el hospedaje).
+    public func calificarHuesped(reservaId: String, rating: Int, titulo: String?, texto: String?) async throws -> Resena {
+        let payload = CalificarHuespedRequest(rating: rating, titulo: titulo, texto: texto)
+        let data = try JSONEncoder().encode(payload)
+        let request = APIRequest(method: "POST", path: "/reservas/\(reservaId)/resena-huesped", body: data, requiresAuth: true)
+        let response: CrearResenaResponse = try await client.send(request)
+        return response.resena
     }
 
     public func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad {

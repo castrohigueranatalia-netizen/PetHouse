@@ -8,6 +8,11 @@
 //  `rating` es SMALLINT (1-5) en BD, así que llega como número entero normal (a
 //  diferencia de las columnas NUMERIC como `hospedajes.rating`, que llegan como string).
 //
+//  Mismo shape para las dos direcciones de reseña que existen en la app: el huésped
+//  califica el hospedaje (`resenas`, arriba) y el anfitrión califica al huésped
+//  (`resenas_usuario`, ver db/15-resenas-huesped.sql y `GET /api/usuarios/:id/resenas`) —
+//  no hace falta un modelo separado, ambos endpoints devuelven exactamente esta forma.
+//
 
 import Foundation
 
@@ -60,4 +65,9 @@ public struct CrearResenaRequest: Encodable {
 
 public struct CrearResenaResponse: Codable {
     public let resena: Resena
+}
+
+/// Respuesta de `GET /api/usuarios/:id/resenas` — la evaluación completa de un huésped.
+public struct ResenasUsuarioResponse: Decodable {
+    public let resenas: [Resena]
 }

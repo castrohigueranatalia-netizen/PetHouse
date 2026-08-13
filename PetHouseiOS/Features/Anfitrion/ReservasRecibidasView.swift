@@ -10,6 +10,12 @@
 //  directamente: antes solo el huésped podía iniciar un chat (ver ReservaDetailViewModel),
 //  el anfitrión no tenía ninguna forma de hacerlo.
 //
+//  La evaluación del huésped (estrellas + comentarios de otros anfitriones, ver
+//  db/15-resenas-huesped.sql) se ve de un vistazo en cada tarjeta y el detalle completo en
+//  EvaluacionHuespedView — justo lo que el anfitrión necesita ANTES de aceptar o rechazar.
+//  Una vez la reserva está `completada`, el anfitrión puede calificar al huésped a su vez
+//  (NuevaResenaHuespedView), espejo de "Dejar una reseña" del lado del huésped.
+//
 
 import SwiftUI
 
@@ -109,6 +115,10 @@ struct ReservasRecibidasView: View {
     /// Mascota cuya ficha se está mostrando — ver `FichaMascotaView`. El anfitrión la abre
     /// tocando cualquier mascota de una solicitud para evaluar si puede aceptarla.
     @State private var mascotaFicha: Mascota?
+    /// Reserva cuyo huésped se está evaluando — ver `EvaluacionHuespedView`.
+    @State private var reservaParaEvaluar: Reserva?
+    /// Reserva `completada` que el anfitrión está calificando — ver `NuevaResenaHuespedView`.
+    @State private var reservaParaCalificar: Reserva?
 
     var body: some View {
         content
@@ -122,6 +132,17 @@ struct ReservasRecibidasView: View {
             }
             .sheet(item: $mascotaFicha) { mascota in
                 FichaMascotaView(mascota: mascota)
+            }
+            .sheet(item: $reservaParaEvaluar) { reserva in
+                EvaluacionHuespedView(
+                    usuarioId: reserva.usuarioId ?? "",
+                    usuarioNombre: reserva.usuarioNombre ?? "Huésped",
+                    rating: reserva.usuarioRating ?? 0,
+                    numResenas: reserva.usuarioNumResenas ?? 0
+                )
+            }
+            .sheet(item: $reservaParaCalificar) { reserva in
+                NuevaResenaHuespedView(reserva: reserva)
             }
     }
 
@@ -156,6 +177,7 @@ struct ReservasRecibidasView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(reserva.usuarioNombre ?? "Huésped")
                         .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    evaluacionHuesped(reserva)
                     Text(reserva.codigo)
                         .phText(PHFont.micro, color: PHColor.mutedSoft)
                 }
@@ -211,12 +233,36 @@ struct ReservasRecibidasView: View {
                     }
                 }
                 .padding(.top, PHSpacing.s4)
+
+                if reserva.estado == .completada {
+                    PHTextButton("Calificar huésped") { reservaParaCalificar = reserva }
+                }
             }
         }
         .padding(PHSpacing.s16)
         .background(PHColor.canvas)
         .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         .phShadow(PHShadow.level1)
+    }
+
+    /// Estrellas + cantidad de reseñas del huésped, tocable para ver el detalle completo
+    /// (`EvaluacionHuespedView`) — lo que el anfitrión necesita ANTES de aceptar/rechazar.
+    @ViewBuilder
+    private func evaluacionHuesped(_ reserva: Reserva) -> some View {
+        if let numResenas = reserva.usuarioNumResenas, numResenas > 0 {
+            Button { reservaParaEvaluar = reserva } label: {
+                HStack(spacing: 4) {
+                    PHStarRatingDisplay(rating: reserva.usuarioRating ?? 0, numResenas: numResenas)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(PHColor.mutedSoft)
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text("Sin evaluaciones aún")
+                .phText(PHFont.micro, color: PHColor.mutedSoft)
+        }
     }
 
     private func seccionMascotas(_ mascotas: [Mascota]) -> some View {

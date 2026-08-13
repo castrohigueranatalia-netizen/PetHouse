@@ -18,7 +18,8 @@
 //                                       shape que GET /api/hospedajes/:id/reservas.
 //   - POST /api/reservas/:id/rechazar→ igual que /aceptar, pero a 'rechazada'.
 //   - GET /api/hospedajes/:id/reservas → (vista del anfitrión) `rs.*` + hospedaje_titulo +
-//                                       usuario_nombre + mascotas_detalle.
+//                                       usuario_nombre + usuario_rating/usuario_num_resenas
+//                                       + mascotas_detalle.
 //  Único subconjunto garantizado en TODAS las respuestas: id, codigo, estado.
 //  precio_noche/limpieza/servicio/total son NUMERIC → decodificación defensiva (String o
 //  Double), igual que en Hospedaje.swift.
@@ -60,6 +61,12 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     /// (la vista del anfitrión, `ReservasRecibidasView`). El anfitrión lo necesita para
     /// saber a quién le está escribiendo al tocar "Escribir al huésped".
     public let usuarioNombre: String?
+    /// Evaluación del huésped (promedio de `resenas_usuario`) — igual que `usuarioNombre`,
+    /// solo presente en `GET /api/hospedajes/:id/reservas`. El anfitrión la ve de un vistazo
+    /// al revisar una solicitud, antes de aceptar o rechazar (ver `EvaluacionHuespedView`
+    /// para el detalle completo de comentarios).
+    public let usuarioRating: Double?
+    public let usuarioNumResenas: Int?
     /// Mascotas concretas de esta reserva (raza, peso, vacunas, notas/requerimientos) — el
     /// anfitrión las necesita para decidir si acepta o rechaza la solicitud. Viene en todas
     /// las respuestas salvo `POST /api/reservas/:id/cancelar` (solo id/codigo/estado).
@@ -81,6 +88,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         case anfitrionId = "anfitrion_id"
         case hospedajeTitulo = "hospedaje_titulo"
         case usuarioNombre = "usuario_nombre"
+        case usuarioRating = "usuario_rating"
+        case usuarioNumResenas = "usuario_num_resenas"
         case mascotasDetalle = "mascotas_detalle"
         case ciudad, barrio, tipo, fotos
     }
@@ -93,6 +102,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?, limpieza: Double?,
         servicio: Double?, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
         anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
+        usuarioRating: Double? = nil, usuarioNumResenas: Int? = nil,
         mascotasDetalle: [Mascota]? = nil,
         ciudad: String?, barrio: String?, tipo: TipoHospedaje?, fotos: [String]?
     ) {
@@ -113,6 +123,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.anfitrionId = anfitrionId
         self.hospedajeTitulo = hospedajeTitulo
         self.usuarioNombre = usuarioNombre
+        self.usuarioRating = usuarioRating
+        self.usuarioNumResenas = usuarioNumResenas
         self.mascotasDetalle = mascotasDetalle
         self.ciudad = ciudad
         self.barrio = barrio
@@ -139,6 +151,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         anfitrionId = try c.decodeIfPresent(String.self, forKey: .anfitrionId)
         hospedajeTitulo = try c.decodeIfPresent(String.self, forKey: .hospedajeTitulo)
         usuarioNombre = try c.decodeIfPresent(String.self, forKey: .usuarioNombre)
+        usuarioRating = try c.decodeFlexibleDoubleIfPresent(forKey: .usuarioRating)
+        usuarioNumResenas = try c.decodeIfPresent(Int.self, forKey: .usuarioNumResenas)
         mascotasDetalle = try c.decodeIfPresent([Mascota].self, forKey: .mascotasDetalle)
         ciudad = try c.decodeIfPresent(String.self, forKey: .ciudad)
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
@@ -231,4 +245,18 @@ public struct CancelarReservaResponse: Decodable {
 /// la fila en su lista sin perder usuario_nombre/mascotasDetalle/fechas.
 public struct ReservaAccionResponse: Decodable {
     public let reserva: Reserva
+}
+
+/// Body de `POST /api/reservas/:id/resena-huesped` — el `reserva_id` va en la URL, no acá
+/// (a diferencia de `CrearResenaRequest`, que sí lo lleva en el body).
+public struct CalificarHuespedRequest: Encodable {
+    public let rating: Int
+    public let titulo: String?
+    public let texto: String?
+
+    public init(rating: Int, titulo: String?, texto: String?) {
+        self.rating = rating
+        self.titulo = titulo
+        self.texto = texto
+    }
 }

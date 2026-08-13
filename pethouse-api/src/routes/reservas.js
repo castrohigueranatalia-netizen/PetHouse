@@ -2,7 +2,7 @@
 // PETHOUSE API · Módulo Reservas
 // POST /api/reservas · GET /api/reservas/mias · GET /api/reservas/:id
 // POST /api/reservas/:id/cancelar · POST /api/reservas/:id/aceptar · /rechazar
-// POST /api/reservas/:id/plan
+// POST /api/reservas/:id/resena-huesped · POST /api/reservas/:id/plan
 //
 // Toda reserva nace en estado 'pendiente' — el anfitrión debe aceptarla o rechazarla
 // (ver /:id/aceptar y /:id/rechazar) antes de que cuente como confirmada. Ver
@@ -217,6 +217,37 @@ r.post('/:id/notificado', auth, async (req, res, next) => {
       [req.params.id, req.usuario.id]
     )
     res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+// ---- El anfitrión califica al huésped de una reserva propia (espejo de
+// POST /api/hospedajes/:id/resenas, ver db/15-resenas-huesped.sql) ----
+r.post('/:id/resena-huesped', auth, async (req, res, next) => {
+  try {
+    const { rating, titulo, texto } = req.body || {}
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'rating (1-5) es obligatorio.' })
+    }
+
+    // Solo el anfitrión dueño del hospedaje de ESTA reserva puede calificar a ese huésped
+    const { rows: rs } = await pool.query(
+      `SELECT rs.usuario_id
+         FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
+        WHERE rs.id = $1 AND h.anfitrion_id = $2`,
+      [req.params.id, req.usuario.id]
+    )
+    if (!rs.length) {
+      return res.status(403).json({ error: 'Solo puedes calificar al huésped de una reserva de tu hospedaje.' })
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO resenas_usuario (reserva_id, autor_id, usuario_id, rating, titulo, texto)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, rating, titulo, texto, creado_en`,
+      [req.params.id, req.usuario.id, rs[0].usuario_id, rating, titulo || null, texto || null]
+    )
+    // El trigger actualizar_rating_usuario() recalcula rating y num_resenas del huésped
+    res.status(201).json({ resena: rows[0] })
   } catch (err) { next(err) }
 })
 
