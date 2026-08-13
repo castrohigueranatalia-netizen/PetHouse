@@ -18,6 +18,7 @@ import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
 import { completarReservasVencidas } from '../lib/completarReservas.js'
+import { hoyBogota } from '../lib/fechaBogota.js'
 
 const r = Router()
 
@@ -49,7 +50,9 @@ r.post('/', auth, async (req, res, next) => {
       return res.status(400).json({ error: 'Selecciona al menos una mascota.' })
     }
     if (hasta <= desde) return res.status(400).json({ error: 'La fecha de salida debe ser posterior a la llegada.' })
-    if (new Date(desde) < new Date(new Date().toDateString())) {
+    // Comparación de texto (YYYY-MM-DD), no de objetos Date — ver el comentario de
+    // hoyBogota() sobre por qué mezclar Date/UTC/local acá era un bug real.
+    if (desde < hoyBogota()) {
       return res.status(400).json({ error: 'La fecha de llegada no puede ser anterior a hoy.' })
     }
 
