@@ -30,8 +30,13 @@ public struct PHMascotaCard: View {
                     .phText(PHFont.titleMD, color: PHColor.ink)
                 Text(subtitulo)
                     .phText(PHFont.captionSM, color: PHColor.muted)
-                if mascota.vacunasDia {
-                    PHBadge("Vacunas al día", style: .success)
+                HStack(spacing: PHSpacing.s4) {
+                    if mascota.vacunasDia {
+                        PHBadge("Vacunas al día", style: .success)
+                    }
+                    if mascota.necesitaMedicamentos {
+                        PHBadge("Necesita medicamentos", style: .warning)
+                    }
                 }
             }
 
@@ -52,6 +57,8 @@ public struct PHMascotaCard: View {
     private var subtitulo: String {
         var partes = [mascota.especie.capitalized]
         if let raza = mascota.raza, !raza.isEmpty { partes.append(raza) }
+        if let edad = mascota.edad { partes.append("\(edad) año\(edad == 1 ? "" : "s")") }
+        if let tamanoLegible = mascota.tamanoLegible { partes.append(tamanoLegible) }
         if let peso = mascota.pesoKg { partes.append(String(format: "%.1f kg", peso)) }
         return partes.joined(separator: " · ")
     }

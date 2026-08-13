@@ -10,7 +10,9 @@
 export const MASCOTAS_DETALLE_SQL = `COALESCE(
   (SELECT json_agg(json_build_object(
             'id', m.id, 'nombre', m.nombre, 'especie', m.especie, 'raza', m.raza,
-            'peso_kg', m.peso_kg, 'vacunas_dia', m.vacunas_dia, 'notas', m.notas
+            'edad', m.edad, 'tamano', m.tamano, 'peso_kg', m.peso_kg,
+            'vacunas_dia', m.vacunas_dia, 'necesita_medicamentos', m.necesita_medicamentos,
+            'notas', m.notas
           ))
      FROM reserva_mascotas rm JOIN mascotas m ON m.id = rm.mascota_id
     WHERE rm.reserva_id = rs.id),

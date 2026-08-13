@@ -3,9 +3,10 @@
 //  Features/Anfitrion
 //
 //  Reservas que llegaron a un hospedaje del anfitrión (GET /api/hospedajes/:id/reservas).
-//  Muestra el huésped, fechas, mascotas (raza/notas — el anfitrión las necesita para decidir)
-//  y total de cada reserva. Toda solicitud nace 'pendiente': aquí el anfitrión la acepta o
-//  la rechaza (POST /api/reservas/:id/aceptar|rechazar). También puede escribirle al huésped
+//  Muestra el huésped, fechas, mascotas y total de cada reserva; tocar una mascota abre su
+//  ficha completa (ver FichaMascotaView) para que el anfitrión pueda evaluarla ANTES de
+//  aceptar o rechazar. Toda solicitud nace 'pendiente': aquí el anfitrión la acepta o la
+//  rechaza (POST /api/reservas/:id/aceptar|rechazar). También puede escribirle al huésped
 //  directamente: antes solo el huésped podía iniciar un chat (ver ReservaDetailViewModel),
 //  el anfitrión no tenía ninguna forma de hacerlo.
 //
@@ -105,6 +106,9 @@ final class ReservasRecibidasViewModel {
 struct ReservasRecibidasView: View {
     let hospedaje: Hospedaje
     @State private var viewModel = ReservasRecibidasViewModel()
+    /// Mascota cuya ficha se está mostrando — ver `FichaMascotaView`. El anfitrión la abre
+    /// tocando cualquier mascota de una solicitud para evaluar si puede aceptarla.
+    @State private var mascotaFicha: Mascota?
 
     var body: some View {
         content
@@ -115,6 +119,9 @@ struct ReservasRecibidasView: View {
             .navigationDestination(item: Binding(get: { viewModel.conversacion }, set: { _ in })) { conversacion in
                 ChatDetailView(conversacion: conversacion)
                     .onDisappear { viewModel.limpiarConversacion() }
+            }
+            .sheet(item: $mascotaFicha) { mascota in
+                FichaMascotaView(mascota: mascota)
             }
     }
 
@@ -213,29 +220,45 @@ struct ReservasRecibidasView: View {
     }
 
     private func seccionMascotas(_ mascotas: [Mascota]) -> some View {
-        VStack(alignment: .leading, spacing: PHSpacing.s4) {
+        VStack(spacing: PHSpacing.s4) {
             ForEach(mascotas) { mascota in
-                VStack(alignment: .leading, spacing: 1) {
+                Button { mascotaFicha = mascota } label: {
                     HStack(spacing: PHSpacing.s4) {
-                        Image(systemName: "pawprint.fill")
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: PHSpacing.s4) {
+                                Image(systemName: "pawprint.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(PHColor.muted)
+                                Text(mascota.nombre)
+                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.ink)
+                                if let raza = mascota.raza, !raza.isEmpty {
+                                    Text("· \(raza)")
+                                        .phText(PHFont.captionSM, color: PHColor.muted)
+                                }
+                                if mascota.vacunasDia {
+                                    Text("· Vacunas al día")
+                                        .phText(PHFont.micro, color: PHColor.success)
+                                }
+                                if mascota.necesitaMedicamentos {
+                                    Text("· Medicamentos")
+                                        .phText(PHFont.micro, color: PHColor.warning)
+                                }
+                            }
+                            if let notas = mascota.notas, !notas.isEmpty {
+                                Text(notas)
+                                    .phText(PHFont.micro, color: PHColor.mutedSoft)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer()
+                        Text("Ver ficha")
+                            .phText(PHFont.micro.weight(.semibold), color: PHColor.primary)
+                        Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(PHColor.muted)
-                        Text(mascota.nombre)
-                            .phText(PHFont.captionSM.weight(.semibold), color: PHColor.ink)
-                        if let raza = mascota.raza, !raza.isEmpty {
-                            Text("· \(raza)")
-                                .phText(PHFont.captionSM, color: PHColor.muted)
-                        }
-                        if mascota.vacunasDia {
-                            Text("· Vacunas al día")
-                                .phText(PHFont.micro, color: PHColor.success)
-                        }
-                    }
-                    if let notas = mascota.notas, !notas.isEmpty {
-                        Text(notas)
-                            .phText(PHFont.micro, color: PHColor.mutedSoft)
+                            .foregroundStyle(PHColor.primary)
                     }
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(PHSpacing.s8)

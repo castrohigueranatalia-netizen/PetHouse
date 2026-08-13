@@ -2,10 +2,6 @@
 //  MascotaFormViewModel.swift
 //  Features/Perfil
 //
-//  🔴 `POST/PATCH /api/mascotas` no existen hoy (ver `MascotasService` y
-//  Core/Models/Mascota.swift). Mismo patrón que `EditarPerfilViewModel`: se llama al
-//  contrato propuesto, y un 404 de ruta se traduce a un estado informativo, no a un error.
-//
 
 import Foundation
 
@@ -22,8 +18,11 @@ public final class MascotaFormViewModel {
     public var nombre: String
     public var especie: String
     public var raza: String
+    public var edad: String
+    public var tamano: String?
     public var pesoKg: String
     public var vacunasDia: Bool
+    public var necesitaMedicamentos: Bool
     public var notas: String
 
     public private(set) var isLoading = false
@@ -39,8 +38,11 @@ public final class MascotaFormViewModel {
         self.nombre = mascota?.nombre ?? ""
         self.especie = mascota?.especie ?? "perro"
         self.raza = mascota?.raza ?? ""
+        self.edad = mascota?.edad.map { String($0) } ?? ""
+        self.tamano = mascota?.tamano
         self.pesoKg = mascota?.pesoKg.map { String($0) } ?? ""
         self.vacunasDia = mascota?.vacunasDia ?? false
+        self.necesitaMedicamentos = mascota?.necesitaMedicamentos ?? false
         self.notas = mascota?.notas ?? ""
     }
 
@@ -58,8 +60,11 @@ public final class MascotaFormViewModel {
             nombre: nombre.trimmingCharacters(in: .whitespaces),
             especie: especie,
             raza: raza.isEmpty ? nil : raza,
+            edad: Int(edad),
+            tamano: tamano,
             pesoKg: Double(pesoKg.replacingOccurrences(of: ",", with: ".")),
             vacunasDia: vacunasDia,
+            necesitaMedicamentos: necesitaMedicamentos,
             notas: notas.isEmpty ? nil : notas
         )
 

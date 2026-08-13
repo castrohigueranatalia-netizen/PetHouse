@@ -2,12 +2,9 @@
 //  MascotasService.swift
 //  Networking/Services
 //
-//  🔴 Hoy solo se puede crear UNA mascota, durante el registro (`POST /api/auth/registro`
-//  con `mascotaNombre`). No existe `POST/PATCH/DELETE /api/mascotas` — ver
-//  ARCHITECTURE_AUDIT.md §2.1 y Core/Models/Mascota.swift para el contrato propuesto.
-//  Igual que `PerfilService`: se llama al contrato propuesto ya, listo para cuando el
-//  backend lo implemente; hasta entonces el 404 de ruta se traduce a
-//  `AppError.rutaNoImplementada` y la UI muestra el estado "función pendiente".
+//  Envuelve el CRUD completo de `/api/mascotas` (ver Core/Models/Mascota.swift y
+//  pethouse-api/src/routes/mascotas.js) — además de la única mascota que se puede crear
+//  durante el registro (`POST /api/auth/registro` con `mascotaNombre`), que no pasa por acá.
 //
 
 import Foundation

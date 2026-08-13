@@ -48,12 +48,32 @@ struct MascotaFormView: View {
                 }
 
                 PHTextField(label: "Raza (opcional)", placeholder: "Ej. Labrador", text: Binding(get: { viewModel.raza }, set: { viewModel.raza = $0 }))
-                PHTextField(label: "Peso en kg (opcional)", placeholder: "Ej. 12.5", text: Binding(get: { viewModel.pesoKg }, set: { viewModel.pesoKg = $0 }), keyboardType: .decimalPad)
 
-                Toggle("Vacunas al día", isOn: Binding(get: { viewModel.vacunasDia }, set: { viewModel.vacunasDia = $0 }))
+                HStack(spacing: PHSpacing.s12) {
+                    PHTextField(label: "Edad en años (opcional)", placeholder: "Ej. 3", text: Binding(get: { viewModel.edad }, set: { viewModel.edad = $0 }), keyboardType: .numberPad)
+                    PHTextField(label: "Peso en kg (opcional)", placeholder: "Ej. 12.5", text: Binding(get: { viewModel.pesoKg }, set: { viewModel.pesoKg = $0 }), keyboardType: .decimalPad)
+                }
 
                 VStack(alignment: .leading, spacing: PHSpacing.s4) {
-                    Text("Notas (opcional)").phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
+                    Text("Tamaño (opcional)").phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
+                    Picker("Tamaño", selection: Binding(
+                        get: { viewModel.tamano ?? "" },
+                        set: { viewModel.tamano = $0.isEmpty ? nil : $0 }
+                    )) {
+                        Text("Sin especificar").tag("")
+                        ForEach(Mascota.tamanosSugeridos, id: \.self) { tamano in
+                            Text(tamanoLegible(tamano)).tag(tamano)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Toggle("Vacunas al día", isOn: Binding(get: { viewModel.vacunasDia }, set: { viewModel.vacunasDia = $0 }))
+                Toggle("Necesita tomar medicamentos", isOn: Binding(get: { viewModel.necesitaMedicamentos }, set: { viewModel.necesitaMedicamentos = $0 }))
+
+                VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                    Text(viewModel.necesitaMedicamentos ? "¿Qué medicamento necesita y cuándo? (opcional)" : "Notas (opcional)")
+                        .phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
                     TextEditor(text: Binding(get: { viewModel.notas }, set: { viewModel.notas = $0 }))
                         .frame(minHeight: 80)
                         .padding(PHSpacing.s8)
@@ -83,6 +103,15 @@ struct MascotaFormView: View {
                 .disabled(!viewModel.puedeGuardar)
             }
             .padding(PHSpacing.s16)
+        }
+    }
+
+    private func tamanoLegible(_ tamano: String) -> String {
+        switch tamano {
+        case "pequeno": "Pequeño"
+        case "mediano": "Mediano"
+        case "grande": "Grande"
+        default: tamano.capitalized
         }
     }
 }

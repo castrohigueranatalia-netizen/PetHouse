@@ -2,12 +2,11 @@
 //  Mascota.swift
 //  Core/Models
 //
-//  Refleja la tabla `mascotas`. `GET /api/auth/me` solo trae
-//  (id, nombre, especie, raza, peso_kg, vacunas_dia) — sin `notas` ni `usuario_id` ni
-//  `creado_en` — así que esos campos son opcionales. El registro (`POST /api/auth/registro`)
-//  solo permite crear UNA mascota con `mascotaNombre` (especie fija 'perro') y no la
-//  devuelve en la respuesta; el resto del CRUD (agregar más, editar, borrar) no existe en
-//  el backend hoy — ver `MascotasService` y MVP_SCOPE.md §4.1.
+//  Refleja la tabla `mascotas` — la "ficha" completa que el anfitrión ve al recibir una
+//  solicitud de reserva para decidir si puede aceptar a esa mascota (ver
+//  Features/Anfitrion/FichaMascotaView.swift). `GET /api/auth/me` solo trae
+//  (id, nombre, especie, raza, peso_kg, vacunas_dia) — sin el resto de campos — así que
+//  todos salvo id/nombre/especie son opcionales.
 //
 
 import Foundation
@@ -17,15 +16,24 @@ public struct Mascota: Codable, Identifiable, Hashable {
     public let nombre: String
     public let especie: String
     public let raza: String?
+    /// Edad en años.
+    public let edad: Int?
+    /// "pequeno" / "mediano" / "grande" — mismo vocabulario que
+    /// `PreferenciasAnfitrion.tamanos` (ver `tamanosSugeridos`).
+    public let tamano: String?
     public let pesoKg: Double?
     public let vacunasDia: Bool
+    /// Si necesita tomar medicamentos — cuando es `true`, `notas` suele traer el detalle
+    /// (cuál medicamento, dosis, horario).
+    public let necesitaMedicamentos: Bool
     public let notas: String?
     public let usuarioId: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, nombre, especie, raza, notas
+        case id, nombre, especie, raza, edad, tamano, notas
         case pesoKg = "peso_kg"
         case vacunasDia = "vacunas_dia"
+        case necesitaMedicamentos = "necesita_medicamentos"
         case usuarioId = "usuario_id"
     }
 
@@ -34,8 +42,11 @@ public struct Mascota: Codable, Identifiable, Hashable {
         nombre: String,
         especie: String,
         raza: String? = nil,
+        edad: Int? = nil,
+        tamano: String? = nil,
         pesoKg: Double? = nil,
         vacunasDia: Bool = false,
+        necesitaMedicamentos: Bool = false,
         notas: String? = nil,
         usuarioId: String? = nil
     ) {
@@ -43,8 +54,11 @@ public struct Mascota: Codable, Identifiable, Hashable {
         self.nombre = nombre
         self.especie = especie
         self.raza = raza
+        self.edad = edad
+        self.tamano = tamano
         self.pesoKg = pesoKg
         self.vacunasDia = vacunasDia
+        self.necesitaMedicamentos = necesitaMedicamentos
         self.notas = notas
         self.usuarioId = usuarioId
     }
@@ -61,8 +75,11 @@ public struct Mascota: Codable, Identifiable, Hashable {
         nombre = try c.decode(String.self, forKey: .nombre)
         especie = try c.decode(String.self, forKey: .especie)
         raza = try c.decodeIfPresent(String.self, forKey: .raza)
+        edad = try c.decodeIfPresent(Int.self, forKey: .edad)
+        tamano = try c.decodeIfPresent(String.self, forKey: .tamano)
         pesoKg = try c.decodeFlexibleDoubleIfPresent(forKey: .pesoKg)
         vacunasDia = try c.decodeIfPresent(Bool.self, forKey: .vacunasDia) ?? false
+        necesitaMedicamentos = try c.decodeIfPresent(Bool.self, forKey: .necesitaMedicamentos) ?? false
         notas = try c.decodeIfPresent(String.self, forKey: .notas)
         usuarioId = try c.decodeIfPresent(String.self, forKey: .usuarioId)
     }
@@ -73,44 +90,77 @@ public struct Mascota: Codable, Identifiable, Hashable {
         try c.encode(nombre, forKey: .nombre)
         try c.encode(especie, forKey: .especie)
         try c.encodeIfPresent(raza, forKey: .raza)
+        try c.encodeIfPresent(edad, forKey: .edad)
+        try c.encodeIfPresent(tamano, forKey: .tamano)
         try c.encodeIfPresent(pesoKg, forKey: .pesoKg)
         try c.encode(vacunasDia, forKey: .vacunasDia)
+        try c.encode(necesitaMedicamentos, forKey: .necesitaMedicamentos)
         try c.encodeIfPresent(notas, forKey: .notas)
         try c.encodeIfPresent(usuarioId, forKey: .usuarioId)
     }
 
     /// Especies sugeridas en el formulario — el backend acepta cualquier `TEXT`, no es un enum en BD.
     public static let especiesSugeridas = ["perro", "gato", "otro"]
+
+    /// Tamaños sugeridos — mismo vocabulario que `preferencias_anfitrion.tamanos`
+    /// (db/06-verificacion-anfitrion.sql).
+    public static let tamanosSugeridos = ["pequeno", "mediano", "grande"]
+
+    public var tamanoLegible: String? {
+        switch tamano {
+        case "pequeno": "Pequeño"
+        case "mediano": "Mediano"
+        case "grande": "Grande"
+        default: nil
+        }
+    }
 }
 
-// MARK: - CRUD de mascotas (🔴 propuesto — hoy solo se crea 1 mascota durante el registro)
+// MARK: - CRUD de mascotas
 //
-// Ver ARCHITECTURE_AUDIT.md §2.1 y MVP_SCOPE.md §4.1. Contrato propuesto, snake_case:
-//   POST   /api/mascotas       { nombre, especie, raza?, peso_kg?, vacunas_dia?, notas? }
-//                               → 201 { mascota: Mascota }
-//   PATCH  /api/mascotas/:id   { mismos campos, todos opcionales } → 200 { mascota: Mascota }
-//   DELETE /api/mascotas/:id   → 200 { ok: true }
+// POST   /api/mascotas       { nombre, especie, raza?, edad?, tamano?, peso_kg?,
+//                               vacunas_dia?, necesita_medicamentos?, notas? }
+//                             → 201 { mascota: Mascota }
+// PATCH  /api/mascotas/:id   { mismos campos, todos opcionales } → 200 { mascota: Mascota }
+// DELETE /api/mascotas/:id   → 200 { ok: true }
 
 public struct GuardarMascotaRequest: Encodable {
     public let nombre: String
     public let especie: String
     public let raza: String?
+    public let edad: Int?
+    public let tamano: String?
     public let pesoKg: Double?
     public let vacunasDia: Bool?
+    public let necesitaMedicamentos: Bool?
     public let notas: String?
 
     enum CodingKeys: String, CodingKey {
-        case nombre, especie, raza, notas
+        case nombre, especie, raza, edad, tamano, notas
         case pesoKg = "peso_kg"
         case vacunasDia = "vacunas_dia"
+        case necesitaMedicamentos = "necesita_medicamentos"
     }
 
-    public init(nombre: String, especie: String, raza: String? = nil, pesoKg: Double? = nil, vacunasDia: Bool? = nil, notas: String? = nil) {
+    public init(
+        nombre: String,
+        especie: String,
+        raza: String? = nil,
+        edad: Int? = nil,
+        tamano: String? = nil,
+        pesoKg: Double? = nil,
+        vacunasDia: Bool? = nil,
+        necesitaMedicamentos: Bool? = nil,
+        notas: String? = nil
+    ) {
         self.nombre = nombre
         self.especie = especie
         self.raza = raza
+        self.edad = edad
+        self.tamano = tamano
         self.pesoKg = pesoKg
         self.vacunasDia = vacunasDia
+        self.necesitaMedicamentos = necesitaMedicamentos
         self.notas = notas
     }
 }
