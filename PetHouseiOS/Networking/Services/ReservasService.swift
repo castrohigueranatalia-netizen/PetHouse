@@ -7,14 +7,19 @@
 //  de pago en estado "pendiente" (ver ARCHITECTURE_AUDIT.md §2.1/§6, ADR-7). La UI debe
 //  mostrar el mensaje de "pago se coordina con el anfitrión", nunca simular un cobro.
 //
+//  Toda reserva nace en estado `.pendiente` — `aceptar`/`rechazar` son acciones del
+//  anfitrión dueño del hospedaje, no del huésped que reservó.
+//
 
 import Foundation
 
 public protocol ReservasServicing: Sendable {
-    func crear(hospedajeId: String, desde: String, hasta: String, mascotas: Int) async throws -> CrearReservaResponse
+    func crear(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) async throws -> CrearReservaResponse
     func mias() async throws -> MisReservasResponse
     func detalle(id: String) async throws -> ReservaDetailResponse
     func cancelar(id: String) async throws -> CancelarReservaResponse
+    func aceptar(id: String) async throws -> ReservaAccionResponse
+    func rechazar(id: String) async throws -> ReservaAccionResponse
     func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad
 }
 
@@ -25,8 +30,8 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
         self.client = client
     }
 
-    public func crear(hospedajeId: String, desde: String, hasta: String, mascotas: Int) async throws -> CrearReservaResponse {
-        let payload = CrearReservaRequest(hospedajeId: hospedajeId, desde: desde, hasta: hasta, mascotas: mascotas)
+    public func crear(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) async throws -> CrearReservaResponse {
+        let payload = CrearReservaRequest(hospedajeId: hospedajeId, desde: desde, hasta: hasta, mascotaIds: mascotaIds)
         let data = try JSONEncoder().encode(payload)
         let request = APIRequest(method: "POST", path: "/reservas", body: data, requiresAuth: true)
         return try await client.send(request)
@@ -44,6 +49,16 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
 
     public func cancelar(id: String) async throws -> CancelarReservaResponse {
         let request = APIRequest(method: "POST", path: "/reservas/\(id)/cancelar", requiresAuth: true)
+        return try await client.send(request)
+    }
+
+    public func aceptar(id: String) async throws -> ReservaAccionResponse {
+        let request = APIRequest(method: "POST", path: "/reservas/\(id)/aceptar", requiresAuth: true)
+        return try await client.send(request)
+    }
+
+    public func rechazar(id: String) async throws -> ReservaAccionResponse {
+        let request = APIRequest(method: "POST", path: "/reservas/\(id)/rechazar", requiresAuth: true)
         return try await client.send(request)
     }
 

@@ -48,14 +48,21 @@ check "paginación: 1 resultado, total completo" "$(echo "$R" | python3 -c "impo
 R=$(curl -s "$B/api/hospedajes/20000000-0000-0000-0000-000000000001")
 check "detalle hospedaje" "$(echo "$R" | grep -c 'anfitrion_nombre')"
 
-# 9. Crear reserva
+# 9. Crear reserva (nace 'pendiente' — el anfitrión debe aceptarla o rechazarla)
 HID="20000000-0000-0000-0000-000000000001"
-R=$(curl -s -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-01-10\",\"hasta\":\"2027-01-13\",\"mascotas\":1}")
-check "crear reserva con total" "$(echo "$R" | grep -c '"codigo"')"
+MID="10000000-0000-0000-0000-000000000001"
+R=$(curl -s -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-01-10\",\"hasta\":\"2027-01-13\",\"mascota_ids\":[\"$MID\"]}")
+check "crear reserva pendiente con total" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('reserva',{}); print(1 if 'codigo' in r and r.get('estado')=='pendiente' else 0)")"
+RID=$(echo "$R" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reserva',{}).get('id',''))")
 
-# 10. Doble reserva → 409
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-01-11\",\"hasta\":\"2027-01-12\"}")
+# 10. Doble reserva (fechas solapadas, aún pendiente) → 409
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-01-11\",\"hasta\":\"2027-01-12\",\"mascota_ids\":[\"$MID\"]}")
 check "doble reserva rechazada (409)" "$([ "$CODE" = "409" ] && echo true)"
+
+# 10b. El anfitrión acepta la solicitud → pasa a 'confirmada' con mascotas_detalle
+TOKEN_ANF=$(curl -s -X POST $B/api/auth/login -H "Content-Type: application/json" -d '{"email":"anfitrion@pethouse.co","password":"demo123"}' | python3 -c "import json,sys; print(json.load(sys.stdin).get('accessToken',''))")
+R=$(curl -s -X POST "$B/api/reservas/${RID:-sin-id}/aceptar" -H "Authorization: Bearer $TOKEN_ANF")
+check "anfitrión acepta solicitud" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('reserva',{}); print(1 if r.get('estado')=='confirmada' and len(r.get('mascotas_detalle') or [])==1 else 0)")"
 
 # 11. Mis reservas
 R=$(curl -s $B/api/reservas/mias -H "Authorization: Bearer $TOKEN")

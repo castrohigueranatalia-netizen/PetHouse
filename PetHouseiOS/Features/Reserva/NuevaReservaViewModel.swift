@@ -13,6 +13,10 @@
 //  Sin cobro real (ADR-7, decisión de producto ya cerrada): la reserva se confirma sin
 //  pasarela de pago — el mensaje de éxito lo deja explícito.
 //
+//  El huésped elige mascotas CONCRETAS (no solo un número): el backend guarda ese vínculo
+//  (tabla reserva_mascotas) para que el anfitrión vea raza/notas antes de aceptar o
+//  rechazar la solicitud — ver ReservasRecibidasView.
+//
 
 import Foundation
 
@@ -20,10 +24,11 @@ import Foundation
 @Observable
 public final class NuevaReservaViewModel {
     public let hospedaje: Hospedaje
+    public let mascotasDisponibles: [Mascota]
 
     public var desde: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
     public var hasta: Date = Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now
-    public var mascotasSeleccionadas: Int = 1
+    public var mascotaIdsSeleccionadas: Set<String> = []
 
     public private(set) var isLoading = false
     public private(set) var error: AppError?
@@ -31,9 +36,13 @@ public final class NuevaReservaViewModel {
 
     private let service: ReservasServicing
 
-    public init(hospedaje: Hospedaje, service: ReservasServicing = ReservasService()) {
+    public init(hospedaje: Hospedaje, mascotasDisponibles: [Mascota], service: ReservasServicing = ReservasService()) {
         self.hospedaje = hospedaje
-    self.service = service
+        self.mascotasDisponibles = mascotasDisponibles
+        self.service = service
+        if let primera = mascotasDisponibles.first {
+            mascotaIdsSeleccionadas = [primera.id]
+        }
     }
 
     public var maxMascotas: Int { hospedaje.maxMascotas ?? 1 }
@@ -44,6 +53,14 @@ public final class NuevaReservaViewModel {
 
     public var fechasValidas: Bool {
         noches > 0
+    }
+
+    public func alternar(_ mascota: Mascota) {
+        if mascotaIdsSeleccionadas.contains(mascota.id) {
+            mascotaIdsSeleccionadas.remove(mascota.id)
+        } else if mascotaIdsSeleccionadas.count < maxMascotas {
+            mascotaIdsSeleccionadas.insert(mascota.id)
+        }
     }
 
     /// Estimado — ver el comentario del archivo. No es el monto final.
@@ -60,7 +77,7 @@ public final class NuevaReservaViewModel {
     }
 
     public var puedeReservar: Bool {
-        fechasValidas && mascotasSeleccionadas >= 1 && mascotasSeleccionadas <= maxMascotas && !isLoading
+        fechasValidas && !mascotaIdsSeleccionadas.isEmpty && mascotaIdsSeleccionadas.count <= maxMascotas && !isLoading
     }
 
     public func confirmar() async {
@@ -74,7 +91,7 @@ public final class NuevaReservaViewModel {
                 hospedajeId: hospedaje.id,
                 desde: PHDate.toAPIDateOnly(desde),
                 hasta: PHDate.toAPIDateOnly(hasta),
-                mascotas: mascotasSeleccionadas
+                mascotaIds: Array(mascotaIdsSeleccionadas)
             )
             reservaConfirmada = respuesta
         } catch let appError as AppError {

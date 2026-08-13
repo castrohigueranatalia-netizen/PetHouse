@@ -1,21 +1,46 @@
 // ============================================================
 // PETHOUSE API · Módulo Reservas
 // POST /api/reservas · GET /api/reservas/mias · GET /api/reservas/:id
-// POST /api/reservas/:id/cancelar · POST /api/reservas/:id/plan
+// POST /api/reservas/:id/cancelar · POST /api/reservas/:id/aceptar · /rechazar
+// POST /api/reservas/:id/plan
+//
+// Toda reserva nace en estado 'pendiente' — el anfitrión debe aceptarla o rechazarla
+// (ver /:id/aceptar y /:id/rechazar) antes de que cuente como confirmada. Ver
+// db/11-reservas-pendientes-mascotas.sql.
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
+import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
 
 const r = Router()
+
+// Fila completa de una reserva vista por el anfitrión: mismo shape que
+// GET /api/hospedajes/:id/reservas (usuario_nombre + mascotas_detalle) — la usan
+// /:id/aceptar y /:id/rechazar para devolver la fila completa, no solo id/codigo/estado,
+// así el cliente puede reemplazarla en su lista sin perder los demás campos.
+async function filaConDetalleAnfitrion(id) {
+  const { rows } = await pool.query(
+    `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
+       FROM reservas rs
+       JOIN hospedajes h ON h.id = rs.hospedaje_id
+       JOIN usuarios u ON u.id = rs.usuario_id
+      WHERE rs.id = $1`,
+    [id]
+  )
+  return rows[0]
+}
 
 // ---- Crear reserva (cotiza y valida disponibilidad) ----
 r.post('/', auth, async (req, res, next) => {
   const client = await pool.connect()
   try {
-    const { hospedaje_id, desde, hasta, mascotas = 1 } = req.body || {}
+    const { hospedaje_id, desde, hasta, mascota_ids } = req.body || {}
     if (!hospedaje_id || !desde || !hasta) {
       return res.status(400).json({ error: 'Faltan hospedaje_id, desde o hasta.' })
+    }
+    if (!Array.isArray(mascota_ids) || !mascota_ids.length) {
+      return res.status(400).json({ error: 'Selecciona al menos una mascota.' })
     }
     if (hasta <= desde) return res.status(400).json({ error: 'La fecha de salida debe ser posterior a la llegada.' })
     if (new Date(desde) < new Date(new Date().toDateString())) {
@@ -32,6 +57,17 @@ r.post('/', auth, async (req, res, next) => {
     if (!hs.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Hospedaje no encontrado.' }) }
     const h = hs[0]
 
+    // Valida que las mascotas seleccionadas sean del usuario autenticado
+    const { rows: mascotasPropias } = await client.query(
+      'SELECT id FROM mascotas WHERE id = ANY($1::uuid[]) AND usuario_id = $2',
+      [mascota_ids, req.usuario.id]
+    )
+    if (mascotasPropias.length !== mascota_ids.length) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Alguna mascota seleccionada no es válida.' })
+    }
+
+    const mascotas = mascota_ids.length
     if (mascotas > h.max_mascotas) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: `Este hospedaje admite máximo ${h.max_mascotas} mascotas.` })
@@ -46,6 +82,11 @@ r.post('/', auth, async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, codigo, desde, hasta, noches, mascotas, precio_noche, limpieza, servicio, total, estado, creado_en`,
       [req.usuario.id, hospedaje_id, desde, hasta, mascotas, h.precio_noche, limpieza, servicio]
+    )
+
+    await client.query(
+      'INSERT INTO reserva_mascotas (reserva_id, mascota_id) SELECT $1, unnest($2::uuid[])',
+      [rows[0].id, mascota_ids]
     )
 
     // Pago pendiente (fase 2: pasarela)
@@ -72,7 +113,8 @@ r.get('/mias', auth, async (req, res, next) => {
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
       `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.noches, rs.mascotas, rs.total, rs.estado,
               rs.hospedaje_id, h.anfitrion_id,
-              h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos
+              h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
+              ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
         WHERE rs.usuario_id = $1
         ORDER BY rs.creado_en DESC`,
@@ -86,7 +128,7 @@ r.get('/mias', auth, async (req, res, next) => {
 r.get('/:id', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, h.anfitrion_id
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, h.anfitrion_id, ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
         WHERE rs.id = $1`,
       [req.params.id]
@@ -105,17 +147,48 @@ r.get('/:id', auth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-// ---- Cancelar reserva ----
+// ---- Cancelar reserva (el huésped, mientras esté pendiente o ya confirmada) ----
 r.post('/:id/cancelar', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE reservas SET estado = 'cancelada'
-        WHERE id = $1 AND usuario_id = $2 AND estado = 'confirmada'
+        WHERE id = $1 AND usuario_id = $2 AND estado IN ('pendiente', 'confirmada')
         RETURNING id, codigo, estado`,
       [req.params.id, req.usuario.id]
     )
-    if (!rows.length) return res.status(404).json({ error: 'Reserva no encontrada o ya cancelada.' })
+    if (!rows.length) return res.status(404).json({ error: 'Reserva no encontrada o ya resuelta.' })
     res.json({ reserva: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// ---- Aceptar / rechazar solicitud de reserva (el anfitrión dueño del hospedaje) ----
+r.post('/:id/aceptar', auth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE reservas SET estado = 'confirmada'
+         FROM hospedajes h
+        WHERE reservas.id = $1 AND reservas.hospedaje_id = h.id
+          AND h.anfitrion_id = $2 AND reservas.estado = 'pendiente'
+        RETURNING reservas.id`,
+      [req.params.id, req.usuario.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya resuelta.' })
+    res.json({ reserva: await filaConDetalleAnfitrion(rows[0].id) })
+  } catch (err) { next(err) }
+})
+
+r.post('/:id/rechazar', auth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE reservas SET estado = 'rechazada'
+         FROM hospedajes h
+        WHERE reservas.id = $1 AND reservas.hospedaje_id = h.id
+          AND h.anfitrion_id = $2 AND reservas.estado = 'pendiente'
+        RETURNING reservas.id`,
+      [req.params.id, req.usuario.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya resuelta.' })
+    res.json({ reserva: await filaConDetalleAnfitrion(rows[0].id) })
   } catch (err) { next(err) }
 })
 

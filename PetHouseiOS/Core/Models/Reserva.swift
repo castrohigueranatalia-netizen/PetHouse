@@ -4,13 +4,21 @@
 //
 //  La forma de "una reserva" varía según el endpoint (ver ARCHITECTURE_AUDIT.md §2.1/§3):
 //   - POST /api/reservas             → id, codigo, desde, hasta, noches, mascotas,
-//                                       precio_noche, limpieza, servicio, total, estado,
+//                                       precio_noche, limpieza, servicio, total, estado
+//                                       ('pendiente' al nacer — ver EstadoReserva),
 //                                       creado_en (+ `detalle` aparte, ver `NuevaReservaResponse`).
 //   - GET  /api/reservas/mias        → id, codigo, desde, hasta, noches, mascotas, total,
-//                                       estado + snapshot del hospedaje (titulo/ciudad/
-//                                       barrio/tipo/fotos), SIN precio_noche/limpieza/servicio.
-//   - GET  /api/reservas/:id         → `rs.*` completo + hospedaje_titulo + anfitrion_id.
+//                                       estado, mascotas_detalle + snapshot del hospedaje
+//                                       (titulo/ciudad/barrio/tipo/fotos), SIN
+//                                       precio_noche/limpieza/servicio.
+//   - GET  /api/reservas/:id         → `rs.*` completo + hospedaje_titulo + anfitrion_id
+//                                       + mascotas_detalle.
 //   - POST /api/reservas/:id/cancelar→ SOLO id, codigo, estado.
+//   - POST /api/reservas/:id/aceptar → el anfitrión acepta una solicitud 'pendiente'; igual
+//                                       shape que GET /api/hospedajes/:id/reservas.
+//   - POST /api/reservas/:id/rechazar→ igual que /aceptar, pero a 'rechazada'.
+//   - GET /api/hospedajes/:id/reservas → (vista del anfitrión) `rs.*` + hospedaje_titulo +
+//                                       usuario_nombre + mascotas_detalle.
 //  Único subconjunto garantizado en TODAS las respuestas: id, codigo, estado.
 //  precio_noche/limpieza/servicio/total son NUMERIC → decodificación defensiva (String o
 //  Double), igual que en Hospedaje.swift.
@@ -19,7 +27,9 @@
 import Foundation
 
 public enum EstadoReserva: String, Codable, Hashable {
+    case pendiente
     case confirmada
+    case rechazada
     case cancelada
     case completada
 }
@@ -50,6 +60,10 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     /// (la vista del anfitrión, `ReservasRecibidasView`). El anfitrión lo necesita para
     /// saber a quién le está escribiendo al tocar "Escribir al huésped".
     public let usuarioNombre: String?
+    /// Mascotas concretas de esta reserva (raza, peso, vacunas, notas/requerimientos) — el
+    /// anfitrión las necesita para decidir si acepta o rechaza la solicitud. Viene en todas
+    /// las respuestas salvo `POST /api/reservas/:id/cancelar` (solo id/codigo/estado).
+    public let mascotasDetalle: [Mascota]?
 
     // Snapshot del hospedaje, solo presente en GET /api/reservas/mias.
     public let ciudad: String?
@@ -67,6 +81,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         case anfitrionId = "anfitrion_id"
         case hospedajeTitulo = "hospedaje_titulo"
         case usuarioNombre = "usuario_nombre"
+        case mascotasDetalle = "mascotas_detalle"
         case ciudad, barrio, tipo, fotos
     }
 
@@ -78,6 +93,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?, limpieza: Double?,
         servicio: Double?, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
         anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
+        mascotasDetalle: [Mascota]? = nil,
         ciudad: String?, barrio: String?, tipo: TipoHospedaje?, fotos: [String]?
     ) {
         self.id = id
@@ -97,6 +113,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.anfitrionId = anfitrionId
         self.hospedajeTitulo = hospedajeTitulo
         self.usuarioNombre = usuarioNombre
+        self.mascotasDetalle = mascotasDetalle
         self.ciudad = ciudad
         self.barrio = barrio
         self.tipo = tipo
@@ -122,6 +139,7 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         anfitrionId = try c.decodeIfPresent(String.self, forKey: .anfitrionId)
         hospedajeTitulo = try c.decodeIfPresent(String.self, forKey: .hospedajeTitulo)
         usuarioNombre = try c.decodeIfPresent(String.self, forKey: .usuarioNombre)
+        mascotasDetalle = try c.decodeIfPresent([Mascota].self, forKey: .mascotasDetalle)
         ciudad = try c.decodeIfPresent(String.self, forKey: .ciudad)
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
         tipo = try c.decodeIfPresent(TipoHospedaje.self, forKey: .tipo)
@@ -133,18 +151,19 @@ public struct CrearReservaRequest: Encodable {
     public let hospedajeId: String
     public let desde: String
     public let hasta: String
-    public let mascotas: Int
+    public let mascotaIds: [String]
 
     enum CodingKeys: String, CodingKey {
         case hospedajeId = "hospedaje_id"
-        case desde, hasta, mascotas
+        case desde, hasta
+        case mascotaIds = "mascota_ids"
     }
 
-    public init(hospedajeId: String, desde: String, hasta: String, mascotas: Int) {
+    public init(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) {
         self.hospedajeId = hospedajeId
         self.desde = desde
         self.hasta = hasta
-        self.mascotas = mascotas
+        self.mascotaIds = mascotaIds
     }
 }
 
@@ -203,5 +222,13 @@ public struct ReservaDetailResponse: Decodable {
 }
 
 public struct CancelarReservaResponse: Decodable {
+    public let reserva: Reserva
+}
+
+/// Respuesta de `POST /api/reservas/:id/aceptar` y `/rechazar` — a diferencia de
+/// `CancelarReservaResponse`, viene con la reserva COMPLETA (mismo shape que
+/// `GET /api/hospedajes/:id/reservas`), para que `ReservasRecibidasView` pueda reemplazar
+/// la fila en su lista sin perder usuario_nombre/mascotasDetalle/fechas.
+public struct ReservaAccionResponse: Decodable {
     public let reserva: Reserva
 }

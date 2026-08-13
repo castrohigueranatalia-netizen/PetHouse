@@ -2,14 +2,20 @@
 //  ReservasRecibidasView.swift
 //  Features/Anfitrion
 //
-//  Reservas que llegaron a un hospedaje del anfitrión (GET /api/hospedajes/:id/reservas,
-//  que sí existe y ya devuelve usuario_nombre — ver Core/Models/AnfitrionDTO.swift). Muestra
-//  el huésped, fechas, mascotas y total de cada reserva, con un botón para escribirle
+//  Reservas que llegaron a un hospedaje del anfitrión (GET /api/hospedajes/:id/reservas).
+//  Muestra el huésped, fechas, mascotas (raza/notas — el anfitrión las necesita para decidir)
+//  y total de cada reserva. Toda solicitud nace 'pendiente': aquí el anfitrión la acepta o
+//  la rechaza (POST /api/reservas/:id/aceptar|rechazar). También puede escribirle al huésped
 //  directamente: antes solo el huésped podía iniciar un chat (ver ReservaDetailViewModel),
 //  el anfitrión no tenía ninguna forma de hacerlo.
 //
 
 import SwiftUI
+
+enum AccionReserva: Equatable {
+    case aceptar
+    case rechazar
+}
 
 @MainActor
 @Observable
@@ -23,11 +29,20 @@ final class ReservasRecibidasViewModel {
     /// usa como destino de navegación (mismo patrón que `ReservaDetailViewModel`).
     private(set) var conversacion: Conversacion?
 
+    private(set) var resolviendoId: String?
+    private(set) var accionEnCurso: AccionReserva?
+
     private let service: AnfitrionServicing
+    private let reservasService: ReservasServicing
     private let chatService: ChatServicing
 
-    init(service: AnfitrionServicing = AnfitrionService(), chatService: ChatServicing = ChatService()) {
+    init(
+        service: AnfitrionServicing = AnfitrionService(),
+        reservasService: ReservasServicing = ReservasService(),
+        chatService: ChatServicing = ChatService()
+    ) {
         self.service = service
+        self.reservasService = reservasService
         self.chatService = chatService
     }
 
@@ -58,6 +73,27 @@ final class ReservasRecibidasViewModel {
             // que pasar el id del huésped aquí crea/recupera la conversación correcta aunque
             // el parámetro se llame `anfitrionId`.
             conversacion = try await chatService.obtenerOCrear(anfitrionId: usuarioId, hospedajeId: hospedajeId)
+        } catch let appError as AppError {
+            error = appError
+        } catch {
+            self.error = .desconocido(error.localizedDescription)
+        }
+    }
+
+    func resolver(_ reserva: Reserva, accion: AccionReserva) async {
+        guard resolviendoId == nil else { return }
+        resolviendoId = reserva.id
+        accionEnCurso = accion
+        defer { resolviendoId = nil; accionEnCurso = nil }
+        do {
+            let respuesta = accion == .aceptar
+                ? try await reservasService.aceptar(id: reserva.id)
+                : try await reservasService.rechazar(id: reserva.id)
+            // La respuesta trae la fila COMPLETA (usuario_nombre, mascotas_detalle, etc.),
+            // no solo id/codigo/estado — ver ReservaAccionResponse.
+            if let index = reservas.firstIndex(where: { $0.id == reserva.id }) {
+                reservas[index] = respuesta.reserva
+            }
         } catch let appError as AppError {
             error = appError
         } catch {
@@ -128,8 +164,12 @@ struct ReservasRecibidasView: View {
                 .phText(PHFont.captionSM, color: PHColor.body)
             }
 
+            if let mascotas = reserva.mascotasDetalle, !mascotas.isEmpty {
+                seccionMascotas(mascotas)
+            }
+
             HStack {
-                if let mascotas = reserva.mascotas {
+                if reserva.mascotasDetalle?.isEmpty ?? true, let mascotas = reserva.mascotas {
                     Label("\(mascotas) mascota\(mascotas == 1 ? "" : "s")", systemImage: "pawprint")
                         .phText(PHFont.captionSM, color: PHColor.muted)
                 }
@@ -140,7 +180,21 @@ struct ReservasRecibidasView: View {
                 }
             }
 
-            if reserva.estado != .cancelada {
+            if reserva.estado == .pendiente {
+                HStack(spacing: PHSpacing.s12) {
+                    PHPrimaryButton(
+                        "Aceptar",
+                        isLoading: viewModel.resolviendoId == reserva.id && viewModel.accionEnCurso == .aceptar
+                    ) {
+                        Task { await viewModel.resolver(reserva, accion: .aceptar) }
+                    }
+                    PHTextButton("Rechazar", role: .destructive) {
+                        Task { await viewModel.resolver(reserva, accion: .rechazar) }
+                    }
+                    .disabled(viewModel.resolviendoId == reserva.id)
+                }
+                .padding(.top, PHSpacing.s4)
+            } else if reserva.estado != .cancelada && reserva.estado != .rechazada {
                 HStack(spacing: PHSpacing.s8) {
                     PHSecondaryButton("Escribir al huésped", systemImage: "message") {
                         Task { await viewModel.escribirA(reserva, hospedajeId: hospedaje.id) }
@@ -158,9 +212,42 @@ struct ReservasRecibidasView: View {
         .phShadow(PHShadow.level1)
     }
 
+    private func seccionMascotas(_ mascotas: [Mascota]) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s4) {
+            ForEach(mascotas) { mascota in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: PHSpacing.s4) {
+                        Image(systemName: "pawprint.fill")
+                            .font(.caption2)
+                            .foregroundStyle(PHColor.muted)
+                        Text(mascota.nombre)
+                            .phText(PHFont.captionSM.weight(.semibold), color: PHColor.ink)
+                        if let raza = mascota.raza, !raza.isEmpty {
+                            Text("· \(raza)")
+                                .phText(PHFont.captionSM, color: PHColor.muted)
+                        }
+                        if mascota.vacunasDia {
+                            Text("· Vacunas al día")
+                                .phText(PHFont.micro, color: PHColor.success)
+                        }
+                    }
+                    if let notas = mascota.notas, !notas.isEmpty {
+                        Text(notas)
+                            .phText(PHFont.micro, color: PHColor.mutedSoft)
+                    }
+                }
+            }
+        }
+        .padding(PHSpacing.s8)
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+    }
+
     private func estadoBadge(_ estado: EstadoReserva) -> some View {
         switch estado {
+        case .pendiente: PHBadge("Solicitud nueva", style: .warning)
         case .confirmada: PHBadge("Confirmada", style: .success)
+        case .rechazada: PHBadge("Rechazada", style: .error)
         case .cancelada: PHBadge("Cancelada", style: .error)
         case .completada: PHBadge("Completada", style: .primary)
         }

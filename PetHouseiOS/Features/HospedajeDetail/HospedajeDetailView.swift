@@ -108,7 +108,7 @@ struct HospedajeDetailView: View {
                 barraReserva(hospedaje)
             }
             .sheet(isPresented: $mostrarReserva) {
-                NuevaReservaView(hospedaje: hospedaje)
+                NuevaReservaView(hospedaje: hospedaje, mascotasDisponibles: session.mascotas)
             }
         }
     }

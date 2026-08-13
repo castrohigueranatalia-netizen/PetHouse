@@ -101,7 +101,7 @@ struct MisReservasView: View {
             }
             .buttonStyle(.plain)
 
-            if reserva.estado == .confirmada {
+            if reserva.estado == .pendiente || reserva.estado == .confirmada {
                 HStack {
                     PHTextButton("Cancelar", role: .destructive) {
                         Task { await viewModel.cancelar(reserva, modelContext: modelContext) }
@@ -125,7 +125,9 @@ struct MisReservasView: View {
 
     private func estadoBadge(_ estado: EstadoReserva) -> some View {
         switch estado {
+        case .pendiente: PHBadge("Pendiente de aprobación", style: .warning)
         case .confirmada: PHBadge("Confirmada", style: .success)
+        case .rechazada: PHBadge("Rechazada", style: .error)
         case .cancelada: PHBadge("Cancelada", style: .error)
         case .completada: PHBadge("Completada", style: .primary)
         }

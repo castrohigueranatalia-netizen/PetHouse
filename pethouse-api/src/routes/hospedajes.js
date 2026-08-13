@@ -11,6 +11,7 @@
 import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth, soloAnfitrion } from '../middleware/middleware.js'
+import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
 
 const r = Router()
 
@@ -178,7 +179,7 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs
          JOIN hospedajes h ON h.id = rs.hospedaje_id
          JOIN usuarios u ON u.id = rs.usuario_id

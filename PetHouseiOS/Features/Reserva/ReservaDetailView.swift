@@ -24,6 +24,10 @@ struct ReservaDetailView: View {
 
                 seccionReserva
 
+                if let mascotas = viewModel.reserva.mascotasDetalle, !mascotas.isEmpty {
+                    seccionMascotas(mascotas)
+                }
+
                 if !viewModel.plan.isEmpty {
                     seccionPlan
                 }
@@ -142,9 +146,35 @@ struct ReservaDetailView: View {
     @ViewBuilder
     private var estadoBadge: some View {
         switch viewModel.reserva.estado {
+        case .pendiente: PHBadge("Pendiente de aprobación", style: .warning)
         case .confirmada: PHBadge("Confirmada", style: .success)
+        case .rechazada: PHBadge("Rechazada", style: .error)
         case .cancelada: PHBadge("Cancelada", style: .error)
         case .completada: PHBadge("Completada", style: .primary)
+        }
+    }
+
+    private func seccionMascotas(_ mascotas: [Mascota]) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text("Mascotas de esta reserva")
+                .phText(PHFont.titleMD, color: PHColor.ink)
+            VStack(spacing: PHSpacing.s8) {
+                ForEach(mascotas) { mascota in
+                    HStack(spacing: PHSpacing.s12) {
+                        PHAvatar(name: mascota.nombre, size: 32)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(mascota.nombre).phText(PHFont.bodySM.weight(.medium), color: PHColor.ink)
+                            if let raza = mascota.raza, !raza.isEmpty {
+                                Text(raza).phText(PHFont.micro, color: PHColor.muted)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(PHSpacing.s12)
+                    .background(PHColor.surfaceSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+                }
+            }
         }
     }
 

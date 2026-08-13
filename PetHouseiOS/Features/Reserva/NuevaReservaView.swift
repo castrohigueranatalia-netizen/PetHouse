@@ -9,8 +9,8 @@ struct NuevaReservaView: View {
     @State private var viewModel: NuevaReservaViewModel
     @Environment(\.dismiss) private var dismiss
 
-    init(hospedaje: Hospedaje) {
-        _viewModel = State(initialValue: NuevaReservaViewModel(hospedaje: hospedaje))
+    init(hospedaje: Hospedaje, mascotasDisponibles: [Mascota]) {
+        _viewModel = State(initialValue: NuevaReservaViewModel(hospedaje: hospedaje, mascotasDisponibles: mascotasDisponibles))
     }
 
     var body: some View {
@@ -56,13 +56,7 @@ struct NuevaReservaView: View {
                         .phText(PHFont.captionSM, color: PHColor.error)
                 }
 
-                Stepper(
-                    "Mascotas: \(viewModel.mascotasSeleccionadas)",
-                    value: $viewModel.mascotasSeleccionadas,
-                    in: 1...viewModel.maxMascotas
-                )
-                Text("Este hospedaje admite máximo \(viewModel.maxMascotas) mascota(s).")
-                    .phText(PHFont.micro, color: PHColor.mutedSoft)
+                seccionMascotas
 
                 Divider()
 
@@ -90,7 +84,7 @@ struct NuevaReservaView: View {
                         .phText(PHFont.bodySM, color: PHColor.error)
                 }
 
-                PHPrimaryButton("Confirmar reserva", isLoading: viewModel.isLoading) {
+                PHPrimaryButton("Enviar solicitud", isLoading: viewModel.isLoading) {
                     Task { await viewModel.confirmar() }
                 }
                 .disabled(!viewModel.puedeReservar)
@@ -99,12 +93,57 @@ struct NuevaReservaView: View {
         }
     }
 
+    private var seccionMascotas: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text("¿Quién va?")
+                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+
+            if viewModel.mascotasDisponibles.isEmpty {
+                Text("Agrega una mascota en tu perfil antes de reservar.")
+                    .phText(PHFont.bodySM, color: PHColor.error)
+            } else {
+                VStack(spacing: PHSpacing.s8) {
+                    ForEach(viewModel.mascotasDisponibles) { mascota in
+                        filaMascota(mascota)
+                    }
+                }
+                Text("Este hospedaje admite máximo \(viewModel.maxMascotas) mascota(s).")
+                    .phText(PHFont.micro, color: PHColor.mutedSoft)
+            }
+        }
+    }
+
+    private func filaMascota(_ mascota: Mascota) -> some View {
+        let seleccionada = viewModel.mascotaIdsSeleccionadas.contains(mascota.id)
+        return Button {
+            viewModel.alternar(mascota)
+        } label: {
+            HStack(spacing: PHSpacing.s12) {
+                Image(systemName: seleccionada ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(seleccionada ? PHColor.primary : PHColor.mutedSoft)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(mascota.nombre)
+                        .phText(PHFont.bodyMD.weight(.medium), color: PHColor.ink)
+                    if let raza = mascota.raza, !raza.isEmpty {
+                        Text(raza)
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                    }
+                }
+                Spacer()
+            }
+            .padding(PHSpacing.s12)
+            .background(PHColor.surfaceSoft)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func confirmacion(_ respuesta: CrearReservaResponse) -> some View {
         VStack(spacing: PHSpacing.s16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(PHColor.success)
-            Text("¡Reserva confirmada!")
+            Text("¡Solicitud enviada!")
                 .phText(PHFont.displaySM, color: PHColor.ink)
             Text("Código \(respuesta.reserva.codigo)")
                 .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.muted)
@@ -117,7 +156,7 @@ struct NuevaReservaView: View {
             .background(PHColor.surfaceSoft)
             .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
 
-            Text("Reserva confirmada — el pago se coordina directamente con el anfitrión. PetHouse no procesa cobros en esta versión de la app.")
+            Text("Tu solicitud quedó pendiente — el anfitrión debe aceptarla. Revisa el estado en \"Mis reservas\". El pago se coordina directamente con el anfitrión; PetHouse no procesa cobros en esta versión de la app.")
                 .phText(PHFont.bodySM, color: PHColor.muted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, PHSpacing.s16)

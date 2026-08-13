@@ -29,7 +29,7 @@ Probar: `curl http://localhost:3001/health`
 |---|---|---|
 | **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` · `PATCH /api/auth/me` | login/editar → JWT |
 | **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/localidades` · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/mios` · `GET /api/hospedajes/:id` · `GET /api/hospedajes/:id/reservas` · `POST /api/hospedajes` | crear/mios/reservas: anfitrión |
-| **Reservas** | `POST /api/reservas` · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/plan` | ✅ |
+| **Reservas** | `POST /api/reservas` (nace `pendiente`, requiere `mascota_ids`) · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/aceptar` · `/rechazar` (anfitrión) · `POST /api/reservas/:id/plan` | ✅ |
 | **Actividades** | `GET /api/actividades?tipo=` · `POST /api/actividades` | crear: anfitrión |
 | **Reseñas** | `POST /api/hospedajes/:id/resenas` | ✅ (una por reserva) |
 | **Chat** | `GET /api/conversaciones` · `POST /api/conversaciones` · `GET/POST /api/conversaciones/:id/mensajes` · `POST /api/conversaciones/:id/leidas` | ✅ |
