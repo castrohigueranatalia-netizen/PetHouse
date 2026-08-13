@@ -6,9 +6,11 @@
 // (POST /api/auth/registro con mascotaNombre). Contrato consumido ya por
 // PetHouseiOS/Networking/Services/MascotasService.swift.
 //
-// edad/tamano/necesita_medicamentos (db/13-ficha-mascota.sql): la ficha completa que ve el
-// anfitrión al recibir una solicitud de reserva, para decidir si puede aceptar a esa
-// mascota — ver MASCOTAS_DETALLE_SQL en lib/mascotasDetalleSql.js.
+// edad/tamano/necesita_medicamentos (db/13-ficha-mascota.sql) + fotos
+// (db/14-fotos-mascota.sql): la ficha completa que ve el anfitrión al recibir una
+// solicitud de reserva, para decidir si puede aceptar a esa mascota — ver
+// MASCOTAS_DETALLE_SQL en lib/mascotasDetalleSql.js. `fotos` son URLs devueltas por
+// POST /api/subidas, igual que `hospedajes.fotos` — no se suben bytes acá.
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
@@ -19,7 +21,7 @@ const r = Router()
 const ESPECIES_SUGERIDAS = ['perro', 'gato', 'otro']
 const TAMANOS_SUGERIDOS = ['pequeno', 'mediano', 'grande']
 
-function validarCampos({ nombre, especie, pesoKg, edad, tamano }, { nombreRequerido }) {
+function validarCampos({ nombre, especie, pesoKg, edad, tamano, fotos }, { nombreRequerido }) {
   if (nombreRequerido && (!nombre || String(nombre).trim().length < 1)) {
     return 'Ingresa el nombre de tu mascota.'
   }
@@ -35,25 +37,29 @@ function validarCampos({ nombre, especie, pesoKg, edad, tamano }, { nombreRequer
   if (tamano !== undefined && tamano !== null && !TAMANOS_SUGERIDOS.includes(tamano)) {
     return 'El tamaño debe ser pequeno, mediano o grande.'
   }
+  if (fotos !== undefined && fotos !== null && !Array.isArray(fotos)) {
+    return 'Las fotos deben ser una lista de URLs.'
+  }
   return null
 }
 
 r.post('/', auth, async (req, res, next) => {
   try {
     const {
-      nombre, especie, raza, edad, tamano,
+      nombre, especie, raza, edad, tamano, fotos,
       peso_kg: pesoKg, vacunas_dia: vacunasDia,
       necesita_medicamentos: necesitaMedicamentos, notas
     } = req.body || {}
-    const errorValidacion = validarCampos({ nombre, especie, pesoKg, edad, tamano }, { nombreRequerido: true })
+    const errorValidacion = validarCampos({ nombre, especie, pesoKg, edad, tamano, fotos }, { nombreRequerido: true })
     if (errorValidacion) return res.status(400).json({ error: errorValidacion })
 
     const { rows } = await pool.query(
-      `INSERT INTO mascotas (usuario_id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas, usuario_id`,
+      `INSERT INTO mascotas (usuario_id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas, fotos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas, fotos, usuario_id`,
       [req.usuario.id, String(nombre).trim(), String(especie).trim(), raza || null, edad ?? null,
-       tamano || null, pesoKg ?? null, Boolean(vacunasDia), Boolean(necesitaMedicamentos), notas || null]
+       tamano || null, pesoKg ?? null, Boolean(vacunasDia), Boolean(necesitaMedicamentos), notas || null,
+       fotos ?? []]
     )
     res.status(201).json({ mascota: rows[0] })
   } catch (err) { next(err) }
@@ -62,11 +68,11 @@ r.post('/', auth, async (req, res, next) => {
 r.patch('/:id', auth, async (req, res, next) => {
   try {
     const {
-      nombre, especie, raza, edad, tamano,
+      nombre, especie, raza, edad, tamano, fotos,
       peso_kg: pesoKg, vacunas_dia: vacunasDia,
       necesita_medicamentos: necesitaMedicamentos, notas
     } = req.body || {}
-    const errorValidacion = validarCampos({ nombre, especie, pesoKg, edad, tamano }, { nombreRequerido: false })
+    const errorValidacion = validarCampos({ nombre, especie, pesoKg, edad, tamano, fotos }, { nombreRequerido: false })
     if (errorValidacion) return res.status(400).json({ error: errorValidacion })
 
     const campos = []
@@ -81,6 +87,7 @@ r.patch('/:id', auth, async (req, res, next) => {
     if (vacunasDia !== undefined) set('vacunas_dia', Boolean(vacunasDia))
     if (necesitaMedicamentos !== undefined) set('necesita_medicamentos', Boolean(necesitaMedicamentos))
     if (notas !== undefined) set('notas', notas || null)
+    if (fotos !== undefined) set('fotos', fotos ?? [])
 
     if (!campos.length) return res.status(400).json({ error: 'No hay nada que actualizar.' })
 
@@ -88,7 +95,7 @@ r.patch('/:id', auth, async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE mascotas SET ${campos.join(', ')}
         WHERE id = $${valores.length - 1} AND usuario_id = $${valores.length}
-        RETURNING id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas, usuario_id`,
+        RETURNING id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia, necesita_medicamentos, notas, fotos, usuario_id`,
       valores
     )
     if (!rows.length) return res.status(404).json({ error: 'Mascota no encontrada.' })

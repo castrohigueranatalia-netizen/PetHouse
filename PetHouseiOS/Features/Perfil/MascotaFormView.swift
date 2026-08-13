@@ -35,6 +35,14 @@ struct MascotaFormView: View {
     private func formulario(_ viewModel: MascotaFormViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s16) {
+                PHAdjuntarFotos(
+                    titulo: "Fotos de tu mascota (opcional)",
+                    subtitulo: "El anfitrión las ve en la ficha al recibir tu solicitud de reserva.",
+                    maximo: 6,
+                    urls: Binding(get: { viewModel.fotos }, set: { viewModel.fotos = $0 }),
+                    subir: viewModel.subirFoto
+                )
+
                 PHTextField(label: "Nombre", placeholder: "Ej. Firulais", text: Binding(get: { viewModel.nombre }, set: { viewModel.nombre = $0 }))
 
                 VStack(alignment: .leading, spacing: PHSpacing.s4) {

@@ -95,8 +95,13 @@ r.post('/logout', async (req, res, next) => {
 // ---- Datos del usuario logueado + sus mascotas ----
 r.get('/me', auth, async (req, res, next) => {
   try {
+    // Ficha completa (antes solo traía id/nombre/especie/raza/peso_kg/vacunas_dia — ni
+    // siquiera `notas`): MascotaFormView necesita todo esto para poder editar una mascota
+    // sin perderle datos que ya tenía guardados.
     const { rows: mascotas } = await pool.query(
-      'SELECT id, nombre, especie, raza, peso_kg, vacunas_dia FROM mascotas WHERE usuario_id = $1',
+      `SELECT id, nombre, especie, raza, edad, tamano, peso_kg, vacunas_dia,
+              necesita_medicamentos, notas, fotos
+         FROM mascotas WHERE usuario_id = $1`,
       [req.usuario.id]
     )
     res.json({ usuario: req.usuario, mascotas })

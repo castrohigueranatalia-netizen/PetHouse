@@ -12,7 +12,7 @@ export const MASCOTAS_DETALLE_SQL = `COALESCE(
             'id', m.id, 'nombre', m.nombre, 'especie', m.especie, 'raza', m.raza,
             'edad', m.edad, 'tamano', m.tamano, 'peso_kg', m.peso_kg,
             'vacunas_dia', m.vacunas_dia, 'necesita_medicamentos', m.necesita_medicamentos,
-            'notas', m.notas
+            'notas', m.notas, 'fotos', m.fotos
           ))
      FROM reserva_mascotas rm JOIN mascotas m ON m.id = rm.mascota_id
     WHERE rm.reserva_id = rs.id),

@@ -24,17 +24,24 @@ public final class MascotaFormViewModel {
     public var vacunasDia: Bool
     public var necesitaMedicamentos: Bool
     public var notas: String
+    public var fotos: [String]
 
     public private(set) var isLoading = false
     public private(set) var resultado: Resultado = .ninguno
 
     private let service: MascotasServicing
+    private let imagenesService: ImagenesServicing
     private let session: SessionStore
 
-    public init(mascota: Mascota?, session: SessionStore, service: MascotasServicing = MascotasService()) {
+    public init(
+        mascota: Mascota?, session: SessionStore,
+        service: MascotasServicing = MascotasService(),
+        imagenesService: ImagenesServicing = ImagenesService()
+    ) {
         self.mascotaExistente = mascota
         self.session = session
         self.service = service
+        self.imagenesService = imagenesService
         self.nombre = mascota?.nombre ?? ""
         self.especie = mascota?.especie ?? "perro"
         self.raza = mascota?.raza ?? ""
@@ -44,10 +51,18 @@ public final class MascotaFormViewModel {
         self.vacunasDia = mascota?.vacunasDia ?? false
         self.necesitaMedicamentos = mascota?.necesitaMedicamentos ?? false
         self.notas = mascota?.notas ?? ""
+        self.fotos = mascota?.fotos ?? []
     }
 
     public var puedeGuardar: Bool {
         !nombre.trimmingCharacters(in: .whitespaces).isEmpty && !isLoading
+    }
+
+    /// Pasado a `PHAdjuntarFotos` — sube el archivo y devuelve la URL, o `nil` si falla (la
+    /// vista ya muestra su propio mensaje de error en ese caso). Mismo patrón que
+    /// `VerificacionAnfitrionViewModel.subirFoto`.
+    public func subirFoto(_ datos: Data) async -> String? {
+        try? await imagenesService.subir(datos: datos, nombreArchivo: "mascota.jpg", mimeType: "image/jpeg")
     }
 
     public func guardar() async {
@@ -65,7 +80,8 @@ public final class MascotaFormViewModel {
             pesoKg: Double(pesoKg.replacingOccurrences(of: ",", with: ".")),
             vacunasDia: vacunasDia,
             necesitaMedicamentos: necesitaMedicamentos,
-            notas: notas.isEmpty ? nil : notas
+            notas: notas.isEmpty ? nil : notas,
+            fotos: fotos
         )
 
         do {

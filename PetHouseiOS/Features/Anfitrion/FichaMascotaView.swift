@@ -3,8 +3,8 @@
 //  Features/Anfitrion
 //
 //  Ficha completa de una mascota — el anfitrión la abre desde una solicitud de reserva
-//  (ver ReservasRecibidasView) para evaluar si puede aceptarla: edad, raza, tamaño, peso,
-//  si tiene vacunas al día y si necesita medicamentos, antes de tocar Aceptar/Rechazar.
+//  (ver ReservasRecibidasView) para evaluar si puede aceptarla: fotos, edad, raza, tamaño,
+//  peso, si tiene vacunas al día y si necesita medicamentos, antes de tocar Aceptar/Rechazar.
 //
 
 import SwiftUI
@@ -17,6 +17,10 @@ struct FichaMascotaView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: PHSpacing.s20) {
+                    if !mascota.fotos.isEmpty {
+                        galeria
+                    }
+
                     encabezado
 
                     seccionDatos
@@ -38,6 +42,19 @@ struct FichaMascotaView: View {
                 }
             }
         }
+    }
+
+    private var galeria: some View {
+        TabView {
+            ForEach(mascota.fotos, id: \.self) { url in
+                PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
+                    Rectangle().fill(PHColor.surfaceStrong)
+                }
+            }
+        }
+        .tabViewStyle(.page)
+        .frame(height: 220)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
     }
 
     private var encabezado: some View {

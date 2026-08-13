@@ -18,10 +18,19 @@ public struct PHMascotaCard: View {
 
     public var body: some View {
         HStack(spacing: PHSpacing.s12) {
-            ZStack {
-                Circle().fill(PHColor.primaryContainer)
-                Image(systemName: iconoPara(mascota.especie))
-                    .foregroundStyle(PHColor.onPrimaryContainer)
+            Group {
+                if let primeraFoto = mascota.fotos.first {
+                    PHCachedAsyncImage(urlString: MediaURL.resolver(primeraFoto)) {
+                        Circle().fill(PHColor.primaryContainer)
+                    }
+                    .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle().fill(PHColor.primaryContainer)
+                        Image(systemName: iconoPara(mascota.especie))
+                            .foregroundStyle(PHColor.onPrimaryContainer)
+                    }
+                }
             }
             .frame(width: 48, height: 48)
 

@@ -4,9 +4,8 @@
 //
 //  Refleja la tabla `mascotas` — la "ficha" completa que el anfitrión ve al recibir una
 //  solicitud de reserva para decidir si puede aceptar a esa mascota (ver
-//  Features/Anfitrion/FichaMascotaView.swift). `GET /api/auth/me` solo trae
-//  (id, nombre, especie, raza, peso_kg, vacunas_dia) — sin el resto de campos — así que
-//  todos salvo id/nombre/especie son opcionales.
+//  Features/Anfitrion/FichaMascotaView.swift). `GET /api/auth/me` trae la ficha completa
+//  desde este mismo endpoint, así que en la práctica solo `usuarioId` suele venir ausente.
 //
 
 import Foundation
@@ -27,10 +26,14 @@ public struct Mascota: Codable, Identifiable, Hashable {
     /// (cuál medicamento, dosis, horario).
     public let necesitaMedicamentos: Bool
     public let notas: String?
+    /// URLs devueltas por `POST /api/subidas` — mismo patrón que `Hospedaje.fotos`, no se
+    /// suben bytes acá. `[]` (no `nil`) cuando no tiene fotos, así las vistas no necesitan
+    /// desenvolver un opcional para mostrar "sin fotos".
+    public let fotos: [String]
     public let usuarioId: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, nombre, especie, raza, edad, tamano, notas
+        case id, nombre, especie, raza, edad, tamano, notas, fotos
         case pesoKg = "peso_kg"
         case vacunasDia = "vacunas_dia"
         case necesitaMedicamentos = "necesita_medicamentos"
@@ -48,6 +51,7 @@ public struct Mascota: Codable, Identifiable, Hashable {
         vacunasDia: Bool = false,
         necesitaMedicamentos: Bool = false,
         notas: String? = nil,
+        fotos: [String] = [],
         usuarioId: String? = nil
     ) {
         self.id = id
@@ -60,6 +64,7 @@ public struct Mascota: Codable, Identifiable, Hashable {
         self.vacunasDia = vacunasDia
         self.necesitaMedicamentos = necesitaMedicamentos
         self.notas = notas
+        self.fotos = fotos
         self.usuarioId = usuarioId
     }
 
@@ -81,6 +86,7 @@ public struct Mascota: Codable, Identifiable, Hashable {
         vacunasDia = try c.decodeIfPresent(Bool.self, forKey: .vacunasDia) ?? false
         necesitaMedicamentos = try c.decodeIfPresent(Bool.self, forKey: .necesitaMedicamentos) ?? false
         notas = try c.decodeIfPresent(String.self, forKey: .notas)
+        fotos = try c.decodeIfPresent([String].self, forKey: .fotos) ?? []
         usuarioId = try c.decodeIfPresent(String.self, forKey: .usuarioId)
     }
 
@@ -96,6 +102,7 @@ public struct Mascota: Codable, Identifiable, Hashable {
         try c.encode(vacunasDia, forKey: .vacunasDia)
         try c.encode(necesitaMedicamentos, forKey: .necesitaMedicamentos)
         try c.encodeIfPresent(notas, forKey: .notas)
+        try c.encode(fotos, forKey: .fotos)
         try c.encodeIfPresent(usuarioId, forKey: .usuarioId)
     }
 
@@ -119,7 +126,7 @@ public struct Mascota: Codable, Identifiable, Hashable {
 // MARK: - CRUD de mascotas
 //
 // POST   /api/mascotas       { nombre, especie, raza?, edad?, tamano?, peso_kg?,
-//                               vacunas_dia?, necesita_medicamentos?, notas? }
+//                               vacunas_dia?, necesita_medicamentos?, notas?, fotos? }
 //                             → 201 { mascota: Mascota }
 // PATCH  /api/mascotas/:id   { mismos campos, todos opcionales } → 200 { mascota: Mascota }
 // DELETE /api/mascotas/:id   → 200 { ok: true }
@@ -134,9 +141,10 @@ public struct GuardarMascotaRequest: Encodable {
     public let vacunasDia: Bool?
     public let necesitaMedicamentos: Bool?
     public let notas: String?
+    public let fotos: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case nombre, especie, raza, edad, tamano, notas
+        case nombre, especie, raza, edad, tamano, notas, fotos
         case pesoKg = "peso_kg"
         case vacunasDia = "vacunas_dia"
         case necesitaMedicamentos = "necesita_medicamentos"
@@ -151,7 +159,8 @@ public struct GuardarMascotaRequest: Encodable {
         pesoKg: Double? = nil,
         vacunasDia: Bool? = nil,
         necesitaMedicamentos: Bool? = nil,
-        notas: String? = nil
+        notas: String? = nil,
+        fotos: [String]? = nil
     ) {
         self.nombre = nombre
         self.especie = especie
@@ -162,6 +171,7 @@ public struct GuardarMascotaRequest: Encodable {
         self.vacunasDia = vacunasDia
         self.necesitaMedicamentos = necesitaMedicamentos
         self.notas = notas
+        self.fotos = fotos
     }
 }
 
