@@ -50,7 +50,7 @@ struct BuscarView: View {
         }
         .sheet(isPresented: $mostrarMapa) {
             NavigationStack {
-                MapaView(hospedajes: viewModel.resultados)
+                MapaView()
             }
         }
         .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in

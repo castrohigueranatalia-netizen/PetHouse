@@ -2,35 +2,30 @@
 //  MapaView.swift
 //  Features/Search
 //
-//  MapKit nativo mostrando los hospedajes con `lat`/`lng` que ya devuelve la API — el
+//  MapKit nativo mostrando TODOS los hospedajes activos de Bogotá con coordenadas — el
 //  prototipo HTML usaba un SVG de Colombia hecho a mano (`colombia.geo.json`), que aquí
 //  se reemplaza por completo por un mapa real (ver ARCHITECTURE_AUDIT.md §6, gap 🟢
 //  "no bloqueante", decisión ya tomada de ir directo a MapKit).
 //
-//  La app es solo de Bogotá (ver Core/Models/Localidad.swift): la cámara siempre arranca
-//  encuadrando toda la ciudad, no la primera coordenada de `hospedajes` — y se segmenta por
-//  localidad con pines coloreados + una lista con el conteo de cada una (decisión de
-//  producto: pines + lista, no un mapa de polígonos con límites oficiales — ver el chat).
-//  Tocar una localidad de la lista recentra el mapa ahí y filtra los pines a esa localidad;
-//  tocar de nuevo la misma quita el filtro.
+//  La lista de hospedajes es propia de MapaViewModel, independiente de BuscarView — así el
+//  mapa siempre muestra toda la ciudad sin importar qué filtro tenga activo el buscador
+//  (antes recibía `viewModel.resultados` de BuscarView, que podía venir filtrado a una sola
+//  localidad, mostrando un único pin). La cámara siempre arranca encuadrando toda Bogotá, y
+//  se segmenta por localidad con pines coloreados + una lista con el conteo de cada una
+//  (decisión de producto: pines + lista, no un mapa de polígonos con límites oficiales —
+//  ver el chat). Tocar una localidad de la lista recentra el mapa ahí y filtra los pines a
+//  esa localidad; tocar de nuevo la misma quita el filtro.
 //
 
 import SwiftUI
 import MapKit
 
 struct MapaView: View {
-    let hospedajes: [Hospedaje]
-
     @State private var viewModel = MapaViewModel()
     @Environment(\.dismiss) private var dismiss
-    @State private var camara: MapCameraPosition
+    @State private var camara: MapCameraPosition = .region(regionBogota)
     @State private var seleccionado: Hospedaje?
     @State private var localidadSeleccionada: Localidad?
-
-    init(hospedajes: [Hospedaje]) {
-        self.hospedajes = hospedajes
-        _camara = State(initialValue: .region(MapaView.regionBogota))
-    }
 
     private static var regionBogota: MKCoordinateRegion {
         MKCoordinateRegion(
@@ -70,7 +65,7 @@ struct MapaView: View {
                 }
                 .buttonStyle(.plain)
                 .background(.ultraThinMaterial)
-            } else if hospedajesVisibles.isEmpty {
+            } else if hospedajesVisibles.isEmpty && !viewModel.isLoading {
                 Text("Ninguno de estos hospedajes tiene coordenadas cargadas todavía.")
                     .phText(PHFont.captionSM, color: PHColor.muted)
                     .padding(PHSpacing.s16)
@@ -131,7 +126,7 @@ struct MapaView: View {
     }
 
     private var hospedajesVisibles: [Hospedaje] {
-        let conUbicacion = hospedajes.filter { $0.lat != nil && $0.lng != nil }
+        let conUbicacion = viewModel.hospedajes.filter { $0.lat != nil && $0.lng != nil }
         guard let localidadSeleccionada else { return conUbicacion }
         return conUbicacion.filter { $0.localidad == localidadSeleccionada.rawValue }
     }
