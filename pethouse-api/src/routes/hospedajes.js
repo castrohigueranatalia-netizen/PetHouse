@@ -12,6 +12,7 @@ import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth, soloAnfitrion } from '../middleware/middleware.js'
 import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
+import { completarReservasVencidas } from '../lib/completarReservas.js'
 
 const r = Router()
 
@@ -177,6 +178,11 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
     if (h[0].anfitrion_id !== req.usuario.id) {
       return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
     }
+
+    // Pone al día 'confirmada'/'pendiente' vencidas antes de listar (ver
+    // db/16-completar-reservas-vencidas.sql) — así "Calificar huésped" aparece apenas la
+    // estadía ya ocurrió, sin depender de un job en segundo plano.
+    await completarReservasVencidas()
 
     // usuario_rating/usuario_num_resenas: la evaluación del huésped (ver
     // db/15-resenas-huesped.sql) — el anfitrión la ve de un vistazo al revisar la solicitud,

@@ -7,11 +7,17 @@
 // Toda reserva nace en estado 'pendiente' — el anfitrión debe aceptarla o rechazarla
 // (ver /:id/aceptar y /:id/rechazar) antes de que cuente como confirmada. Ver
 // db/11-reservas-pendientes-mascotas.sql.
+//
+// GET /mias, GET /:id y POST /:id/cancelar llaman a completarReservasVencidas() antes de
+// leer/tocar la fila — así una reserva 'confirmada' con la fecha ya pasada aparece
+// 'completada' (habilita reseñas) y una 'pendiente' vencida aparece 'rechazada', sin
+// necesitar un job en segundo plano. Ver db/16-completar-reservas-vencidas.sql.
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
+import { completarReservasVencidas } from '../lib/completarReservas.js'
 
 const r = Router()
 
@@ -108,6 +114,7 @@ r.post('/', auth, async (req, res, next) => {
 // ---- Mis reservas (con hospedaje) ----
 r.get('/mias', auth, async (req, res, next) => {
   try {
+    await completarReservasVencidas()
     const { rows } = await pool.query(
       // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
@@ -127,6 +134,7 @@ r.get('/mias', auth, async (req, res, next) => {
 // ---- Detalle de reserva (dueño o anfitrión del hospedaje) ----
 r.get('/:id', auth, async (req, res, next) => {
   try {
+    await completarReservasVencidas()
     const { rows } = await pool.query(
       `SELECT rs.*, h.titulo AS hospedaje_titulo, h.anfitrion_id, ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
@@ -150,6 +158,11 @@ r.get('/:id', auth, async (req, res, next) => {
 // ---- Cancelar reserva (el huésped, mientras esté pendiente o ya confirmada) ----
 r.post('/:id/cancelar', auth, async (req, res, next) => {
   try {
+    // Sin esto, una reserva cuya fecha ya pasó pero que nadie había vuelto a consultar
+    // podría "cancelarse" como si la estadía no hubiera ocurrido — completarReservasVencidas()
+    // la pone al día primero (a 'completada' o 'rechazada' según corresponda), y entonces
+    // el UPDATE de abajo (que solo actúa sobre 'pendiente'/'confirmada') ya no la toca.
+    await completarReservasVencidas()
     const { rows } = await pool.query(
       `UPDATE reservas SET estado = 'cancelada'
         WHERE id = $1 AND usuario_id = $2 AND estado IN ('pendiente', 'confirmada')
