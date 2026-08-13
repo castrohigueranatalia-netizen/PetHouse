@@ -68,11 +68,19 @@ public final class SessionStore {
     /// llega a visitar el Perfil. `marcarResolucionVista()` lo apaga.
     public private(set) var resolucionVerificacion: VerificacionAnfitrion?
 
+    /// Solicitudes de reserva resueltas (aceptadas o rechazadas) que el huésped todavía no
+    /// vio, en cola — puede haber más de una si el anfitrión resolvió varias entre una
+    /// sesión y otra. `MainTabView` muestra un aviso por cada una, una a la vez (ver
+    /// `revisarResolucionesReserva()`/`marcarResolucionReservaVista()`), mismo patrón que
+    /// `resolucionVerificacion` arriba.
+    public private(set) var resolucionesReserva: [Reserva] = []
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private let chatService: ChatServicing
     private let adminService: AdminServicing
     private let anfitrionService: AnfitrionServicing
+    private let reservasService: ReservasServicing
     private var modelContext: ModelContext?
 
     public init(
@@ -80,13 +88,15 @@ public final class SessionStore {
         keychain: KeychainStoring = KeychainStore.shared,
         chatService: ChatServicing = ChatService(),
         adminService: AdminServicing = AdminService(),
-        anfitrionService: AnfitrionServicing = AnfitrionService()
+        anfitrionService: AnfitrionServicing = AnfitrionService(),
+        reservasService: ReservasServicing = ReservasService()
     ) {
         self.authService = authService
         self.keychain = keychain
         self.chatService = chatService
         self.adminService = adminService
         self.anfitrionService = anfitrionService
+        self.reservasService = reservasService
     }
 
     /// Se llama una vez desde `PetHouseApp` cuando el `ModelContainer` ya está listo.
@@ -107,6 +117,7 @@ public final class SessionStore {
             estado = .autenticado
             await actualizarContadores()
             await revisarResolucionVerificacion()
+            await revisarResolucionesReserva()
         } catch AppError.sesionExpirada {
             // El único caso que representa una sesión inválida de verdad: `APIClient` ya
             // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
@@ -146,6 +157,7 @@ public final class SessionStore {
             await refrescarPerfilCompleto()
             await actualizarContadores()
             await revisarResolucionVerificacion()
+            await revisarResolucionesReserva()
         }
     }
 
@@ -164,6 +176,7 @@ public final class SessionStore {
             await refrescarPerfilCompleto()
             await actualizarContadores()
             await revisarResolucionVerificacion()
+            await revisarResolucionesReserva()
         }
     }
 
@@ -178,6 +191,7 @@ public final class SessionStore {
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
         resolucionVerificacion = nil
+        resolucionesReserva = []
         estado = .invitado
         borrarCache()
     }
@@ -190,6 +204,7 @@ public final class SessionStore {
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
         resolucionVerificacion = nil
+        resolucionesReserva = []
         estado = .invitado
     }
 
@@ -254,6 +269,23 @@ public final class SessionStore {
     public func marcarResolucionVista() async {
         resolucionVerificacion = nil
         try? await anfitrionService.marcarVerificacionNotificada()
+    }
+
+    /// Igual que `revisarResolucionVerificacion()`, pero para solicitudes de RESERVA que el
+    /// anfitrión aceptó o rechazó — se llama en los mismos tres momentos (arrancar/loguearse/
+    /// registrarse). A diferencia de la verificación (una por usuario), puede haber varias
+    /// resueltas a la vez, así que se guardan en cola.
+    public func revisarResolucionesReserva() async {
+        guard let resueltas = try? await reservasService.resueltasSinNotificar(), !resueltas.isEmpty else { return }
+        resolucionesReserva = resueltas
+    }
+
+    /// Apaga el aviso de la PRIMERA reserva en cola y le avisa al servidor — si quedan más,
+    /// `MainTabView` vuelve a mostrar el aviso con la siguiente apenas esta se apaga.
+    public func marcarResolucionReservaVista() async {
+        guard let primera = resolucionesReserva.first else { return }
+        resolucionesReserva.removeFirst()
+        try? await reservasService.marcarNotificada(id: primera.id)
     }
 
     // MARK: - Privado

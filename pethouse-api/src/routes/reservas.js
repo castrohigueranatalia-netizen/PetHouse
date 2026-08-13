@@ -162,10 +162,13 @@ r.post('/:id/cancelar', auth, async (req, res, next) => {
 })
 
 // ---- Aceptar / rechazar solicitud de reserva (el anfitrión dueño del hospedaje) ----
+// `notificado = FALSE`: el huésped todavía no vio esta resolución — ver
+// GET /notificaciones/resueltas y POST /:id/notificado más abajo (db/12-notificacion-
+// reserva-resuelta.sql), mismo patrón que verificaciones_anfitrion.notificado en admin.js.
 r.post('/:id/aceptar', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `UPDATE reservas SET estado = 'confirmada'
+      `UPDATE reservas SET estado = 'confirmada', notificado = FALSE
          FROM hospedajes h
         WHERE reservas.id = $1 AND reservas.hospedaje_id = h.id
           AND h.anfitrion_id = $2 AND reservas.estado = 'pendiente'
@@ -180,7 +183,7 @@ r.post('/:id/aceptar', auth, async (req, res, next) => {
 r.post('/:id/rechazar', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `UPDATE reservas SET estado = 'rechazada'
+      `UPDATE reservas SET estado = 'rechazada', notificado = FALSE
          FROM hospedajes h
         WHERE reservas.id = $1 AND reservas.hospedaje_id = h.id
           AND h.anfitrion_id = $2 AND reservas.estado = 'pendiente'
@@ -189,6 +192,31 @@ r.post('/:id/rechazar', auth, async (req, res, next) => {
     )
     if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya resuelta.' })
     res.json({ reserva: await filaConDetalleAnfitrion(rows[0].id) })
+  } catch (err) { next(err) }
+})
+
+// ---- Solicitudes resueltas que el huésped todavía no vio ----
+r.get('/notificaciones/resueltas', auth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.estado, h.titulo AS hospedaje_titulo
+         FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
+        WHERE rs.usuario_id = $1 AND rs.notificado = FALSE AND rs.estado IN ('confirmada', 'rechazada')
+        ORDER BY rs.creado_en ASC`,
+      [req.usuario.id]
+    )
+    res.json({ reservas: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Marca como vista la resolución de una solicitud propia ----
+r.post('/:id/notificado', auth, async (req, res, next) => {
+  try {
+    await pool.query(
+      'UPDATE reservas SET notificado = TRUE WHERE id = $1 AND usuario_id = $2',
+      [req.params.id, req.usuario.id]
+    )
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

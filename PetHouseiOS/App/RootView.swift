@@ -115,28 +115,63 @@ struct MainTabView: View {
         .onChange(of: session.volverABuscar) { _, volver in
             if volver { pestanaSeleccionada = .buscar }
         }
-        // Aviso de "tu solicitud de anfitrión se resolvió" (ver SessionStore.
-        // revisarResolucionVerificacion, sin push notifications — ADR-7): se revisa al
-        // arrancar la sesión/loguearse/registrarse, y se muestra ACÁ, en la raíz de las
-        // pestañas, para que sea lo primero que se ve al entrar a la app — no algo que
-        // depende de que el usuario llegue a abrir el Perfil.
+        // Aviso de "tu solicitud de anfitrión/reserva se resolvió" (ver SessionStore.
+        // revisarResolucionVerificacion/revisarResolucionesReserva, sin push notifications —
+        // ADR-7): se revisa al arrancar la sesión/loguearse/registrarse, y se muestra ACÁ, en
+        // la raíz de las pestañas, para que sea lo primero que se ve al entrar a la app — no
+        // algo que depende de que el usuario llegue a abrir el Perfil o Mis reservas.
+        //
+        // UN SOLO `.alert` para ambos avisos (no dos modificadores separados): dos `.alert`
+        // con `isPresented` en `true` a la vez es un estado no soportado por SwiftUI (el
+        // segundo puede no aparecer o pisar al primero) — acá se decide adentro cuál mostrar,
+        // dando prioridad a la verificación de anfitrión si ambos están pendientes. Si hay
+        // varias reservas resueltas sin ver, se muestran de a una: al tocar "Entendido" se
+        // apaga la primera y, si `resolucionesReserva` sigue sin estar vacío, el mismo
+        // `.alert` se vuelve a presentar con la siguiente.
         .alert(
-            tituloResolucion,
-            isPresented: Binding(get: { session.resolucionVerificacion != nil }, set: { _ in }),
+            tituloAviso,
+            isPresented: Binding(get: { hayAvisoPendiente }, set: { _ in }),
             actions: {
-                Button("Entendido") { Task { await session.marcarResolucionVista() } }
+                Button("Entendido") { Task { await confirmarAvisoPendiente() } }
             },
-            message: { Text(mensajeResolucion) }
+            message: { Text(mensajeAviso) }
         )
     }
 
-    private var tituloResolucion: String {
-        session.resolucionVerificacion?.estado == .aprobado ? "¡Solicitud aprobada!" : "Solicitud rechazada"
+    private var hayAvisoPendiente: Bool {
+        session.resolucionVerificacion != nil || !session.resolucionesReserva.isEmpty
     }
 
-    private var mensajeResolucion: String {
-        session.resolucionVerificacion?.estado == .aprobado
-            ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde la pestaña Anfitrión."
-            : "Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil."
+    private func confirmarAvisoPendiente() async {
+        if session.resolucionVerificacion != nil {
+            await session.marcarResolucionVista()
+        } else {
+            await session.marcarResolucionReservaVista()
+        }
+    }
+
+    private var tituloAviso: String {
+        if session.resolucionVerificacion != nil {
+            return session.resolucionVerificacion?.estado == .aprobado ? "¡Solicitud aprobada!" : "Solicitud rechazada"
+        }
+        if let reserva = session.resolucionesReserva.first {
+            return reserva.estado == .confirmada ? "¡Reserva confirmada!" : "Solicitud de reserva rechazada"
+        }
+        return ""
+    }
+
+    private var mensajeAviso: String {
+        if session.resolucionVerificacion != nil {
+            return session.resolucionVerificacion?.estado == .aprobado
+                ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde la pestaña Anfitrión."
+                : "Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil."
+        }
+        if let reserva = session.resolucionesReserva.first {
+            let lugar = reserva.hospedajeTitulo ?? "el hospedaje"
+            return reserva.estado == .confirmada
+                ? "El anfitrión aceptó tu solicitud en \(lugar). Revisa los detalles en la pestaña Reservas."
+                : "El anfitrión no pudo aceptar tu solicitud en \(lugar). Puedes buscar otro hospedaje disponible."
+        }
+        return ""
     }
 }

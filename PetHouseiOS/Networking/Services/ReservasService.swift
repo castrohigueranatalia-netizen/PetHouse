@@ -8,7 +8,10 @@
 //  mostrar el mensaje de "pago se coordina con el anfitrión", nunca simular un cobro.
 //
 //  Toda reserva nace en estado `.pendiente` — `aceptar`/`rechazar` son acciones del
-//  anfitrión dueño del hospedaje, no del huésped que reservó.
+//  anfitrión dueño del hospedaje, no del huésped que reservó. `resueltasSinNotificar`/
+//  `marcarNotificada` son el aviso al huésped de que su solicitud se resolvió — mismo
+//  patrón que `AnfitrionService.marcarVerificacionNotificada` (sin push, ADR-7), ver
+//  `SessionStore.revisarResolucionesReserva()`.
 //
 
 import Foundation
@@ -20,6 +23,8 @@ public protocol ReservasServicing: Sendable {
     func cancelar(id: String) async throws -> CancelarReservaResponse
     func aceptar(id: String) async throws -> ReservaAccionResponse
     func rechazar(id: String) async throws -> ReservaAccionResponse
+    func resueltasSinNotificar() async throws -> [Reserva]
+    func marcarNotificada(id: String) async throws
     func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad
 }
 
@@ -60,6 +65,17 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
     public func rechazar(id: String) async throws -> ReservaAccionResponse {
         let request = APIRequest(method: "POST", path: "/reservas/\(id)/rechazar", requiresAuth: true)
         return try await client.send(request)
+    }
+
+    public func resueltasSinNotificar() async throws -> [Reserva] {
+        let request = APIRequest(method: "GET", path: "/reservas/notificaciones/resueltas", requiresAuth: true)
+        let response: MisReservasResponse = try await client.send(request)
+        return response.reservas
+    }
+
+    public func marcarNotificada(id: String) async throws {
+        let request = APIRequest(method: "POST", path: "/reservas/\(id)/notificado", requiresAuth: true)
+        try await client.sendNoBody(request)
     }
 
     public func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad {
