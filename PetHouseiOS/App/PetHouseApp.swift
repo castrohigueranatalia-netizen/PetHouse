@@ -23,6 +23,11 @@ struct PetHouseApp: App {
             RootView()
                 .environment(sessionStore)
                 .modelContainer(modelContainer)
+                // La app se ve siempre en modo claro, sin importar el modo del sistema del
+                // iPhone (Ajustes → Pantalla y brillo) — decisión de producto, no un olvido:
+                // el diseño ya soporta modo oscuro (ver `Color.dynamic` en PHColor.swift),
+                // así que revertirlo es solo quitar esta línea.
+                .preferredColorScheme(.light)
                 .task {
                     sessionStore.configurar(modelContext: modelContainer.mainContext)
                     let store = sessionStore
