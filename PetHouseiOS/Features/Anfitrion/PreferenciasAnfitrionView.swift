@@ -22,6 +22,7 @@ struct PreferenciasAnfitrionView: View {
     let alTerminar: () -> Void
 
     @State private var viewModel = PreferenciasAnfitrionViewModel()
+    @State private var insigniaVisible = false
 
     var body: some View {
         Group {
@@ -87,24 +88,47 @@ struct PreferenciasAnfitrionView: View {
     }
 
     private var confirmacion: some View {
-        VStack(spacing: PHSpacing.s16) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(PHColor.success)
-            Text("¡Solicitud enviada!")
-                .phText(PHFont.displaySM, color: PHColor.ink)
-            Text("Un administrador va a revisar tus datos. Te avisaremos en la app apenas quede aprobada o rechazada.")
-                .phText(PHFont.bodyMD, color: PHColor.muted)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 0) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(PHColor.successContainer)
+                    .frame(width: 96, height: 96)
+                    .phShadow(PHShadow.level2)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundStyle(PHColor.success)
+            }
+            .scaleEffect(insigniaVisible ? 1 : 0.6)
+            .opacity(insigniaVisible ? 1 : 0)
+
+            VStack(spacing: PHSpacing.s8) {
+                Text("¡Solicitud enviada!")
+                    .phText(PHFont.displayMD, color: PHColor.ink)
+                Text("Un administrador va a revisar tus datos. Te avisaremos en la app apenas quede aprobada o rechazada.")
+                    .phText(PHFont.bodyMD, color: PHColor.muted)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
+            }
+            .padding(.top, PHSpacing.s24)
+
+            Spacer()
+            Spacer()
+
             PHPrimaryButton("Listo") {
                 alTerminar()
             }
-            .padding(.horizontal, PHSpacing.s32)
-            .padding(.top, PHSpacing.s8)
+            .padding(.horizontal, PHSpacing.s24)
         }
-        .padding(.top, PHSpacing.s32)
+        .padding(.vertical, PHSpacing.s32)
         .padding(.horizontal, PHSpacing.s24)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) {
+                insigniaVisible = true
+            }
+        }
     }
 
     @ViewBuilder
