@@ -38,11 +38,16 @@ public struct VerificacionAnfitrion: Decodable, Hashable {
     public let fotosPersona: [String]
     public let fotosVivienda: [String]
     public let estado: EstadoVerificacion
+    /// `false` cuando `estado` acaba de pasar a aprobado/rechazado y el usuario todavía no
+    /// vio el aviso — sin push notifications (ADR-7), la app lo detecta al abrir el Perfil
+    /// (ver PerfilViewModel) y llama a `POST /api/anfitrion/verificacion/notificado` para
+    /// apagarlo. Siempre `true` mientras `estado == .pendiente`.
+    public let notificado: Bool
     public let creadoEn: String
     public let actualizadoEn: String
 
     enum CodingKeys: String, CodingKey {
-        case id, estado
+        case id, estado, notificado
         case usuarioId = "usuario_id"
         case nombreLegal = "nombre_legal"
         case cedula

@@ -1,12 +1,18 @@
 // ============================================================
 // PETHOUSE API · Verificación de seguridad + preferencias de anfitrión
-// POST/GET /api/anfitrion/verificacion · POST/GET /api/anfitrion/preferencias
+// POST/GET /api/anfitrion/verificacion · POST /api/anfitrion/verificacion/notificado
+// POST/GET /api/anfitrion/preferencias
 //
 // Paso obligatorio antes de poder publicar hospedajes. Enviar la verificación deja el
 // registro en estado 'pendiente' — YA NO activa usuarios.es_anfitrion de una vez: eso
 // ahora requiere que un administrador la apruebe (ver routes/admin.js,
 // POST /api/admin/verificaciones/:id/aprobar). Antes era self-serve porque no existía
 // panel de revisión; ahora que existe, la aprobación real es la única forma de activarla.
+//
+// `notificado`: sin push notifications (ADR-7, fase 2), el usuario se entera de que su
+// solicitud fue resuelta la próxima vez que abre la app — ver GET /verificacion (incluye
+// `notificado`) y POST /verificacion/notificado (la app la marca en TRUE apenas muestra
+// el aviso). El admin la pone en FALSE al aprobar/rechazar.
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
@@ -72,6 +78,18 @@ r.post('/verificacion', auth, async (req, res, next) => {
        comoArreglo(referencias), fotosPersonaArr, fotosViviendaArr]
     )
     res.status(201).json({ verificacion: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// Marca como vista la resolución (aprobado/rechazado) de la solicitud propia — se llama
+// apenas la app le muestra el aviso al usuario, para que no se lo vuelva a mostrar.
+r.post('/verificacion/notificado', auth, async (req, res, next) => {
+  try {
+    await pool.query(
+      'UPDATE verificaciones_anfitrion SET notificado = TRUE WHERE usuario_id = $1',
+      [req.usuario.id]
+    )
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

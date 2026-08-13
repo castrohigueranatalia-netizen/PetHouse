@@ -2,17 +2,42 @@
 //  PreferenciasAnfitrionView.swift
 //  Features/Anfitrion
 //
-//  Paso 2 (último) de "Conviértete en anfitrión". Al enviar, cierra todo el flujo y vuelve
-//  al Perfil — la pestaña Anfitrión ya está disponible desde el paso 1.
+//  Paso 2 (último) de "Conviértete en anfitrión". Al enviar con éxito, en vez de cerrar el
+//  flujo en silencio, muestra una confirmación (chulo + "solicitud enviada") — el usuario
+//  toca "Listo" para volver al Perfil. La solicitud queda pendiente de revisión; el aviso
+//  de si fue aprobada o rechazada llega después, la próxima vez que abra el Perfil (ver
+//  PerfilViewModel.revisarResolucionVerificacion — sin push notifications, ADR-7).
+//
+//  `alTerminar` (en vez de `@Environment(\.dismiss)` acá): esta vista está empujada DENTRO
+//  de VerificacionAnfitrionView (paso 1), así que su propio `dismiss()` solo la sacaría a
+//  ELLA, dejando visible el formulario de verificación ya usado detrás. `alTerminar` deja
+//  que sea VerificacionAnfitrionView quien se cierre a sí misma, lo que se lleva puesto
+//  todo lo que empujó — vuelve de un solo golpe al Perfil. Mismo patrón que
+//  `PublicarHospedajeView.alPublicar`/`AdminSolicitudDetailView.alResolver`.
 //
 
 import SwiftUI
 
 struct PreferenciasAnfitrionView: View {
+    let alTerminar: () -> Void
+
     @State private var viewModel = PreferenciasAnfitrionViewModel()
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        Group {
+            if viewModel.enviado {
+                confirmacion
+            } else {
+                formulario
+            }
+        }
+        .background(PHColor.canvas)
+        .navigationTitle("Preferencias")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden()
+    }
+
+    private var formulario: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s24) {
                 VStack(alignment: .leading, spacing: PHSpacing.s8) {
@@ -52,20 +77,34 @@ struct PreferenciasAnfitrionView: View {
                 }
 
                 PHPrimaryButton("Terminar", isLoading: viewModel.isLoading) {
-                    Task {
-                        await viewModel.enviar()
-                        if viewModel.enviado { dismiss() }
-                    }
+                    Task { await viewModel.enviar() }
                 }
                 .disabled(!viewModel.puedeEnviar)
             }
             .padding(PHSpacing.s24)
         }
-        .background(PHColor.canvas)
-        .navigationTitle("Preferencias")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden()
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var confirmacion: some View {
+        VStack(spacing: PHSpacing.s16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(PHColor.success)
+            Text("¡Solicitud enviada!")
+                .phText(PHFont.displaySM, color: PHColor.ink)
+            Text("Un administrador va a revisar tus datos. Te avisaremos en la app apenas quede aprobada o rechazada.")
+                .phText(PHFont.bodyMD, color: PHColor.muted)
+                .multilineTextAlignment(.center)
+            PHPrimaryButton("Listo") {
+                alTerminar()
+            }
+            .padding(.horizontal, PHSpacing.s32)
+            .padding(.top, PHSpacing.s8)
+        }
+        .padding(.top, PHSpacing.s32)
+        .padding(.horizontal, PHSpacing.s24)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

@@ -17,6 +17,8 @@
 #   08-localidades-bogota.sql → columna hospedajes.localidad + hospedajes nuevos: la app
 #                              opera solo en Bogotá, segmentada por las 20 localidades
 #   09-index-localidad.sql  → índice para hospedajes.localidad (optimización)
+#   10-notificacion-verificacion.sql → columna verificaciones_anfitrion.notificado: aviso
+#                              en la app cuando el admin aprueba/rechaza una solicitud
 # (03-consultas.sql NO se monta aquí a propósito: son consultas de ejemplo para correr
 # manualmente, no una migración — ver db/README.md)
 #
@@ -54,6 +56,7 @@ services:
       - ./07-admin-seed.sql:/docker-entrypoint-initdb.d/07-admin-seed.sql:ro
       - ./08-localidades-bogota.sql:/docker-entrypoint-initdb.d/08-localidades-bogota.sql:ro
       - ./09-index-localidad.sql:/docker-entrypoint-initdb.d/09-index-localidad.sql:ro
+      - ./10-notificacion-verificacion.sql:/docker-entrypoint-initdb.d/10-notificacion-verificacion.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pethouse -d pethouse"]
       interval: 10s

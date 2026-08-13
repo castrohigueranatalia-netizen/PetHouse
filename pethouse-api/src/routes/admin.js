@@ -46,7 +46,7 @@ r.post('/solicitudes/:id/aprobar', async (req, res, next) => {
   try {
     await client.query('BEGIN')
     const { rows } = await client.query(
-      `UPDATE verificaciones_anfitrion SET estado = 'aprobado', actualizado_en = now()
+      `UPDATE verificaciones_anfitrion SET estado = 'aprobado', notificado = FALSE, actualizado_en = now()
         WHERE id = $1 RETURNING usuario_id`,
       [req.params.id]
     )
@@ -68,7 +68,7 @@ r.post('/solicitudes/:id/rechazar', async (req, res, next) => {
   try {
     await client.query('BEGIN')
     const { rows } = await client.query(
-      `UPDATE verificaciones_anfitrion SET estado = 'rechazado', actualizado_en = now()
+      `UPDATE verificaciones_anfitrion SET estado = 'rechazado', notificado = FALSE, actualizado_en = now()
         WHERE id = $1 RETURNING usuario_id`,
       [req.params.id]
     )

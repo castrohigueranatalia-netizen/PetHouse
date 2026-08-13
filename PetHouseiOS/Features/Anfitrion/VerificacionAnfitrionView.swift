@@ -4,13 +4,17 @@
 //
 //  Paso 1 de "Conviértete en anfitrión" (ver PerfilView). Al enviar con éxito, pasa al
 //  paso 2 (PreferenciasAnfitrionView) — todavía no vuelve al Perfil, la capacidad ya quedó
-//  activa en el servidor, pero falta configurar qué prefiere cuidar.
+//  activa en el servidor, pero falta configurar qué prefiere cuidar. Cuando el paso 2
+//  termine (`alTerminar`), esta vista se cierra a sí misma — eso se lleva puesto al paso 2
+//  también, así el flujo completo vuelve al Perfil de un solo golpe en vez de dejar ver
+//  otra vez este formulario ya usado.
 //
 
 import SwiftUI
 
 struct VerificacionAnfitrionView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(\.dismiss) private var dismiss
     @State private var viewModel: VerificacionAnfitrionViewModel?
     @State private var avanzarAPreferencias = false
 
@@ -95,7 +99,7 @@ struct VerificacionAnfitrionView: View {
             if enviado == true { avanzarAPreferencias = true }
         }
         .navigationDestination(isPresented: $avanzarAPreferencias) {
-            PreferenciasAnfitrionView()
+            PreferenciasAnfitrionView { dismiss() }
         }
         .scrollDismissesKeyboard(.interactively)
     }

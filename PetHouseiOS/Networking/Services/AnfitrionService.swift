@@ -17,6 +17,9 @@ public protocol AnfitrionServicing: Sendable {
     /// si tiene éxito (ver pethouse-api/src/routes/anfitrion.js).
     func enviarVerificacion(_ payload: EnviarVerificacionRequest) async throws -> VerificacionAnfitrion
     func obtenerVerificacion() async throws -> VerificacionAnfitrion?
+    /// Marca como vista la resolución (aprobado/rechazado) de la solicitud propia — se
+    /// llama apenas se le muestra el aviso al usuario (ver PerfilViewModel).
+    func marcarVerificacionNotificada() async throws
     func enviarPreferencias(_ payload: EnviarPreferenciasRequest) async throws -> PreferenciasAnfitrion
     func obtenerPreferencias() async throws -> PreferenciasAnfitrion?
 }
@@ -52,6 +55,11 @@ public final class AnfitrionService: AnfitrionServicing, @unchecked Sendable {
         let request = APIRequest(method: "GET", path: "/anfitrion/verificacion", requiresAuth: true)
         let response: VerificacionResponse = try await client.send(request)
         return response.verificacion
+    }
+
+    public func marcarVerificacionNotificada() async throws {
+        let request = APIRequest(method: "POST", path: "/anfitrion/verificacion/notificado", requiresAuth: true)
+        try await client.sendNoBody(request)
     }
 
     public func enviarPreferencias(_ payload: EnviarPreferenciasRequest) async throws -> PreferenciasAnfitrion {
