@@ -11,6 +11,7 @@ struct MisReservasView: View {
     @State private var viewModel = MisReservasViewModel()
     @Environment(\.modelContext) private var modelContext
     @State private var reservaParaResena: Reserva?
+    @State private var reservaSeleccionada: Reserva?
 
     var body: some View {
         content
@@ -27,6 +28,9 @@ struct MisReservasView: View {
             .refreshable { await viewModel.cargar(modelContext: modelContext) }
             .sheet(item: $reservaParaResena) { reserva in
                 NuevaResenaView(reservaId: reserva.id, hospedajeTitulo: reserva.hospedajeTitulo)
+            }
+            .navigationDestination(item: $reservaSeleccionada) { reserva in
+                ReservaDetailView(reserva: reserva)
             }
     }
 
@@ -62,35 +66,40 @@ struct MisReservasView: View {
 
     private func reservaFila(_ reserva: Reserva) -> some View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
-            HStack {
-                Text(reserva.hospedajeTitulo ?? "Hospedaje")
-                    .phText(PHFont.titleMD, color: PHColor.ink)
-                Spacer()
-                estadoBadge(reserva.estado)
-            }
+            Button { reservaSeleccionada = reserva } label: {
+                VStack(alignment: .leading, spacing: PHSpacing.s8) {
+                    HStack {
+                        Text(reserva.hospedajeTitulo ?? "Hospedaje")
+                            .phText(PHFont.titleMD, color: PHColor.ink)
+                        Spacer()
+                        estadoBadge(reserva.estado)
+                    }
 
-            if let ciudad = reserva.ciudad {
-                Text([reserva.barrio, ciudad].compactMap { $0 }.joined(separator: ", "))
-                    .phText(PHFont.bodySM, color: PHColor.muted)
-            }
+                    if let ciudad = reserva.ciudad {
+                        Text([reserva.barrio, ciudad].compactMap { $0 }.joined(separator: ", "))
+                            .phText(PHFont.bodySM, color: PHColor.muted)
+                    }
 
-            HStack {
-                if let desde = reserva.desde, let hasta = reserva.hasta {
-                    Label(
-                        "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
-                        systemImage: "calendar"
-                    )
-                    .phText(PHFont.captionSM, color: PHColor.body)
+                    HStack {
+                        if let desde = reserva.desde, let hasta = reserva.hasta {
+                            Label(
+                                "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
+                                systemImage: "calendar"
+                            )
+                            .phText(PHFont.captionSM, color: PHColor.body)
+                        }
+                        Spacer()
+                        if let total = reserva.total {
+                            Text(PHFormato.precio(total))
+                                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                        }
+                    }
+
+                    Text("Código \(reserva.codigo)")
+                        .phText(PHFont.micro, color: PHColor.mutedSoft)
                 }
-                Spacer()
-                if let total = reserva.total {
-                    Text(PHFormato.precio(total))
-                        .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                }
             }
-
-            Text("Código \(reserva.codigo)")
-                .phText(PHFont.micro, color: PHColor.mutedSoft)
+            .buttonStyle(.plain)
 
             if reserva.estado == .confirmada {
                 HStack {

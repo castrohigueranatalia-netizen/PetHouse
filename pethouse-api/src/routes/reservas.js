@@ -68,7 +68,10 @@ r.post('/', auth, async (req, res, next) => {
 r.get('/mias', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
+      // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
+      // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
       `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.noches, rs.mascotas, rs.total, rs.estado,
+              rs.hospedaje_id, h.anfitrion_id,
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
         WHERE rs.usuario_id = $1
