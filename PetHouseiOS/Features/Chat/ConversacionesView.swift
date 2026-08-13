@@ -22,11 +22,11 @@ struct ConversacionesView: View {
             }
             .task {
                 await viewModel.cargar()
-                await session.actualizarContadores()
+                session.actualizarMensajesNoLeidos(desde: viewModel.conversaciones)
             }
             .refreshable {
                 await viewModel.cargar()
-                await session.actualizarContadores()
+                session.actualizarMensajesNoLeidos(desde: viewModel.conversaciones)
             }
     }
 

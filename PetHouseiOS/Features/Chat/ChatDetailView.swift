@@ -49,9 +49,10 @@ struct ChatDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.iniciar()
-            // `iniciar()` ya marcó esta conversación como leída — refresca el badge de la
-            // pestaña Mensajes para que baje sin esperar a volver a Conversaciones.
-            await session.actualizarContadores()
+            // `iniciar()` ya marcó esta conversación como leída — descuenta del badge de la
+            // pestaña Mensajes lo que tenía sin leer, sin pedir todas las conversaciones de
+            // nuevo por red solo para recalcular una resta.
+            session.marcarConversacionLeida(conversacion)
         }
         .onDisappear { viewModel.detener() }
     }

@@ -121,7 +121,14 @@ public final class SessionStore {
     public func login(email: String, password: String) async throws {
         let respuesta = try await authService.login(email: email, password: password)
         try guardarTokens(respuesta)
-        aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
+        // `guardarEnCache: false` — el guardado en SwiftData (disco) se difiere al Task de
+        // abajo en vez de bloquear la transición a `.autenticado` justo después de tocar
+        // "Iniciar sesión" (antes `aplicarPerfil` escribía en disco ANTES de esta línea,
+        // lo cual se sentía como que la app se quedaba pensando un instante después de que
+        // la respuesta del login ya había llegado). `refrescarPerfilCompleto()` guarda en
+        // caché con datos más completos (mascotas reales) apenas unos milisegundos después,
+        // así que no hace falta guardar dos veces.
+        aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false, guardarEnCache: false)
         estado = .autenticado
         Task {
             await refrescarPerfilCompleto()
@@ -138,7 +145,7 @@ public final class SessionStore {
             telefono: telefono, rol: rol, mascotaNombre: mascotaNombre
         )
         try guardarTokens(respuesta)
-        aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false)
+        aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false, guardarEnCache: false)
         estado = .autenticado
         Task {
             await refrescarPerfilCompleto()
@@ -178,27 +185,50 @@ public final class SessionStore {
     }
 
     /// Recalcula los contadores de los badges (mensajes sin leer, y solicitudes
-    /// pendientes si es admin). Se llama al arrancar la sesión y desde las pantallas que
-    /// pueden cambiarlos (abrir un chat lo marca leído, aprobar/rechazar una solicitud la
-    /// saca de "pendientes") — nunca en un timer, porque no hay push notifications que
-    /// avisen cuándo vale la pena volver a preguntar.
+    /// pendientes si es admin) pidiéndolos de nuevo al servidor. Solo para cuando de
+    /// verdad no hay datos frescos a mano (arrancar la sesión, loguearse, registrarse) —
+    /// las pantallas que YA tienen la lista de conversaciones o el nuevo conteo de
+    /// solicitudes (porque acaban de pedirla para otra cosa) deben usar
+    /// `actualizarMensajesNoLeidos`/`marcarConversacionLeida`/`actualizarSolicitudesPendientes`
+    /// en su lugar — recalculan localmente, sin otra ida y vuelta de red.
     public func actualizarContadores() async {
         if let conversaciones = try? await chatService.conversaciones() {
-            mensajesNoLeidos = conversaciones.reduce(0) { $0 + ($1.noLeidos ?? 0) }
+            actualizarMensajesNoLeidos(desde: conversaciones)
         }
         guard usuario?.rol == .admin else { return }
         if let estadisticas = try? await adminService.estadisticas() {
-            solicitudesPendientes = estadisticas.solicitudesPendientes
+            actualizarSolicitudesPendientes(estadisticas.solicitudesPendientes)
         }
+    }
+
+    /// Recalcula `mensajesNoLeidos` a partir de una lista de conversaciones que la pantalla
+    /// que llama YA tiene fresca (ej. `ConversacionesView` justo después de cargarla) — sin
+    /// pedirla de nuevo por red.
+    public func actualizarMensajesNoLeidos(desde conversaciones: [Conversacion]) {
+        mensajesNoLeidos = conversaciones.reduce(0) { $0 + ($1.noLeidos ?? 0) }
+    }
+
+    /// Descuenta del contador los mensajes que tenía sin leer `conversacion` — se llama
+    /// justo después de marcarla como leída (ver `ChatDetailViewModel.iniciar()`), en vez
+    /// de volver a pedir todas las conversaciones solo para recalcular una resta.
+    public func marcarConversacionLeida(_ conversacion: Conversacion) {
+        mensajesNoLeidos = max(0, mensajesNoLeidos - (conversacion.noLeidos ?? 0))
+    }
+
+    /// Fija `solicitudesPendientes` a un valor que la pantalla que llama YA calculó (ej.
+    /// `AdminView` con la respuesta de `GET /admin/estadisticas` que acaba de pedir para
+    /// mostrar las tarjetas, o `AdminSolicitudesView` restando uno tras resolver una).
+    public func actualizarSolicitudesPendientes(_ n: Int) {
+        solicitudesPendientes = n
     }
 
     // MARK: - Privado
 
-    private func aplicarPerfil(_ usuario: Usuario, mascotas: [Mascota], desdeCache: Bool) {
+    private func aplicarPerfil(_ usuario: Usuario, mascotas: [Mascota], desdeCache: Bool, guardarEnCache: Bool = true) {
         self.usuario = usuario
         self.mascotas = mascotas
         self.perfilEsDeCache = desdeCache
-        if !desdeCache {
+        if !desdeCache && guardarEnCache {
             guardarCache(usuario: usuario, mascotas: mascotas)
         }
     }

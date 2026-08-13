@@ -51,11 +51,20 @@ struct AdminView: View {
         }
         .refreshable {
             await viewModel.cargar()
-            await session.actualizarContadores()
+            sincronizarBadge()
         }
         .task {
             if viewModel.estadisticas == nil { await viewModel.cargar() }
-            await session.actualizarContadores()
+            sincronizarBadge()
+        }
+    }
+
+    /// El badge de la pestaña Admin usa el mismo número que ya está en `estadisticas` —
+    /// sin esto, se volvía a pedir `GET /admin/estadisticas` por segunda vez solo para el
+    /// badge, justo después de haberla pedido para las tarjetas de arriba.
+    private func sincronizarBadge() {
+        if let pendientes = viewModel.estadisticas?.solicitudesPendientes {
+            session.actualizarSolicitudesPendientes(pendientes)
         }
     }
 

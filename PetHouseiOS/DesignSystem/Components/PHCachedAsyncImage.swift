@@ -92,7 +92,16 @@ public struct PHCachedAsyncImage<Placeholder: View>: View {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let maxPixels = ladoMaximoPt * UIScreen.main.scale
-            if let image = Self.downsampledImage(data: data, maxDimensionPixels: maxPixels) {
+            // El decode/downsample de ImageIO es trabajo de CPU pesado — antes corría acá
+            // mismo, en @MainActor junto con el resto de `load()`, así que cada imagen que
+            // terminaba de descargarse trababa el hilo principal un instante; con varias
+            // fotos cargando a la vez en una lista (el caso normal al hacer scroll), esos
+            // instantes se notaban como lentitud general. `Task.detached` lo saca a un hilo
+            // de fondo; solo la asignación a `uiImage` (que sí necesita @MainActor) vuelve.
+            let image = await Task.detached(priority: .userInitiated) {
+                Self.downsampledImage(data: data, maxDimensionPixels: maxPixels)
+            }.value
+            if let image {
                 PHImageCache.shared.insert(image, for: url)
                 uiImage = image
             }
