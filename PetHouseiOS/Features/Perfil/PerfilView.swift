@@ -50,13 +50,7 @@ struct PerfilView: View {
         }
         .refreshable { await viewModel?.refrescar() }
         .onAppear {
-            if viewModel == nil {
-                let vm = PerfilViewModel(session: session)
-                viewModel = vm
-                // Sin push notifications (ADR-7): así es como el usuario se entera de que
-                // su solicitud de anfitrión fue aprobada/rechazada — al volver al Perfil.
-                Task { await vm.revisarResolucionVerificacion() }
-            }
+            if viewModel == nil { viewModel = PerfilViewModel(session: session) }
         }
         .sheet(isPresented: $mostrarEditar) { EditarPerfilView() }
         .sheet(isPresented: $mostrarAgregarMascota) { MascotaFormView(mascota: nil) }
@@ -77,24 +71,8 @@ struct PerfilView: View {
         )) {
             VerificacionAnfitrionView()
         }
-        .alert(
-            tituloResolucion,
-            isPresented: Binding(get: { viewModel?.resolucionVerificacion != nil }, set: { _ in }),
-            actions: {
-                Button("Entendido") { Task { await viewModel?.marcarResolucionVista() } }
-            },
-            message: { Text(mensajeResolucion) }
-        )
-    }
-
-    private var tituloResolucion: String {
-        viewModel?.resolucionVerificacion?.estado == .aprobado ? "¡Solicitud aprobada!" : "Solicitud rechazada"
-    }
-
-    private var mensajeResolucion: String {
-        viewModel?.resolucionVerificacion?.estado == .aprobado
-            ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde la pestaña Anfitrión."
-            : "Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil."
+        // El aviso de "tu solicitud se resolvió" se muestra desde MainTabView (aparece
+        // apenas se entra a la app, en cualquier pestaña) — ver App/RootView.swift.
     }
 
     private func encabezado(_ usuario: Usuario) -> some View {

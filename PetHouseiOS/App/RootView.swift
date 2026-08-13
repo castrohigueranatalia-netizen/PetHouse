@@ -115,5 +115,28 @@ struct MainTabView: View {
         .onChange(of: session.volverABuscar) { _, volver in
             if volver { pestanaSeleccionada = .buscar }
         }
+        // Aviso de "tu solicitud de anfitrión se resolvió" (ver SessionStore.
+        // revisarResolucionVerificacion, sin push notifications — ADR-7): se revisa al
+        // arrancar la sesión/loguearse/registrarse, y se muestra ACÁ, en la raíz de las
+        // pestañas, para que sea lo primero que se ve al entrar a la app — no algo que
+        // depende de que el usuario llegue a abrir el Perfil.
+        .alert(
+            tituloResolucion,
+            isPresented: Binding(get: { session.resolucionVerificacion != nil }, set: { _ in }),
+            actions: {
+                Button("Entendido") { Task { await session.marcarResolucionVista() } }
+            },
+            message: { Text(mensajeResolucion) }
+        )
+    }
+
+    private var tituloResolucion: String {
+        session.resolucionVerificacion?.estado == .aprobado ? "¡Solicitud aprobada!" : "Solicitud rechazada"
+    }
+
+    private var mensajeResolucion: String {
+        session.resolucionVerificacion?.estado == .aprobado
+            ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde la pestaña Anfitrión."
+            : "Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil."
     }
 }

@@ -5,8 +5,8 @@
 //  Paso 2 (último) de "Conviértete en anfitrión". Al enviar con éxito, en vez de cerrar el
 //  flujo en silencio, muestra una confirmación (chulo + "solicitud enviada") — el usuario
 //  toca "Listo" para volver al Perfil. La solicitud queda pendiente de revisión; el aviso
-//  de si fue aprobada o rechazada llega después, la próxima vez que abra el Perfil (ver
-//  PerfilViewModel.revisarResolucionVerificacion — sin push notifications, ADR-7).
+//  de si fue aprobada o rechazada llega después, apenas se vuelva a abrir la app (ver
+//  SessionStore.revisarResolucionVerificacion/MainTabView — sin push notifications, ADR-7).
 //
 //  `alTerminar` (en vez de `@Environment(\.dismiss)` acá): esta vista está empujada DENTRO
 //  de VerificacionAnfitrionView (paso 1), así que su propio `dismiss()` solo la sacaría a

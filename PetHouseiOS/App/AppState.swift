@@ -60,22 +60,33 @@ public final class SessionStore {
     public private(set) var mensajesNoLeidos = 0
     public private(set) var solicitudesPendientes = 0
 
+    /// `!= nil` cuando la solicitud de anfitrión acaba de resolverse (aprobada o
+    /// rechazada) y el usuario todavía no lo vio. Se revisa al arrancar la sesión/loguearse/
+    /// registrarse (ver `revisarResolucionVerificacion()`) — vive acá, no en un ViewModel de
+    /// una pantalla puntual, para que `MainTabView` pueda mostrar el aviso apenas se entra a
+    /// la app, sea cual sea la pestaña que se abra primero, en vez de solo si el usuario
+    /// llega a visitar el Perfil. `marcarResolucionVista()` lo apaga.
+    public private(set) var resolucionVerificacion: VerificacionAnfitrion?
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private let chatService: ChatServicing
     private let adminService: AdminServicing
+    private let anfitrionService: AnfitrionServicing
     private var modelContext: ModelContext?
 
     public init(
         authService: AuthServicing = AuthService(),
         keychain: KeychainStoring = KeychainStore.shared,
         chatService: ChatServicing = ChatService(),
-        adminService: AdminServicing = AdminService()
+        adminService: AdminServicing = AdminService(),
+        anfitrionService: AnfitrionServicing = AnfitrionService()
     ) {
         self.authService = authService
         self.keychain = keychain
         self.chatService = chatService
         self.adminService = adminService
+        self.anfitrionService = anfitrionService
     }
 
     /// Se llama una vez desde `PetHouseApp` cuando el `ModelContainer` ya está listo.
@@ -95,6 +106,7 @@ public final class SessionStore {
             aplicarPerfil(respuesta.usuario, mascotas: respuesta.mascotas, desdeCache: false)
             estado = .autenticado
             await actualizarContadores()
+            await revisarResolucionVerificacion()
         } catch AppError.sesionExpirada {
             // El único caso que representa una sesión inválida de verdad: `APIClient` ya
             // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
@@ -133,6 +145,7 @@ public final class SessionStore {
         Task {
             await refrescarPerfilCompleto()
             await actualizarContadores()
+            await revisarResolucionVerificacion()
         }
     }
 
@@ -150,6 +163,7 @@ public final class SessionStore {
         Task {
             await refrescarPerfilCompleto()
             await actualizarContadores()
+            await revisarResolucionVerificacion()
         }
     }
 
@@ -163,6 +177,7 @@ public final class SessionStore {
         perfilEsDeCache = false
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
+        resolucionVerificacion = nil
         estado = .invitado
         borrarCache()
     }
@@ -174,6 +189,7 @@ public final class SessionStore {
         mascotas = []
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
+        resolucionVerificacion = nil
         estado = .invitado
     }
 
@@ -220,6 +236,24 @@ public final class SessionStore {
     /// mostrar las tarjetas, o `AdminSolicitudesView` restando uno tras resolver una).
     public func actualizarSolicitudesPendientes(_ n: Int) {
         solicitudesPendientes = n
+    }
+
+    /// Revisa si la solicitud de anfitrión del usuario se resolvió (aprobada o rechazada)
+    /// sin que él se haya enterado todavía — se llama al arrancar la sesión/loguearse/
+    /// registrarse (ver arriba), así `MainTabView` puede mostrar el aviso apenas se entra a
+    /// la app. Silenciosa a propósito si falla (sin conexión, etc.): no vale la pena un
+    /// error encima de la app recién abierta solo por esto.
+    public func revisarResolucionVerificacion() async {
+        guard let verificacion = try? await anfitrionService.obtenerVerificacion() else { return }
+        if verificacion.estado != .pendiente && !verificacion.notificado {
+            resolucionVerificacion = verificacion
+        }
+    }
+
+    /// Apaga el aviso y le avisa al servidor para que no vuelva a aparecer.
+    public func marcarResolucionVista() async {
+        resolucionVerificacion = nil
+        try? await anfitrionService.marcarVerificacionNotificada()
     }
 
     // MARK: - Privado
