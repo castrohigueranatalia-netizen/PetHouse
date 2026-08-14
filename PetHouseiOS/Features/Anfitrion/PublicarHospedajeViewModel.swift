@@ -2,11 +2,12 @@
 //  PublicarHospedajeViewModel.swift
 //  Features/Anfitrion
 //
-//  `POST /api/hospedajes` SÍ existe hoy — a diferencia del resto de este módulo. Pero
-//  como no hay endpoint de subida de imágenes (gap bloqueante #1, ver
-//  ARCHITECTURE_AUDIT.md §6 y `ImagenesService`), `fotos` se manda como URLs que el
-//  anfitrión debe pegar a mano (ya alojadas en otro lado) — se lo decimos explícito en
-//  la UI en vez de fingir que hay un selector de fotos funcional.
+//  Sirve para publicar un hospedaje NUEVO y para editar uno existente — `hospedajeExistente`
+//  distingue los dos casos (mismo patrón que `MascotaFormViewModel`): `nil` precarga el
+//  formulario vacío y llama a `POST /api/hospedajes` al guardar; con un `Hospedaje`, precarga
+//  sus datos y llama a `PATCH /api/hospedajes/:id`. Las fotos se suben de verdad
+//  (`ImagenesService`, mismo componente `PHAdjuntarFotos` que ya usa la ficha de mascota y
+//  la verificación de anfitrión) — antes había que pegar URLs a mano.
 //
 
 import Foundation
@@ -14,6 +15,9 @@ import Foundation
 @MainActor
 @Observable
 public final class PublicarHospedajeViewModel {
+    /// `nil` = publicando uno nuevo; con valor = editando este hospedaje existente.
+    public let hospedajeExistente: Hospedaje?
+
     public var titulo = ""
     public var tipo: TipoHospedaje = .guarderia
     public var descripcion = ""
@@ -28,22 +32,48 @@ public final class PublicarHospedajeViewModel {
     public var maxMascotasTexto = "1"
     public var serviciosTexto = ""   // separados por coma
     public var reglasTexto = ""      // separados por coma
-    public var fotosURLsTexto = ""   // separados por coma — sin subida real, ver arriba
+    public var fotos: [String] = []
 
     public private(set) var isLoading = false
     public private(set) var error: AppError?
-    public private(set) var publicado: HospedajeCreado?
+    public private(set) var guardado: Hospedaje?
 
     private let service: HospedajesServicing
+    private let imagenesService: ImagenesServicing
     private let locationProvider: LocationProvider
 
     // Ver el comentario equivalente en BuscarViewModel.swift: `LocationProvider()` no puede
     // ser el valor por defecto del parámetro (Swift no aísla al MainActor las expresiones
     // de default aunque la clase lo sea) — se crea dentro del cuerpo del init en su lugar.
-    public init(service: HospedajesServicing = HospedajesService(), locationProvider: LocationProvider? = nil) {
+    public init(
+        hospedajeExistente: Hospedaje? = nil,
+        service: HospedajesServicing = HospedajesService(),
+        imagenesService: ImagenesServicing = ImagenesService(),
+        locationProvider: LocationProvider? = nil
+    ) {
+        self.hospedajeExistente = hospedajeExistente
         self.service = service
+        self.imagenesService = imagenesService
         self.locationProvider = locationProvider ?? LocationProvider()
+
+        if let h = hospedajeExistente {
+            titulo = h.titulo
+            tipo = h.tipo
+            descripcion = h.descripcion ?? ""
+            localidad = h.localidad.flatMap(Localidad.init(rawValue:))
+            barrio = h.barrio ?? ""
+            latTexto = h.lat.map(String.init) ?? ""
+            lngTexto = h.lng.map(String.init) ?? ""
+            precioNocheTexto = String(h.precioNoche)
+            convivencia = h.convivencia ?? .cualquiera
+            maxMascotasTexto = h.maxMascotas.map(String.init) ?? "1"
+            serviciosTexto = (h.servicios ?? []).joined(separator: ", ")
+            reglasTexto = (h.reglas ?? []).joined(separator: ", ")
+            fotos = h.fotos ?? []
+        }
     }
+
+    public var esEdicion: Bool { hospedajeExistente != nil }
 
     public var puedeUsarUbicacionActual: Bool { true }
 
@@ -53,14 +83,21 @@ public final class PublicarHospedajeViewModel {
         lngTexto = String(coordenada.longitude)
     }
 
-    public var puedePublicar: Bool {
+    /// Pasado a `PHAdjuntarFotos` — sube el archivo y devuelve la URL, o `nil` si falla (la
+    /// vista ya muestra su propio mensaje de error en ese caso). Mismo patrón que
+    /// `VerificacionAnfitrionViewModel.subirFoto`/`MascotaFormViewModel.subirFoto`.
+    public func subirFoto(_ datos: Data) async -> String? {
+        try? await imagenesService.subir(datos: datos, nombreArchivo: "hospedaje.jpg", mimeType: "image/jpeg")
+    }
+
+    public var puedeGuardar: Bool {
         !titulo.isEmpty && !descripcion.isEmpty && localidad != nil
             && Double(latTexto) != nil && Double(lngTexto) != nil
             && Double(precioNocheTexto) != nil && !isLoading
     }
 
-    public func publicar() async {
-        guard puedePublicar,
+    public func guardar() async {
+        guard puedeGuardar,
               let localidad,
               let lat = Double(latTexto), let lng = Double(lngTexto),
               let precio = Double(precioNocheTexto) else { return }
@@ -73,12 +110,23 @@ public final class PublicarHospedajeViewModel {
             titulo: titulo, tipo: tipo, descripcion: descripcion, localidad: localidad.rawValue,
             barrio: barrio.isEmpty ? nil : barrio, lat: lat, lng: lng, coberturaRadioM: nil,
             precioNoche: precio, convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
-            servicios: lista(serviciosTexto), reglas: lista(reglasTexto), fotos: lista(fotosURLsTexto)
+            servicios: lista(serviciosTexto), reglas: lista(reglasTexto), fotos: fotos
         )
 
         do {
-            let respuesta = try await service.crear(payload)
-            publicado = respuesta.hospedaje
+            if let existente = hospedajeExistente {
+                guardado = try await service.editar(id: existente.id, payload)
+            } else {
+                let respuesta = try await service.crear(payload)
+                // `POST /` solo devuelve un subconjunto mínimo (ver HospedajeCreado) — se
+                // envuelve en un `Hospedaje` "placeholder" para reusar el mismo tipo que la
+                // edición, que sí trae la fila completa.
+                let creado = respuesta.hospedaje
+                guardado = Hospedaje(
+                    id: creado.id, titulo: creado.titulo, tipo: creado.tipo,
+                    ciudad: creado.ciudad, localidad: creado.localidad, precioNoche: creado.precioNoche
+                )
+            }
         } catch let appError as AppError {
             error = appError
         } catch {

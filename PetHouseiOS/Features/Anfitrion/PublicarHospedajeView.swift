@@ -2,25 +2,34 @@
 //  PublicarHospedajeView.swift
 //  Features/Anfitrion
 //
+//  Sirve para publicar un hospedaje nuevo y para editar uno existente — ver
+//  PublicarHospedajeViewModel.hospedajeExistente. `alGuardar` recibe el `Hospedaje` final en
+//  ambos casos, para que MisHospedajesView pueda insertarlo o reemplazarlo en su lista.
+//
 
 import SwiftUI
 
 struct PublicarHospedajeView: View {
-    let alPublicar: (HospedajeCreado) -> Void
+    let alGuardar: (Hospedaje) -> Void
 
-    @State private var viewModel = PublicarHospedajeViewModel()
+    @State private var viewModel: PublicarHospedajeViewModel
     @Environment(\.dismiss) private var dismiss
+
+    init(hospedajeExistente: Hospedaje? = nil, alGuardar: @escaping (Hospedaje) -> Void) {
+        self.alGuardar = alGuardar
+        _viewModel = State(initialValue: PublicarHospedajeViewModel(hospedajeExistente: hospedajeExistente))
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let publicado = viewModel.publicado {
-                    exito(publicado)
+                if let guardado = viewModel.guardado {
+                    exito(guardado)
                 } else {
                     formulario
                 }
             }
-            .navigationTitle("Publicar hospedaje")
+            .navigationTitle(viewModel.esEdicion ? "Editar hospedaje" : "Publicar hospedaje")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -33,6 +42,14 @@ struct PublicarHospedajeView: View {
     private var formulario: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s16) {
+                PHAdjuntarFotos(
+                    titulo: "Fotos del hospedaje",
+                    subtitulo: "Ayudan a los dueños a confiar en el espacio antes de reservar.",
+                    maximo: 8,
+                    urls: Binding(get: { viewModel.fotos }, set: { viewModel.fotos = $0 }),
+                    subir: { await viewModel.subirFoto($0) }
+                )
+
                 PHTextField(label: "Título", placeholder: "Ej. Guardería La Huellita", text: $viewModel.titulo)
 
                 VStack(alignment: .leading, spacing: PHSpacing.s4) {
@@ -89,38 +106,33 @@ struct PublicarHospedajeView: View {
 
                 PHTextField(label: "Máximo de mascotas", placeholder: "1", text: $viewModel.maxMascotasTexto, keyboardType: .numberPad)
                 PHTextField(label: "Servicios (separados por coma)", placeholder: "paseos, alimentación, monitoreo", text: $viewModel.serviciosTexto)
-                PHTextField(label: "Reglas (separadas por coma)", placeholder: "no fumar, correa obligatoria", text: $viewModel.reglasTexto)
-
-                VStack(alignment: .leading, spacing: PHSpacing.s4) {
-                    PHTextField(label: "Fotos: URLs separadas por coma (opcional)", placeholder: "https://…, https://…", text: $viewModel.fotosURLsTexto)
-                    Text("Todavía no hay subida de fotos desde la app — pega URLs de imágenes ya alojadas en otro lado. Ver README.")
-                        .phText(PHFont.micro, color: PHColor.mutedSoft)
-                }
+                PHTextField(label: "Condiciones / reglas (separadas por coma)", placeholder: "no fumar, correa obligatoria", text: $viewModel.reglasTexto)
 
                 if let error = viewModel.error {
                     Text(error.localizedDescription).phText(PHFont.bodySM, color: PHColor.error)
                 }
 
-                PHPrimaryButton("Publicar", isLoading: viewModel.isLoading) {
-                    Task { await viewModel.publicar() }
+                PHPrimaryButton(viewModel.esEdicion ? "Guardar cambios" : "Publicar", isLoading: viewModel.isLoading) {
+                    Task { await viewModel.guardar() }
                 }
-                .disabled(!viewModel.puedePublicar)
+                .disabled(!viewModel.puedeGuardar)
             }
             .padding(PHSpacing.s16)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
-    private func exito(_ publicado: HospedajeCreado) -> some View {
+    private func exito(_ guardado: Hospedaje) -> some View {
         VStack(spacing: PHSpacing.s16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(PHColor.success)
-            Text("¡Hospedaje publicado!")
+            Text(viewModel.esEdicion ? "¡Cambios guardados!" : "¡Hospedaje publicado!")
                 .phText(PHFont.displaySM, color: PHColor.ink)
-            Text(publicado.titulo)
+            Text(guardado.titulo)
                 .phText(PHFont.bodyMD, color: PHColor.muted)
             PHPrimaryButton("Listo") {
-                alPublicar(publicado)
+                alGuardar(guardado)
                 dismiss()
             }
             .padding(.horizontal, PHSpacing.s32)

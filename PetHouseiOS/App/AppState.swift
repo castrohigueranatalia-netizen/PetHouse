@@ -258,10 +258,18 @@ public final class SessionStore {
     /// registrarse (ver arriba), así `MainTabView` puede mostrar el aviso apenas se entra a
     /// la app. Silenciosa a propósito si falla (sin conexión, etc.): no vale la pena un
     /// error encima de la app recién abierta solo por esto.
+    ///
+    /// Si fue aprobada, además refresca el perfil (`usuario.esAnfitrion`) ANTES de mostrar
+    /// el aviso — sin esto, la pestaña "Anfitrión" no aparecía en `MainTabView` hasta la
+    /// próxima vez que algo más refrescara el perfil (ej. reabrir la app), aunque el aviso
+    /// de "¡Solicitud aprobada!" ya estuviera en pantalla.
     public func revisarResolucionVerificacion() async {
         guard let verificacion = try? await anfitrionService.obtenerVerificacion() else { return }
         if verificacion.estado != .pendiente && !verificacion.notificado {
             resolucionVerificacion = verificacion
+            if verificacion.estado == .aprobado {
+                await refrescarPerfilCompleto()
+            }
         }
     }
 

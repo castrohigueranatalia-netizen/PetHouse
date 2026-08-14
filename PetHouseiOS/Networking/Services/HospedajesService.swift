@@ -3,9 +3,9 @@
 //  Networking/Services
 //
 //  Envuelve `GET /api/hospedajes`, `GET /api/hospedajes/localidades`, `GET /api/hospedajes/cerca`,
-//  `GET /api/hospedajes/:id` y `POST /api/hospedajes` (existentes hoy). `crear` usa
-//  `CrearHospedajeRequest`, que se serializa en camelCase a propósito — ver el comentario en
-//  Core/Models/Hospedaje.swift.
+//  `GET /api/hospedajes/:id`, `POST /api/hospedajes` y `PATCH /api/hospedajes/:id`. `crear`/
+//  `editar` usan `CrearHospedajeRequest`, que se serializa en camelCase a propósito — ver el
+//  comentario en Core/Models/Hospedaje.swift.
 //
 
 import Foundation
@@ -40,6 +40,10 @@ public protocol HospedajesServicing: Sendable {
     func cerca(lat: Double, lng: Double, radio: Int) async throws -> HospedajesListResponse
     func detalle(id: String) async throws -> HospedajeDetailResponse
     func crear(_ payload: CrearHospedajeRequest) async throws -> CrearHospedajeResponse
+    /// PATCH /api/hospedajes/:id — el anfitrión dueño edita un hospedaje ya publicado.
+    /// Mismo body que `crear`, pero devuelve el `Hospedaje` completo (ver
+    /// `EditarHospedajeResponse`).
+    func editar(id: String, _ payload: CrearHospedajeRequest) async throws -> Hospedaje
     /// GET /api/hospedajes/localidades — conteo de hospedajes activos por cada una de las
     /// 20 localidades (incluye las que tienen 0), usado por el mapa/lista segmentados.
     func localidades() async throws -> [LocalidadConteo]
@@ -90,6 +94,13 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         let data = try JSONEncoder().encode(payload)
         let request = APIRequest(method: "POST", path: "/hospedajes", body: data, requiresAuth: true)
         return try await client.send(request)
+    }
+
+    public func editar(id: String, _ payload: CrearHospedajeRequest) async throws -> Hospedaje {
+        let data = try JSONEncoder().encode(payload)
+        let request = APIRequest(method: "PATCH", path: "/hospedajes/\(id)", body: data, requiresAuth: true)
+        let response: EditarHospedajeResponse = try await client.send(request)
+        return response.hospedaje
     }
 
     public func localidades() async throws -> [LocalidadConteo] {

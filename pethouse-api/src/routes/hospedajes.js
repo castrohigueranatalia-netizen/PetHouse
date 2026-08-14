@@ -6,7 +6,7 @@
 // GET /api/hospedajes/localidades  → conteo de hospedajes por cada una de las 20 localidades
 // GET /api/hospedajes/cerca?lat&lng&radio
 // GET /api/hospedajes/:id
-// POST /api/hospedajes   (anfitrión)
+// POST /api/hospedajes   (anfitrión) · PATCH /api/hospedajes/:id (anfitrión dueño)
 // ============================================================
 import { Router } from 'express'
 import { pool } from '../config.js'
@@ -249,6 +249,58 @@ r.post('/', auth, soloAnfitrion, async (req, res, next) => {
        Number(maxMascotas || 1), servicios || [], reglas || [], fotos || []]
     )
     res.status(201).json({ hospedaje: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// ---- Editar hospedaje propio (anfitrión dueño) ----
+r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { rows: h } = await pool.query('SELECT anfitrion_id FROM hospedajes WHERE id = $1', [req.params.id])
+    if (!h.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+    if (h[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
+    }
+
+    const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
+            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
+
+    if (localidad !== undefined && !LOCALIDADES_BOGOTA.includes(localidad)) {
+      return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
+    }
+
+    const campos = []
+    const valores = []
+    const set = (col, val) => { valores.push(val); campos.push(`${col} = $${valores.length}`) }
+    if (titulo !== undefined) set('titulo', titulo)
+    if (tipo !== undefined) set('tipo', tipo)
+    if (descripcion !== undefined) set('descripcion', descripcion)
+    if (localidad !== undefined) set('localidad', localidad)
+    if (barrio !== undefined) set('barrio', barrio || null)
+    if (coberturaRadioM !== undefined) set('cobertura_radio_m', coberturaRadioM || null)
+    if (precioNoche !== undefined) set('precio_noche', precioNoche)
+    if (convivencia !== undefined) set('convivencia', convivencia)
+    if (maxMascotas !== undefined) set('max_mascotas', maxMascotas)
+    if (servicios !== undefined) set('servicios', servicios || [])
+    if (reglas !== undefined) set('reglas', reglas || [])
+    if (fotos !== undefined) set('fotos', fotos || [])
+    if (lat !== undefined && lng !== undefined) {
+      valores.push(Number(lng), Number(lat))
+      campos.push(`ubicacion = ST_SetSRID(ST_MakePoint($${valores.length - 1}, $${valores.length}), 4326)`)
+    }
+
+    if (!campos.length) return res.status(400).json({ error: 'No hay nada que actualizar.' })
+
+    valores.push(req.params.id)
+    // Devuelve la fila completa (con lat/lng ya extraídos), mismo shape que GET /:id — así
+    // el cliente puede reemplazar el hospedaje editado en su lista sin perder ningún campo
+    // (a diferencia de POST /, que solo devuelve un subconjunto mínimo).
+    const { rows } = await pool.query(
+      `UPDATE hospedajes SET ${campos.join(', ')}
+        WHERE id = $${valores.length}
+        RETURNING *, ST_Y(ubicacion::geometry) AS lat, ST_X(ubicacion::geometry) AS lng`,
+      valores
+    )
+    res.json({ hospedaje: rows[0] })
   } catch (err) { next(err) }
 })
 

@@ -233,11 +233,12 @@ public struct HospedajeDetailResponse: Codable {
     public let resenas: [Resena]
 }
 
-/// Body de `POST /api/hospedajes` — a diferencia de TODAS las respuestas (snake_case),
-/// esta ruta espera el body en **camelCase** (ver `pethouse-api/src/routes/hospedajes.js`,
-/// ruta `POST /`: `coberturaRadioM, precioNoche, maxMascotas`). Inconsistencia real del
-/// backend, no un error de este cliente — de ahí que este DTO tenga su propio
-/// `CodingKeys` distinto al de `Hospedaje`.
+/// Body de `POST /api/hospedajes` (crear) y `PATCH /api/hospedajes/:id` (editar) — mismo
+/// shape para ambos, ver `HospedajesService.crear`/`editar`. A diferencia de TODAS las
+/// respuestas (snake_case), estas rutas esperan el body en **camelCase** (ver
+/// `pethouse-api/src/routes/hospedajes.js`: `coberturaRadioM, precioNoche, maxMascotas`).
+/// Inconsistencia real del backend, no un error de este cliente — de ahí que este DTO
+/// tenga su propio `CodingKeys` distinto al de `Hospedaje`.
 /// `ciudad` no se manda: el servidor la fija en `'Bogotá'` siempre (la app opera solo ahí,
 /// ver `pethouse-api/src/routes/hospedajes.js`) — en su lugar se manda `localidad`,
 /// obligatoria y validada contra las 20 localidades oficiales.
@@ -255,7 +256,8 @@ public struct CrearHospedajeRequest: Encodable {
     public let maxMascotas: Int
     public let servicios: [String]
     public let reglas: [String]
-    /// URLs ya alojadas — no hay endpoint de subida hoy (ver README, gap bloqueante #1).
+    /// URLs devueltas por `POST /api/subidas` (ver `ImagenesService`) — mismo patrón que
+    /// `Mascota.fotos`.
     public let fotos: [String]
 
     public init(
@@ -310,4 +312,11 @@ public struct HospedajeCreado: Decodable {
 
 public struct CrearHospedajeResponse: Decodable {
     public let hospedaje: HospedajeCreado
+}
+
+/// Respuesta de `PATCH /api/hospedajes/:id` — a diferencia de `CrearHospedajeResponse`
+/// (subconjunto mínimo), trae el `Hospedaje` COMPLETO (mismo shape que `GET /:id`), así
+/// `MisHospedajesView` puede reemplazar el hospedaje editado en su lista sin perder campos.
+public struct EditarHospedajeResponse: Decodable {
+    public let hospedaje: Hospedaje
 }

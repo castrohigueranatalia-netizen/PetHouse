@@ -2,10 +2,6 @@
 //  MisHospedajesViewModel.swift
 //  Features/Anfitrion
 //
-//  🔴 `GET /api/hospedajes/mios` no existe hoy (ver `AnfitrionService`). El botón
-//  "Publicar" SÍ funciona de verdad porque `POST /api/hospedajes` existe — ver
-//  `PublicarHospedajeViewModel`.
-//
 
 import Foundation
 
@@ -35,16 +31,14 @@ public final class MisHospedajesViewModel {
         }
     }
 
-    /// Inserta localmente el hospedaje recién publicado para que aparezca de inmediato,
-    /// sin esperar a que `GET /api/hospedajes/mios` exista para poder refrescar la lista.
-    public func agregarLocal(_ hospedaje: HospedajeCreado) {
-        // `HospedajeCreado` es un subconjunto de `Hospedaje` (ver Hospedaje.swift) — se
-        // envuelve en un `Hospedaje` "placeholder" con el resto de campos en `nil`/default
-        // para poder reusar `PHHospedajeCard` sin cambios.
-        let placeholder = Hospedaje(
-            id: hospedaje.id, titulo: hospedaje.titulo, tipo: hospedaje.tipo,
-            ciudad: hospedaje.ciudad, localidad: hospedaje.localidad, precioNoche: hospedaje.precioNoche
-        )
-        hospedajes.insert(placeholder, at: 0)
+    /// Inserta o reemplaza `hospedaje` en la lista local — recién publicado (id nuevo) se
+    /// inserta primero; recién editado (id ya presente) reemplaza esa fila, así ambos casos
+    /// se reflejan de inmediato sin esperar a un `cargar()` completo.
+    public func guardarLocal(_ hospedaje: Hospedaje) {
+        if let indice = hospedajes.firstIndex(where: { $0.id == hospedaje.id }) {
+            hospedajes[indice] = hospedaje
+        } else {
+            hospedajes.insert(hospedaje, at: 0)
+        }
     }
 }
