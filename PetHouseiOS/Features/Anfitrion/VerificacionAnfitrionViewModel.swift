@@ -4,9 +4,14 @@
 //
 //  Paso 1 de "convertirse en anfitrión": datos de seguridad obligatorios (nombre legal,
 //  cédula, certificado de antecedentes, fotos de la persona y de la vivienda; referencias
-//  opcionales). Al enviarse con éxito, el servidor activa `Usuario.esAnfitrion` — no hay
-//  otro camino para lograrlo (ver pethouse-api/src/routes/anfitrion.js). Sigue el paso 2
+//  opcionales). Al enviarse, queda 'pendiente' — activar `Usuario.esAnfitrion` requiere que
+//  un administrador la apruebe (ver pethouse-api/src/routes/anfitrion.js). Sigue el paso 2
 //  (`PreferenciasAnfitrionViewModel`).
+//
+//  Antes de mostrar el formulario, `cargarEstadoActual()` revisa si YA existe una solicitud
+//  'pendiente' o 'aprobado' — el servidor rechaza reenviar en esos casos (409), así que acá
+//  se evita dejar que alguien llene todo el formulario para toparse con ese error al final.
+//  Solo 'rechazado' (o ninguna solicitud todavía) deja ver el formulario.
 //
 
 import Foundation
@@ -27,6 +32,16 @@ public final class VerificacionAnfitrionViewModel {
     public private(set) var errorCedula: String?
     public private(set) var enviado = false
 
+    /// `nil` mientras se revisa; después, la solicitud existente si hay una — ver
+    /// `cargarEstadoActual()`. `VerificacionAnfitrionView` usa `bloqueadaPorSolicitudActiva`
+    /// para decidir si mostrar el formulario o un aviso.
+    public private(set) var cargandoEstado = true
+    public private(set) var verificacionExistente: VerificacionAnfitrion?
+
+    public var bloqueadaPorSolicitudActiva: Bool {
+        verificacionExistente?.estado == .pendiente || verificacionExistente?.estado == .aprobado
+    }
+
     private let anfitrionService: AnfitrionServicing
     private let imagenesService: ImagenesServicing
     private let session: SessionStore
@@ -40,6 +55,16 @@ public final class VerificacionAnfitrionViewModel {
         self.anfitrionService = anfitrionService
         self.imagenesService = imagenesService
         self.nombreLegal = session.usuario?.nombre ?? ""
+    }
+
+    /// Se llama al abrir la pantalla, antes de mostrar el formulario — silencioso a
+    /// propósito si falla (sin conexión, etc.): si no se puede confirmar el estado, se deja
+    /// ver el formulario igual (el servidor es la verdad final y de todos modos valida esto
+    /// otra vez al enviar).
+    public func cargarEstadoActual() async {
+        cargandoEstado = true
+        defer { cargandoEstado = false }
+        verificacionExistente = try? await anfitrionService.obtenerVerificacion()
     }
 
     public var puedeEnviar: Bool {

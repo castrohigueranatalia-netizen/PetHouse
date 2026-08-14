@@ -39,6 +39,22 @@ r.get('/verificacion', auth, async (req, res, next) => {
 
 r.post('/verificacion', auth, async (req, res, next) => {
   try {
+    // Mientras haya una solicitud 'pendiente' (esperando revisión) o ya 'aprobado', no se
+    // puede volver a enviar — antes el UPSERT de abajo lo permitía sin avisar, así que
+    // reenviar mientras un admin todavía no la revisaba simplemente pisaba los datos
+    // enviados y la dejaba otra vez 'pendiente' como si nada. Solo 'rechazado' (o ninguna
+    // solicitud todavía) puede enviar/reenviar.
+    const { rows: previa } = await pool.query(
+      'SELECT estado FROM verificaciones_anfitrion WHERE usuario_id = $1',
+      [req.usuario.id]
+    )
+    if (previa.length && previa[0].estado === 'pendiente') {
+      return res.status(409).json({ error: 'Ya tienes una solicitud en revisión. Te avisaremos en la app apenas un administrador la resuelva.' })
+    }
+    if (previa.length && previa[0].estado === 'aprobado') {
+      return res.status(409).json({ error: 'Tu solicitud ya fue aprobada.' })
+    }
+
     const {
       nombreLegal, cedula, certificadoPolicialUrl,
       referencias, fotosPersona, fotosVivienda

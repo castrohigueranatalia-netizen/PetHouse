@@ -4,12 +4,13 @@
 //
 //  Verificación de seguridad obligatoria antes de poder publicar hospedajes: nombre legal,
 //  cédula, certificado de antecedentes policiales, referencias y fotos (persona + vivienda).
-//  Enviarla activa `Usuario.esAnfitrion` en el servidor (ver
-//  pethouse-api/src/routes/anfitrion.js) — no hay atajo que la evite.
+//  Enviarla deja el registro en 'pendiente' — activar `Usuario.esAnfitrion` requiere que un
+//  administrador la apruebe (ver pethouse-api/src/routes/anfitrion.js y routes/admin.js).
 //
-//  No hay panel de administración en este MVP para aprobar/rechazar: el estado queda en
-//  'pendiente' desde el envío, mostrado en la UI, pero no bloquea usar las funciones de
-//  anfitrión todavía (ver comentario en db/06-verificacion-anfitrion.sql).
+//  Mientras esté 'pendiente' o ya 'aprobado', el servidor rechaza un reenvío (409) — ver
+//  VerificacionAnfitrionViewModel.cargarEstadoActual(), que revisa esto ANTES de mostrar el
+//  formulario, así la app nunca deja que alguien llene y envíe algo que el servidor de
+//  todos modos va a rechazar.
 //
 
 import Foundation
