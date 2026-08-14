@@ -12,6 +12,7 @@ struct PerfilView: View {
     @State private var mostrarAgregarMascota = false
     @State private var mascotaParaEditar: Mascota?
     @State private var mostrarConfirmacionLogout = false
+    @State private var mostrarVerificacion = false
 
     var body: some View {
         ScrollView {
@@ -63,13 +64,20 @@ struct PerfilView: View {
         }
         // Consume la señal de "También quiero ofrecer hospedaje" marcada en el registro
         // (ver SessionStore.abrirVerificacionAlEntrar y MainTabView, que ya saltó a esta
-        // pestaña) empujando la verificación automáticamente. `isPresented` limpia la
-        // señal sola al volver (se pone en `false` cuando el usuario cierra/completa).
+        // pestaña) empujando la verificación automáticamente. `alTerminar` apaga la misma
+        // señal, así se limpia sola al cerrar/completar el flujo — ver el comentario largo
+        // en VerificacionAnfitrionView.swift sobre por qué esto ya no usa `dismiss()`.
         .navigationDestination(isPresented: Binding(
             get: { session.abrirVerificacionAlEntrar },
             set: { session.abrirVerificacionAlEntrar = $0 }
         )) {
-            VerificacionAnfitrionView()
+            VerificacionAnfitrionView { session.abrirVerificacionAlEntrar = false }
+        }
+        // Segunda entrada al mismo flujo: el botón "Conviértete en anfitrión" (ver
+        // `conviertete` más abajo). Mismo patrón — PerfilView es dueño de `mostrarVerificacion`
+        // y se la pasa como `alTerminar`.
+        .navigationDestination(isPresented: $mostrarVerificacion) {
+            VerificacionAnfitrionView { mostrarVerificacion = false }
         }
         // El aviso de "tu solicitud se resolvió" se muestra desde MainTabView (aparece
         // apenas se entra a la app, en cualquier pestaña) — ver App/RootView.swift.
@@ -160,9 +168,13 @@ struct PerfilView: View {
     /// Aditivo: activar la capacidad de anfitrión requiere pasar por la verificación de
     /// seguridad primero (ver VerificacionAnfitrionView) — no hay atajo directo. La MISMA
     /// cuenta gana la capacidad, no se crea otra ni se cierra la sesión actual.
+    ///
+    /// `Button` + `mostrarVerificacion`, no `NavigationLink`: así este botón y la entrada
+    /// automática de después del registro comparten el mismo mecanismo de apertura/cierre
+    /// (un solo interruptor dueño de PerfilView) — ver el `.navigationDestination` de arriba.
     private var conviertete: some View {
-        NavigationLink {
-            VerificacionAnfitrionView()
+        Button {
+            mostrarVerificacion = true
         } label: {
             HStack {
                 Image(systemName: "house.and.flag").foregroundStyle(PHColor.primary)

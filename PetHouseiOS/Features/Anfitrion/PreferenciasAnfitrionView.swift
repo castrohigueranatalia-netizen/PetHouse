@@ -9,11 +9,14 @@
 //  SessionStore.revisarResolucionVerificacion/MainTabView — sin push notifications, ADR-7).
 //
 //  `alTerminar` (en vez de `@Environment(\.dismiss)` acá): esta vista está empujada DENTRO
-//  de VerificacionAnfitrionView (paso 1), así que su propio `dismiss()` solo la sacaría a
-//  ELLA, dejando visible el formulario de verificación ya usado detrás. `alTerminar` deja
-//  que sea VerificacionAnfitrionView quien se cierre a sí misma, lo que se lleva puesto
-//  todo lo que empujó — vuelve de un solo golpe al Perfil. Mismo patrón que
-//  `PublicarHospedajeView.alPublicar`/`AdminSolicitudDetailView.alResolver`.
+//  de VerificacionAnfitrionView (paso 1), que a su vez recibe el MISMO `alTerminar` de
+//  PerfilView y lo reenvía tal cual, sin envolverlo en su propio `dismiss()` — un `dismiss()`
+//  acá solo cerraría ESTA pantalla, dejando visible el formulario de verificación ya usado
+//  detrás; y encadenar `dismiss()` de un paso con el del anterior resultó frágil en la
+//  práctica (ver el comentario largo en VerificacionAnfitrionView.swift). PerfilView es
+//  dueño de un solo interruptor para todo el flujo, y cualquiera de los dos pasos que
+//  termine lo apaga directo — vuelve de un solo golpe al Perfil sin depender de que el
+//  cierre se propague de una pantalla a otra.
 //
 
 import SwiftUI

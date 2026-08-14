@@ -4,17 +4,24 @@
 //
 //  Paso 1 de "Conviértete en anfitrión" (ver PerfilView). Al enviar con éxito, pasa al
 //  paso 2 (PreferenciasAnfitrionView) — todavía no vuelve al Perfil, la capacidad ya quedó
-//  activa en el servidor, pero falta configurar qué prefiere cuidar. Cuando el paso 2
-//  termine (`alTerminar`), esta vista se cierra a sí misma — eso se lleva puesto al paso 2
-//  también, así el flujo completo vuelve al Perfil de un solo golpe en vez de dejar ver
-//  otra vez este formulario ya usado.
+//  activa en el servidor, pero falta configurar qué prefiere cuidar.
+//
+//  `alTerminar`, no `@Environment(\.dismiss)`: con dos pasos empujados en cadena
+//  (VerificacionAnfitrionView empuja PreferenciasAnfitrionView), depender de que cada
+//  `dismiss()` se encadene con el anterior es frágil y puede fallar en SwiftUI (reportado
+//  en la práctica: el botón "Listo" del paso 2 se quedaba sin poder cerrar nada). En vez de
+//  eso, PerfilView es dueño de UN solo interruptor (`isPresented`) para todo el flujo, y ese
+//  mismo `alTerminar` se pasa intacto de este paso al siguiente — cualquiera de los dos
+//  pasos que termine apaga ese interruptor directamente, sin depender de que el cierre se
+//  propague de una pantalla a otra.
 //
 
 import SwiftUI
 
 struct VerificacionAnfitrionView: View {
+    let alTerminar: () -> Void
+
     @Environment(SessionStore.self) private var session
-    @Environment(\.dismiss) private var dismiss
     @State private var viewModel: VerificacionAnfitrionViewModel?
     @State private var avanzarAPreferencias = false
 
@@ -99,7 +106,7 @@ struct VerificacionAnfitrionView: View {
             if enviado == true { avanzarAPreferencias = true }
         }
         .navigationDestination(isPresented: $avanzarAPreferencias) {
-            PreferenciasAnfitrionView { dismiss() }
+            PreferenciasAnfitrionView(alTerminar: alTerminar)
         }
         .scrollDismissesKeyboard(.interactively)
     }
