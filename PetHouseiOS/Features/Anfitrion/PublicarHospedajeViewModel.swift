@@ -62,11 +62,15 @@ public final class PublicarHospedajeViewModel {
             descripcion = h.descripcion ?? ""
             localidad = h.localidad.flatMap(Localidad.init(rawValue:))
             barrio = h.barrio ?? ""
-            latTexto = h.lat.map(String.init) ?? ""
-            lngTexto = h.lng.map(String.init) ?? ""
+            // `.map(String.init)` (pasando el init como referencia suelta) es ambiguo para
+            // Swift acá — hay varias sobrecargas de `String.init` candidatas y no logra
+            // elegir sin ver el tipo del argumento primero. Con un closure (`{ String($0) }`)
+            // sí lo resuelve, porque en ese punto ya sabe que `$0` es Double/Int.
+            latTexto = h.lat.map { String($0) } ?? ""
+            lngTexto = h.lng.map { String($0) } ?? ""
             precioNocheTexto = String(h.precioNoche)
             convivencia = h.convivencia ?? .cualquiera
-            maxMascotasTexto = h.maxMascotas.map(String.init) ?? "1"
+            maxMascotasTexto = h.maxMascotas.map { String($0) } ?? "1"
             serviciosTexto = (h.servicios ?? []).joined(separator: ", ")
             reglasTexto = (h.reglas ?? []).joined(separator: ", ")
             fotos = h.fotos ?? []
