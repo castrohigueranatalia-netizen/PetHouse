@@ -2,15 +2,23 @@
 //  FichaMascotaView.swift
 //  Features/Anfitrion
 //
-//  Ficha completa de una mascota — el anfitrión la abre desde una solicitud de reserva
-//  (ver ReservasRecibidasView) para evaluar si puede aceptarla: fotos, edad, raza, tamaño,
-//  peso, si tiene vacunas al día y si necesita medicamentos, antes de tocar Aceptar/Rechazar.
+//  Ficha completa de una mascota — dos usos:
+//   1. El anfitrión la abre desde una solicitud de reserva (ver ReservasRecibidasView) para
+//      evaluar si puede aceptarla, de solo lectura (`onEditar` en `nil`).
+//   2. El dueño la abre desde su propio Perfil (ver PerfilView) para ver y editar la ficha
+//      de su mascota — con `onEditar` presente, aparece el botón "Editar" en la barra.
+//  En ambos casos: fotos, edad, raza, tamaño, peso, si tiene vacunas al día y si necesita
+//  medicamentos.
 //
 
 import SwiftUI
 
 struct FichaMascotaView: View {
     let mascota: Mascota
+    /// `nil` = de solo lectura (el anfitrión viendo la mascota de un huésped). Con un
+    /// closure, aparece el botón "Editar" — lo usa PerfilView para que el dueño edite su
+    /// propia mascota desde acá mismo, sin tener que buscar el ícono de lápiz en la lista.
+    var onEditar: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -39,6 +47,11 @@ struct FichaMascotaView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     PHTextButton("Cerrar") { dismiss() }
+                }
+                if let onEditar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        PHTextButton("Editar") { onEditar() }
+                    }
                 }
             }
         }
@@ -95,8 +108,12 @@ struct FichaMascotaView: View {
                     fila("Peso", String(format: "%.1f kg", peso))
                 }
                 if mascota.raza == nil && mascota.edad == nil && mascota.tamano == nil && mascota.pesoKg == nil {
-                    Text("El huésped no agregó más datos de \(mascota.nombre).")
-                        .phText(PHFont.bodySM, color: PHColor.mutedSoft)
+                    Text(
+                        onEditar != nil
+                            ? "Todavía no agregaste más datos de \(mascota.nombre) — toca \"Editar\" para completarlos."
+                            : "El huésped no agregó más datos de \(mascota.nombre)."
+                    )
+                    .phText(PHFont.bodySM, color: PHColor.mutedSoft)
                 }
             }
         }

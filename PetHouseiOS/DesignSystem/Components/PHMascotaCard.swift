@@ -2,21 +2,58 @@
 //  PHMascotaCard.swift
 //  DesignSystem/Components
 //
+//  `onTap` (opcional) abre la ficha completa de la mascota (ver `FichaMascotaView`) —
+//  distinto de `onEditar`/`onEliminar`, que quedan como botones de ícono AL LADO del área
+//  tocable, no adentro: un `Button` anidado dentro de otro `Button` es poco confiable en
+//  SwiftUI (el externo puede "robarse" el toque del interno), así que `onTap` envuelve solo
+//  el avatar+nombre+subtítulo, y los íconos de editar/eliminar quedan como hermanos en el
+//  mismo `HStack`, no adentro de ese botón.
+//
 
 import SwiftUI
 
 public struct PHMascotaCard: View {
     let mascota: Mascota
+    let onTap: (() -> Void)?
     let onEditar: (() -> Void)?
     let onEliminar: (() -> Void)?
 
-    public init(_ mascota: Mascota, onEditar: (() -> Void)? = nil, onEliminar: (() -> Void)? = nil) {
+    public init(
+        _ mascota: Mascota,
+        onTap: (() -> Void)? = nil,
+        onEditar: (() -> Void)? = nil,
+        onEliminar: (() -> Void)? = nil
+    ) {
         self.mascota = mascota
+        self.onTap = onTap
         self.onEditar = onEditar
         self.onEliminar = onEliminar
     }
 
     public var body: some View {
+        HStack(spacing: PHSpacing.s12) {
+            if let onTap {
+                Button(action: onTap) { contenido }
+                    .buttonStyle(.plain)
+            } else {
+                contenido
+            }
+
+            Spacer()
+
+            if let onEditar {
+                PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(mascota.nombre)", action: onEditar)
+            }
+            if let onEliminar {
+                PHIconButton(systemImage: "trash", accessibilityLabel: "Eliminar \(mascota.nombre)", action: onEliminar)
+            }
+        }
+        .padding(PHSpacing.s12)
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+    }
+
+    private var contenido: some View {
         HStack(spacing: PHSpacing.s12) {
             Group {
                 if let primeraFoto = mascota.fotos.first {
@@ -48,19 +85,7 @@ public struct PHMascotaCard: View {
                     }
                 }
             }
-
-            Spacer()
-
-            if let onEditar {
-                PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(mascota.nombre)", action: onEditar)
-            }
-            if let onEliminar {
-                PHIconButton(systemImage: "trash", accessibilityLabel: "Eliminar \(mascota.nombre)", action: onEliminar)
-            }
         }
-        .padding(PHSpacing.s12)
-        .background(PHColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
     }
 
     private var subtitulo: String {

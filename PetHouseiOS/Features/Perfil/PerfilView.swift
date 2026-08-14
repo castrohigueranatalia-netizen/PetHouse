@@ -11,6 +11,12 @@ struct PerfilView: View {
     @State private var mostrarEditar = false
     @State private var mostrarAgregarMascota = false
     @State private var mascotaParaEditar: Mascota?
+    @State private var mascotaParaVerFicha: Mascota?
+    /// Puente entre los dos sheets de mascota: tocar "Editar" dentro de la ficha guarda acá
+    /// cuál mascota editar y cierra el sheet de la ficha; recién en `onDismiss` (cuando ese
+    /// cierre YA terminó) se abre el sheet de edición — presentar un sheet nuevo mientras el
+    /// anterior todavía se está cerrando puede fallar en silencio en SwiftUI.
+    @State private var mascotaPendienteParaEditar: Mascota?
     @State private var mostrarConfirmacionLogout = false
     @State private var mostrarVerificacion = false
 
@@ -56,6 +62,20 @@ struct PerfilView: View {
         .sheet(isPresented: $mostrarEditar) { EditarPerfilView() }
         .sheet(isPresented: $mostrarAgregarMascota) { MascotaFormView(mascota: nil) }
         .sheet(item: $mascotaParaEditar) { mascota in MascotaFormView(mascota: mascota) }
+        .sheet(
+            item: $mascotaParaVerFicha,
+            onDismiss: {
+                if let pendiente = mascotaPendienteParaEditar {
+                    mascotaParaEditar = pendiente
+                    mascotaPendienteParaEditar = nil
+                }
+            }
+        ) { mascota in
+            FichaMascotaView(mascota: mascota, onEditar: {
+                mascotaPendienteParaEditar = mascota
+                mascotaParaVerFicha = nil
+            })
+        }
         .confirmationDialog("¿Cerrar sesión?", isPresented: $mostrarConfirmacionLogout, titleVisibility: .visible) {
             Button("Cerrar sesión", role: .destructive) {
                 Task { await session.cerrarSesion() }
@@ -136,6 +156,7 @@ struct PerfilView: View {
                     ForEach(session.mascotas) { mascota in
                         PHMascotaCard(
                             mascota,
+                            onTap: { mascotaParaVerFicha = mascota },
                             onEditar: { mascotaParaEditar = mascota },
                             onEliminar: { Task { await viewModel?.eliminarMascota(mascota) } }
                         )
