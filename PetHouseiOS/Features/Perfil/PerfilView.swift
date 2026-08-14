@@ -105,25 +105,33 @@ struct PerfilView: View {
             }
             Button("Cancelar", role: .cancel) {}
         }
-        // Consume la señal de "También quiero ofrecer hospedaje" marcada en el registro
-        // (ver SessionStore.abrirVerificacionAlEntrar y MainTabView, que ya saltó a esta
-        // pestaña) empujando la verificación automáticamente. `alTerminar` apaga la misma
-        // señal, así se limpia sola al cerrar/completar el flujo — ver el comentario largo
-        // en VerificacionAnfitrionView.swift sobre por qué esto ya no usa `dismiss()`.
+        // UN SOLO `.navigationDestination` para las DOS formas de entrar a la verificación de
+        // anfitrión, no dos modificadores separados: (1) el botón "Conviértete en anfitrión"
+        // de acá abajo, y (2) la señal "También quiero ofrecer hospedaje" marcada en el
+        // registro (ver SessionStore.abrirVerificacionAlEntrar y MainTabView, que ya saltó a
+        // esta pestaña). Dos `.navigationDestination(isPresented:)` sobre la MISMA vista es
+        // comportamiento indefinido en SwiftUI — se pisan entre ellos y enredan el sistema de
+        // presentación de toda la pantalla, que es lo que dejaba sin abrir las ventanitas de
+        // editar perfil / agregar mascota. Como ambas entradas empujan exactamente la misma
+        // pantalla, se unifican en un destino único: se abre si CUALQUIERA de las dos señales
+        // está encendida, y al cerrarse se apagan las dos.
         .navigationDestination(isPresented: Binding(
-            get: { session.abrirVerificacionAlEntrar },
-            set: { session.abrirVerificacionAlEntrar = $0 }
+            get: { mostrarVerificacion || session.abrirVerificacionAlEntrar },
+            set: { abierto in
+                if !abierto { cerrarVerificacion() }
+            }
         )) {
-            VerificacionAnfitrionView { session.abrirVerificacionAlEntrar = false }
-        }
-        // Segunda entrada al mismo flujo: el botón "Conviértete en anfitrión" (ver
-        // `conviertete` más abajo). Mismo patrón — PerfilView es dueño de `mostrarVerificacion`
-        // y se la pasa como `alTerminar`.
-        .navigationDestination(isPresented: $mostrarVerificacion) {
-            VerificacionAnfitrionView { mostrarVerificacion = false }
+            VerificacionAnfitrionView { cerrarVerificacion() }
         }
         // El aviso de "tu solicitud se resolvió" se muestra desde MainTabView (aparece
         // apenas se entra a la app, en cualquier pestaña) — ver App/RootView.swift.
+    }
+
+    /// Apaga las dos señales que pueden abrir la verificación de anfitrión — ver el
+    /// `.navigationDestination` unificado de arriba.
+    private func cerrarVerificacion() {
+        mostrarVerificacion = false
+        session.abrirVerificacionAlEntrar = false
     }
 
     private func encabezado(_ usuario: Usuario) -> some View {

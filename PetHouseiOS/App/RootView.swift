@@ -115,11 +115,26 @@ struct MainTabView: View {
         // varias reservas resueltas sin ver, se muestran de a una: al tocar "Entendido" se
         // apaga la primera y, si `resolucionesReserva` sigue sin estar vacío, el mismo
         // `.alert` se vuelve a presentar con la siguiente.
+        //
+        // El `set` del binding TIENE que apagar el aviso de verdad, no descartar el valor.
+        // SwiftUI escribe `false` acá apenas el aviso se cierra; si ese valor se ignora, el
+        // getter sigue respondiendo `true` y SwiftUI queda creyendo que todavía hay un aviso
+        // montado sobre estas pestañas. En ese estado inconsistente, las ventanitas
+        // (`.sheet`) que abren las pantallas de adentro —editar perfil, agregar/editar
+        // mascota— dejan de presentarse EN SILENCIO: el botón responde, cambia el estado, y
+        // no pasa nada. Eso era exactamente el síntoma que se estaba viendo en Perfil.
         .alert(
             tituloAviso,
-            isPresented: Binding(get: { hayAvisoPendiente }, set: { _ in }),
+            isPresented: Binding(
+                get: { hayAvisoPendiente },
+                set: { sigueVisible in
+                    if !sigueVisible { Task { await confirmarAvisoPendiente() } }
+                }
+            ),
             actions: {
-                Button("Entendido") { Task { await confirmarAvisoPendiente() } }
+                // Sin trabajo propio a propósito: cerrar el aviso ya dispara el `set` de
+                // arriba, que es el único lugar donde se apaga (una sola fuente de verdad).
+                Button("Entendido") {}
             },
             message: { Text(mensajeAviso) }
         )
