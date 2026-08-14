@@ -2,7 +2,7 @@
 //  AdminView.swift
 //  Features/Admin
 //
-//  Raíz de la pestaña Admin (solo visible si Usuario.rol == .admin, ver MainTabView):
+//  Raíz del panel de Admin (solo visible si Usuario.rol == .admin, ver PerfilView):
 //  estadísticas generales arriba, acceso a las solicitudes de anfitrión abajo.
 //
 
@@ -59,9 +59,9 @@ struct AdminView: View {
         }
     }
 
-    /// El badge de la pestaña Admin usa el mismo número que ya está en `estadisticas` —
-    /// sin esto, se volvía a pedir `GET /admin/estadisticas` por segunda vez solo para el
-    /// badge, justo después de haberla pedido para las tarjetas de arriba.
+    /// El badge de "Panel de administrador" (en Perfil) usa el mismo número que ya está en
+    /// `estadisticas` — sin esto, se volvía a pedir `GET /admin/estadisticas` por segunda vez
+    /// solo para el badge, justo después de haberla pedido para las tarjetas de arriba.
     private func sincronizarBadge() {
         if let pendientes = viewModel.estadisticas?.solicitudesPendientes {
             session.actualizarSolicitudesPendientes(pendientes)

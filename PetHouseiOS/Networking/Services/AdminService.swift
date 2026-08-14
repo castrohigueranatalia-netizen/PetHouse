@@ -4,8 +4,8 @@
 //
 //  Envuelve /api/admin/* — todo requiere rol admin en el servidor (soloAdmin). Si el
 //  usuario logueado no es admin, cualquier llamada aquí simplemente no se hace visible en
-//  la UI (no se muestra la pestaña Admin — ver MainTabView), así que un 403 aquí sería un
-//  bug de la app, no un caso esperado a manejar con un estado especial.
+//  la UI (no se muestra "Panel de administrador" — ver PerfilView), así que un 403 aquí
+//  sería un bug de la app, no un caso esperado a manejar con un estado especial.
 //
 
 import Foundation

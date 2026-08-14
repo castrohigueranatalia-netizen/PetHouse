@@ -25,8 +25,8 @@ struct AdminSolicitudesView: View {
                 Task {
                     await viewModel.cargar()
                     // La solicitud resuelta ya no cuenta como pendiente — descuenta uno del
-                    // badge de la pestaña Admin localmente, sin volver a pedir las
-                    // estadísticas completas por red solo para esto.
+                    // badge de "Panel de administrador" (en Perfil) localmente, sin volver a
+                    // pedir las estadísticas completas por red solo para esto.
                     session.actualizarSolicitudesPendientes(max(0, session.solicitudesPendientes - 1))
                 }
             }

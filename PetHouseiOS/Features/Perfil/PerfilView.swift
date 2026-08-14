@@ -193,6 +193,10 @@ struct PerfilView: View {
         }
     }
 
+    // Favoritos, Anfitrión (Mis hospedajes) y Admin viven ACÁ adentro, y no como pestañas
+    // propias — ver el comentario largo en App/RootView.swift sobre por qué (la pestaña
+    // automática "Más" de iOS, apenas hay más de 4-5 pestañas, hace que los `.sheet` de esa
+    // pantalla dejen de abrir de forma confiable).
     private var seccionCuenta: some View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
             Text("Cuenta")
@@ -201,6 +205,22 @@ struct PerfilView: View {
                 FavoritosView()
             } label: {
                 filaCuenta("Favoritos", icono: "heart")
+            }
+
+            if session.usuario?.esAnfitrion == true {
+                NavigationLink {
+                    MisHospedajesView()
+                } label: {
+                    filaCuenta("Mis hospedajes", icono: "building.2.fill")
+                }
+            }
+
+            if session.usuario?.rol == .admin {
+                NavigationLink {
+                    AdminView()
+                } label: {
+                    filaCuenta("Panel de administrador", icono: "shield.fill", contador: session.solicitudesPendientes)
+                }
             }
 
             if session.usuario?.esAnfitrion == false {
@@ -238,11 +258,14 @@ struct PerfilView: View {
         .buttonStyle(.plain)
     }
 
-    private func filaCuenta(_ titulo: String, icono: String) -> some View {
+    private func filaCuenta(_ titulo: String, icono: String, contador: Int = 0) -> some View {
         HStack {
             Image(systemName: icono).foregroundStyle(PHColor.primary)
             Text(titulo).phText(PHFont.bodyMD, color: PHColor.ink)
             Spacer()
+            if contador > 0 {
+                PHBadge("\(contador)", style: .warning)
+            }
             Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft).font(.caption)
         }
         .padding(PHSpacing.s12)

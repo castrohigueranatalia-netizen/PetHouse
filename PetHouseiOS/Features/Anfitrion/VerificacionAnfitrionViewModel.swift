@@ -100,8 +100,10 @@ public final class VerificacionAnfitrionViewModel {
 
         do {
             _ = try await anfitrionService.enviarVerificacion(payload)
-            // El servidor ya activó es_anfitrion=true — refresca la sesión para que
-            // Usuario.esAnfitrion se actualice localmente (habilita la pestaña Anfitrión).
+            // La solicitud queda 'pendiente' — esto NO activa Usuario.esAnfitrion todavía
+            // (eso solo pasa cuando un admin la aprueba, ver AppState.
+            // revisarResolucionVerificacion). Igual se refresca la sesión acá para mantener
+            // el resto del perfil en caché al día.
             await session.refrescarPerfilCompleto()
             enviado = true
         } catch let appError as AppError {

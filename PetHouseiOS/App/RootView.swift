@@ -43,13 +43,23 @@ private struct AuthFlowView: View {
 }
 
 private enum Pestana: Hashable {
-    case buscar, favoritos, reservas, mensajes, anfitrion, admin, perfil
+    case buscar, reservas, mensajes, perfil
 }
 
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
     @State private var pestanaSeleccionada: Pestana = .buscar
 
+    // SOLO 4 pestañas, siempre — a propósito, nunca condicionadas a rol. Con más de 5
+    // pestañas, iOS deja de mostrarlas todas y agrupa el resto adentro de una pestaña "Más"
+    // que él mismo genera — y una vez ahí, las ventanitas (`.sheet`) que abre esa pantalla no
+    // se presentan de forma confiable (bug conocido de SwiftUI/UIKit). Eso fue lo que dejó sin
+    // funcionar "editar perfil"/"editar mascota" apenas la cuenta pasó a tener también la
+    // pestaña Anfitrión: Buscar+Favoritos+Reservas+Mensajes+Anfitrión+Perfil = 6, y las dos
+    // últimas quedaban escondidas en el "Más" de iOS. Por eso Favoritos, Anfitrión y el panel
+    // de Admin ahora se abren desde adentro de Perfil (ver `seccionCuenta`) en vez de ser
+    // pestañas propias — así el total nunca puede superar 4, sin importar la combinación de
+    // roles que tenga la cuenta.
     var body: some View {
         TabView(selection: $pestanaSeleccionada) {
             NavigationStack {
@@ -57,12 +67,6 @@ struct MainTabView: View {
             }
             .tabItem { Label("Buscar", systemImage: "magnifyingglass") }
             .tag(Pestana.buscar)
-
-            NavigationStack {
-                FavoritosView()
-            }
-            .tabItem { Label("Favoritos", systemImage: "heart") }
-            .tag(Pestana.favoritos)
 
             NavigationStack {
                 MisReservasView()
@@ -76,23 +80,6 @@ struct MainTabView: View {
             .tabItem { Label("Mensajes", systemImage: "message") }
             .badge(session.mensajesNoLeidos)
             .tag(Pestana.mensajes)
-
-            if session.usuario?.esAnfitrion == true {
-                NavigationStack {
-                    MisHospedajesView()
-                }
-                .tabItem { Label("Anfitrión", systemImage: "building.2.fill") }
-                .tag(Pestana.anfitrion)
-            }
-
-            if session.usuario?.rol == .admin {
-                NavigationStack {
-                    AdminView()
-                }
-                .tabItem { Label("Admin", systemImage: "shield.fill") }
-                .badge(session.solicitudesPendientes)
-                .tag(Pestana.admin)
-            }
 
             NavigationStack {
                 PerfilView()
@@ -163,7 +150,7 @@ struct MainTabView: View {
     private var mensajeAviso: String {
         if session.resolucionVerificacion != nil {
             return session.resolucionVerificacion?.estado == .aprobado
-                ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde la pestaña Anfitrión."
+                ? "Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde Perfil › Mis hospedajes."
                 : "Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil."
         }
         if let reserva = session.resolucionesReserva.first {
