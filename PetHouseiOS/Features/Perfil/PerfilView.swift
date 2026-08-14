@@ -5,17 +5,34 @@
 
 import SwiftUI
 
+/// Los distintos sheets que puede abrir esta pantalla, unificados en un solo enum. Encadenar
+/// varios `.sheet(...)` separados sobre la misma vista es poco confiable en SwiftUI (a veces
+/// deja de responder alguno de ellos sin avisar) — con un solo `.sheet(item:)` que despacha
+/// según el caso, solo hay UNA presentación activa a la vez y no hay conflicto posible.
+private enum SheetPerfil: Identifiable {
+    case editarPerfil
+    case agregarMascota
+    case editarMascota(Mascota)
+    case verFicha(Mascota)
+
+    var id: String {
+        switch self {
+        case .editarPerfil: "editarPerfil"
+        case .agregarMascota: "agregarMascota"
+        case .editarMascota(let mascota): "editarMascota-\(mascota.id)"
+        case .verFicha(let mascota): "verFicha-\(mascota.id)"
+        }
+    }
+}
+
 struct PerfilView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel: PerfilViewModel?
-    @State private var mostrarEditar = false
-    @State private var mostrarAgregarMascota = false
-    @State private var mascotaParaEditar: Mascota?
-    @State private var mascotaParaVerFicha: Mascota?
-    /// Puente entre los dos sheets de mascota: tocar "Editar" dentro de la ficha guarda acá
-    /// cuál mascota editar y cierra el sheet de la ficha; recién en `onDismiss` (cuando ese
-    /// cierre YA terminó) se abre el sheet de edición — presentar un sheet nuevo mientras el
-    /// anterior todavía se está cerrando puede fallar en silencio en SwiftUI.
+    @State private var sheetActivo: SheetPerfil?
+    /// Puente entre "ver ficha" y "editar mascota": tocar "Editar" dentro de la ficha guarda
+    /// acá cuál mascota editar y cierra el sheet actual (`sheetActivo = nil`); recién en
+    /// `onDismiss` (cuando ese cierre YA terminó) se abre el sheet de edición — presentar un
+    /// sheet nuevo mientras el anterior todavía se está cerrando puede fallar en silencio.
     @State private var mascotaPendienteParaEditar: Mascota?
     @State private var mostrarConfirmacionLogout = false
     @State private var mostrarVerificacion = false
@@ -59,22 +76,28 @@ struct PerfilView: View {
         .onAppear {
             if viewModel == nil { viewModel = PerfilViewModel(session: session) }
         }
-        .sheet(isPresented: $mostrarEditar) { EditarPerfilView() }
-        .sheet(isPresented: $mostrarAgregarMascota) { MascotaFormView(mascota: nil) }
-        .sheet(item: $mascotaParaEditar) { mascota in MascotaFormView(mascota: mascota) }
         .sheet(
-            item: $mascotaParaVerFicha,
+            item: $sheetActivo,
             onDismiss: {
                 if let pendiente = mascotaPendienteParaEditar {
-                    mascotaParaEditar = pendiente
                     mascotaPendienteParaEditar = nil
+                    sheetActivo = .editarMascota(pendiente)
                 }
             }
-        ) { mascota in
-            FichaMascotaView(mascota: mascota, onEditar: {
-                mascotaPendienteParaEditar = mascota
-                mascotaParaVerFicha = nil
-            })
+        ) { sheet in
+            switch sheet {
+            case .editarPerfil:
+                EditarPerfilView()
+            case .agregarMascota:
+                MascotaFormView(mascota: nil)
+            case .editarMascota(let mascota):
+                MascotaFormView(mascota: mascota)
+            case .verFicha(let mascota):
+                FichaMascotaView(mascota: mascota, onEditar: {
+                    mascotaPendienteParaEditar = mascota
+                    sheetActivo = nil
+                })
+            }
         }
         .confirmationDialog("¿Cerrar sesión?", isPresented: $mostrarConfirmacionLogout, titleVisibility: .visible) {
             Button("Cerrar sesión", role: .destructive) {
@@ -125,7 +148,7 @@ struct PerfilView: View {
             }
             Spacer()
             PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar perfil") {
-                mostrarEditar = true
+                sheetActivo = .editarPerfil
             }
         }
     }
@@ -137,7 +160,7 @@ struct PerfilView: View {
                     .phText(PHFont.titleMD, color: PHColor.ink)
                 Spacer()
                 PHIconButton(systemImage: "plus", accessibilityLabel: "Agregar mascota") {
-                    mostrarAgregarMascota = true
+                    sheetActivo = .agregarMascota
                 }
             }
 
@@ -148,7 +171,7 @@ struct PerfilView: View {
                     mensaje: "Agrega a tu mascota para poder reservar hospedajes.",
                     accionTitulo: "Agregar mascota"
                 ) {
-                    mostrarAgregarMascota = true
+                    sheetActivo = .agregarMascota
                 }
                 .frame(height: 220)
             } else {
@@ -156,8 +179,8 @@ struct PerfilView: View {
                     ForEach(session.mascotas) { mascota in
                         PHMascotaCard(
                             mascota,
-                            onTap: { mascotaParaVerFicha = mascota },
-                            onEditar: { mascotaParaEditar = mascota },
+                            onTap: { sheetActivo = .verFicha(mascota) },
+                            onEditar: { sheetActivo = .editarMascota(mascota) },
                             onEliminar: { Task { await viewModel?.eliminarMascota(mascota) } }
                         )
                     }
