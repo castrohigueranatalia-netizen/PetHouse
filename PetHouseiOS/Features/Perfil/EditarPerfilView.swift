@@ -5,33 +5,37 @@
 //  El picker de fotos (`PhotosPicker`) solo pide permiso de fotos cuando el usuario
 //  realmente toca "Elegir foto" — nunca antes (ver requisito de seguridad del MVP).
 //
+//  El ViewModel se crea de una vez en el `init` (recibiendo `session` como parámetro
+//  explícito de quien presenta esta vista, ver PerfilView), no en `.onAppear` leyendo
+//  `@Environment` — antes quedaba `nil` hasta el primer `.onAppear`, y en ese primer
+//  instante el `Group { if let viewModel {...} }` no tenía nada que mostrar todavía: sin un
+//  estado de carga de respaldo, esa ventana podía quedar viéndose en blanco (reportado en la
+//  práctica al agregar una mascota, ver MascotaFormView, que tenía el mismo patrón). Con el
+//  ViewModel ya armado desde el `init`, la primera renderización siempre tiene contenido.
+//
 
 import SwiftUI
 import PhotosUI
 import UIKit
 
 struct EditarPerfilView: View {
-    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: EditarPerfilViewModel?
+    @State private var viewModel: EditarPerfilViewModel
+
+    init(session: SessionStore) {
+        _viewModel = State(initialValue: EditarPerfilViewModel(session: session))
+    }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let viewModel {
-                    formulario(viewModel)
+            formulario(viewModel)
+                .navigationTitle("Editar perfil")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        PHTextButton("Cancelar") { dismiss() }
+                    }
                 }
-            }
-            .navigationTitle("Editar perfil")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    PHTextButton("Cancelar") { dismiss() }
-                }
-            }
-            .onAppear {
-                if viewModel == nil { viewModel = EditarPerfilViewModel(session: session) }
-            }
         }
     }
 

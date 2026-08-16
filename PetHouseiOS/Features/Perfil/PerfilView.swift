@@ -87,11 +87,11 @@ struct PerfilView: View {
         ) { sheet in
             switch sheet {
             case .editarPerfil:
-                EditarPerfilView()
+                EditarPerfilView(session: session)
             case .agregarMascota:
-                MascotaFormView(mascota: nil)
+                MascotaFormView(mascota: nil, session: session)
             case .editarMascota(let mascota):
-                MascotaFormView(mascota: mascota)
+                MascotaFormView(mascota: mascota, session: session)
             case .verFicha(let mascota):
                 FichaMascotaView(mascota: mascota, onEditar: {
                     mascotaPendienteParaEditar = mascota

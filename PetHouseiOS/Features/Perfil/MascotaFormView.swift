@@ -2,32 +2,37 @@
 //  MascotaFormView.swift
 //  Features/Perfil
 //
+//  El ViewModel se crea de una vez en el `init` (recibiendo `session` como parámetro
+//  explícito de quien presenta esta vista, ver PerfilView), no en `.onAppear` leyendo
+//  `@Environment` — antes quedaba `nil` hasta el primer `.onAppear`, y en ese primer instante
+//  el `Group { if let viewModel {...} }` no tenía nada que mostrar todavía: sin un estado de
+//  carga de respaldo, esa ventana podía quedar viéndose en blanco (reportado en la práctica
+//  al tocar "Agregar mascota"). Con el ViewModel ya armado desde el `init`, la primera
+//  renderización siempre tiene contenido.
+//
 
 import SwiftUI
 
 struct MascotaFormView: View {
     let mascota: Mascota?
-    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: MascotaFormViewModel?
+    @State private var viewModel: MascotaFormViewModel
+
+    init(mascota: Mascota?, session: SessionStore) {
+        self.mascota = mascota
+        _viewModel = State(initialValue: MascotaFormViewModel(mascota: mascota, session: session))
+    }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let viewModel {
-                    formulario(viewModel)
+            formulario(viewModel)
+                .navigationTitle(mascota == nil ? "Nueva mascota" : "Editar mascota")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        PHTextButton("Cancelar") { dismiss() }
+                    }
                 }
-            }
-            .navigationTitle(mascota == nil ? "Nueva mascota" : "Editar mascota")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    PHTextButton("Cancelar") { dismiss() }
-                }
-            }
-            .onAppear {
-                if viewModel == nil { viewModel = MascotaFormViewModel(mascota: mascota, session: session) }
-            }
         }
     }
 
