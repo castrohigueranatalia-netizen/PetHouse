@@ -7,13 +7,22 @@ import bcrypt from 'bcryptjs'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { emitirTokens, renovarRefresh, revocarRefresh } from '../lib/tokens.js'
+import { limitadorAuth } from '../middleware/rateLimit.js'
 
 const r = Router()
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// `limitadorAuth` va PUNTUAL en /registro y /login, no en todo este router (antes estaba en
+// app.js como `app.use('/api/auth', limitadorAuth, authRoutes)`) — /refresh, /logout, /me y
+// PATCH /me no son adivinables por fuerza bruta (requieren un token válido que ya se tiene),
+// pero SÍ se llaman todo el tiempo en el uso normal de la app (cada arranque, cada refresco
+// de perfil, cada cierre de sesión). Contarlos contra el mismo cupo de 20 cada 15 min que
+// login/registro hacía que alguien probando la app un rato terminara viendo "Demasiados
+// intentos" sin haber hecho nada parecido a fuerza bruta — reportado en la práctica.
+//
 // ---- Registro (datos personales + correo + contraseña) ----
-r.post('/registro', async (req, res, next) => {
+r.post('/registro', limitadorAuth, async (req, res, next) => {
   try {
     // `es_anfitrion` NO se puede activar desde el registro (ni con ningún atajo): la
     // única forma de activarla es completar la verificación de seguridad
@@ -54,7 +63,7 @@ r.post('/registro', async (req, res, next) => {
 })
 
 // ---- Login (correo + contraseña) ----
-r.post('/login', async (req, res, next) => {
+r.post('/login', limitadorAuth, async (req, res, next) => {
   try {
     const { email, password } = req.body || {}
     if (!email || !password) return res.status(400).json({ error: 'Ingresa tu correo y contraseña.' })

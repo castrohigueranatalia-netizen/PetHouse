@@ -20,7 +20,7 @@ import anfitrionVerificacionRoutes from './routes/anfitrion.js'
 import adminRoutes from './routes/admin.js'
 import usuariosRoutes from './routes/usuarios.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
-import { limitadorAuth, limitadorIA } from './middleware/rateLimit.js'
+import { limitadorIA } from './middleware/rateLimit.js'
 import { ALLOWED_ORIGINS } from './config.js'
 
 const app = express()
@@ -40,7 +40,10 @@ app.use('/semilla', express.static(path.join(__dirname, '..', 'public', 'semilla
 
 app.get('/health', (_req, res) => res.json({ ok: true, servicio: 'pethouse-api', hora: new Date().toISOString() }))
 
-app.use('/api/auth', limitadorAuth, authRoutes)
+// El rate limit va DENTRO de auth.js, solo en /registro y /login (los únicos endpoints
+// adivinables por fuerza bruta) — ver el comentario largo ahí sobre por qué NO va acá a
+// nivel de router completo.
+app.use('/api/auth', authRoutes)
 app.use('/api/hospedajes', hospedajesRoutes)
 app.use('/api/reservas', reservasRoutes)
 app.use('/api/actividades', actividadesRoutes)
