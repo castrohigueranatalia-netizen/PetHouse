@@ -37,6 +37,7 @@ struct PerfilView: View {
     @State private var mostrarConfirmacionLogout = false
     @State private var mostrarVerificacion = false
     @State private var fotoVisor: FotoVisorItem?
+    @State private var mostrarNotificaciones = false
 
     var body: some View {
         ScrollView {
@@ -72,6 +73,14 @@ struct PerfilView: View {
                 }
                 .accessibilityLabel("Ir al listado de hospedajes")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                PHCampanaNotificaciones(noLeidas: session.notificacionesNoLeidas) {
+                    mostrarNotificaciones = true
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $mostrarNotificaciones) {
+            NotificacionesView()
         }
         .refreshable { await viewModel?.refrescar() }
         .onAppear {

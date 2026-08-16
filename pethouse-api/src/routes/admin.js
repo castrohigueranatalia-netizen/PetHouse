@@ -9,6 +9,7 @@
 import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth, soloAdmin } from '../middleware/middleware.js'
+import { crearNotificacion } from '../lib/notificaciones.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -53,6 +54,12 @@ r.post('/solicitudes/:id/aprobar', async (req, res, next) => {
     if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Solicitud no encontrada.' }) }
 
     await client.query('UPDATE usuarios SET es_anfitrion = TRUE WHERE id = $1', [rows[0].usuario_id])
+    await crearNotificacion(client, {
+      usuarioId: rows[0].usuario_id,
+      tipo: 'verificacion_resuelta',
+      titulo: '¡Solicitud aprobada!',
+      mensaje: 'Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde Perfil › Mis hospedajes.'
+    })
     await client.query('COMMIT')
     res.json({ ok: true })
   } catch (err) {
@@ -76,6 +83,12 @@ r.post('/solicitudes/:id/rechazar', async (req, res, next) => {
 
     // Revoca la capacidad por si ya la tenía (ej. se re-revisa una aprobación anterior).
     await client.query('UPDATE usuarios SET es_anfitrion = FALSE WHERE id = $1', [rows[0].usuario_id])
+    await crearNotificacion(client, {
+      usuarioId: rows[0].usuario_id,
+      tipo: 'verificacion_resuelta',
+      titulo: 'Solicitud rechazada',
+      mensaje: 'Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil.'
+    })
     await client.query('COMMIT')
     res.json({ ok: true })
   } catch (err) {

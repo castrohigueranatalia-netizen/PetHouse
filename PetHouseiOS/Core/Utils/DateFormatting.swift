@@ -74,4 +74,15 @@ public enum PHDate {
         guard let date = apiDateOnly.date(from: raw) else { return raw }
         return display.string(from: date)
     }
+
+    /// Tiempo relativo en español, ej. "hace 2 horas" — usado por el historial de
+    /// notificaciones (ver NotificacionesView). Si el timestamp no se puede interpretar,
+    /// cae al string original en vez de mostrar algo confuso.
+    public static func displayRelative(_ raw: String) -> String {
+        guard let date = parseTimestamp(raw) else { return raw }
+        let f = RelativeDateTimeFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        f.unitsStyle = .full
+        return f.localizedString(for: date, relativeTo: Date())
+    }
 }

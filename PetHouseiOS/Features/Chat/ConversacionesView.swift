@@ -8,6 +8,7 @@ import SwiftUI
 struct ConversacionesView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = ConversacionesViewModel()
+    @State private var mostrarNotificaciones = false
 
     var body: some View {
         content
@@ -19,6 +20,14 @@ struct ConversacionesView: View {
                     }
                     .accessibilityLabel("Ir al listado de hospedajes")
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHCampanaNotificaciones(noLeidas: session.notificacionesNoLeidas) {
+                        mostrarNotificaciones = true
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $mostrarNotificaciones) {
+                NotificacionesView()
             }
             .task {
                 await viewModel.cargar()

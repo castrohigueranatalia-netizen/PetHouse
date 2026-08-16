@@ -18,6 +18,7 @@ import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
 import { completarReservasVencidas } from '../lib/completarReservas.js'
+import { crearNotificacion } from '../lib/notificaciones.js'
 import { hoyBogota } from '../lib/fechaBogota.js'
 
 const r = Router()
@@ -60,7 +61,7 @@ r.post('/', auth, async (req, res, next) => {
 
     // Bloquea la fila del hospedaje para evitar carreras de reserva
     const { rows: hs } = await client.query(
-      'SELECT id, titulo, precio_noche, max_mascotas, convivencia FROM hospedajes WHERE id = $1 FOR UPDATE',
+      'SELECT id, titulo, anfitrion_id, precio_noche, max_mascotas, convivencia FROM hospedajes WHERE id = $1 FOR UPDATE',
       [hospedaje_id]
     )
     if (!hs.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Hospedaje no encontrado.' }) }
@@ -106,6 +107,17 @@ r.post('/', auth, async (req, res, next) => {
       'INSERT INTO pagos (reserva_id, monto, estado) VALUES ($1, $2, $3)',
       [rows[0].id, rows[0].total, 'pendiente']
     )
+
+    // Historial de la campana (ver GET /api/notificaciones) — además del `notificado_anfitrion`
+    // de arriba, que sigue alimentando el aviso instantáneo de siempre.
+    await crearNotificacion(client, {
+      usuarioId: h.anfitrion_id,
+      tipo: 'solicitud_nueva',
+      titulo: '¡Nueva solicitud de reserva!',
+      mensaje: `${req.usuario.nombre} quiere reservar en ${h.titulo}.`,
+      reservaId: rows[0].id,
+      hospedajeId: h.id
+    })
 
     await client.query('COMMIT')
     res.status(201).json({ reserva: rows[0], detalle: { hospedaje: h.titulo, noches, limpieza, servicio } })
@@ -214,7 +226,16 @@ r.post('/:id/aceptar', auth, async (req, res, next) => {
       [req.params.id, req.usuario.id]
     )
     if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya resuelta.' })
-    res.json({ reserva: await filaConDetalleAnfitrion(rows[0].id) })
+    const detalle = await filaConDetalleAnfitrion(rows[0].id)
+    await crearNotificacion(pool, {
+      usuarioId: detalle.usuario_id,
+      tipo: 'reserva_resuelta',
+      titulo: '¡Reserva confirmada!',
+      mensaje: `El anfitrión aceptó tu solicitud en ${detalle.hospedaje_titulo}. Revisa los detalles en la pestaña Reservas.`,
+      reservaId: detalle.id,
+      hospedajeId: detalle.hospedaje_id
+    })
+    res.json({ reserva: detalle })
   } catch (err) { next(err) }
 })
 
@@ -229,7 +250,16 @@ r.post('/:id/rechazar', auth, async (req, res, next) => {
       [req.params.id, req.usuario.id]
     )
     if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya resuelta.' })
-    res.json({ reserva: await filaConDetalleAnfitrion(rows[0].id) })
+    const detalle = await filaConDetalleAnfitrion(rows[0].id)
+    await crearNotificacion(pool, {
+      usuarioId: detalle.usuario_id,
+      tipo: 'reserva_resuelta',
+      titulo: 'Solicitud de reserva rechazada',
+      mensaje: `El anfitrión no pudo aceptar tu solicitud en ${detalle.hospedaje_titulo}. Puedes buscar otro hospedaje disponible.`,
+      reservaId: detalle.id,
+      hospedajeId: detalle.hospedaje_id
+    })
+    res.json({ reserva: detalle })
   } catch (err) { next(err) }
 })
 

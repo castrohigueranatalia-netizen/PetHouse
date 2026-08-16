@@ -59,6 +59,12 @@ public final class SessionStore {
     /// polling puntual — ver `actualizarContadores()`.
     public private(set) var mensajesNoLeidos = 0
     public private(set) var solicitudesPendientes = 0
+    /// Cuántas notificaciones sin leer hay en el historial completo (la campana, ver
+    /// NotificacionesView) — distinto de `resolucionVerificacion`/`resolucionesReserva`/
+    /// `solicitudesNuevasAnfitrion` de abajo (esos son los avisos INSTANTÁNEOS que
+    /// desaparecen al cerrarlos); este contador refleja el badge de la campana, que sigue
+    /// existiendo después. Se recalcula en `actualizarContadores()`.
+    public private(set) var notificacionesNoLeidas = 0
 
     /// `!= nil` cuando la solicitud de anfitrión acaba de resolverse (aprobada o
     /// rechazada) y el usuario todavía no lo vio. Se revisa al arrancar la sesión/loguearse/
@@ -94,6 +100,7 @@ public final class SessionStore {
     private let adminService: AdminServicing
     private let anfitrionService: AnfitrionServicing
     private let reservasService: ReservasServicing
+    private let notificacionesService: NotificacionesServicing
     private var modelContext: ModelContext?
 
     public init(
@@ -102,7 +109,8 @@ public final class SessionStore {
         chatService: ChatServicing = ChatService(),
         adminService: AdminServicing = AdminService(),
         anfitrionService: AnfitrionServicing = AnfitrionService(),
-        reservasService: ReservasServicing = ReservasService()
+        reservasService: ReservasServicing = ReservasService(),
+        notificacionesService: NotificacionesServicing = NotificacionesService()
     ) {
         self.authService = authService
         self.keychain = keychain
@@ -110,6 +118,7 @@ public final class SessionStore {
         self.adminService = adminService
         self.anfitrionService = anfitrionService
         self.reservasService = reservasService
+        self.notificacionesService = notificacionesService
     }
 
     /// Se llama una vez desde `PetHouseApp` cuando el `ModelContainer` ya está listo.
@@ -206,6 +215,7 @@ public final class SessionStore {
         perfilEsDeCache = false
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
+        notificacionesNoLeidas = 0
         resolucionVerificacion = nil
         resolucionesReserva = []
         solicitudesNuevasAnfitrion = []
@@ -220,6 +230,7 @@ public final class SessionStore {
         mascotas = []
         mensajesNoLeidos = 0
         solicitudesPendientes = 0
+        notificacionesNoLeidas = 0
         resolucionVerificacion = nil
         resolucionesReserva = []
         solicitudesNuevasAnfitrion = []
@@ -243,6 +254,9 @@ public final class SessionStore {
     public func actualizarContadores() async {
         if let conversaciones = try? await chatService.conversaciones() {
             actualizarMensajesNoLeidos(desde: conversaciones)
+        }
+        if let respuesta = try? await notificacionesService.listar() {
+            notificacionesNoLeidas = respuesta.noLeidas
         }
         guard usuario?.rol == .admin else { return }
         if let estadisticas = try? await adminService.estadisticas() {
@@ -269,6 +283,13 @@ public final class SessionStore {
     /// mostrar las tarjetas, o `AdminSolicitudesView` restando uno tras resolver una).
     public func actualizarSolicitudesPendientes(_ n: Int) {
         solicitudesPendientes = n
+    }
+
+    /// Fija `notificacionesNoLeidas` a un valor que `NotificacionesView` ya calculó (ej. al
+    /// abrir la campana y marcar todo como leído) — sin pedir el historial de nuevo por red
+    /// solo para el badge.
+    public func actualizarNotificacionesNoLeidas(_ n: Int) {
+        notificacionesNoLeidas = n
     }
 
     /// Revisa si la solicitud de anfitrión del usuario se resolvió (aprobada o rechazada)

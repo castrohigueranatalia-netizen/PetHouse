@@ -12,6 +12,7 @@ struct BuscarView: View {
     @State private var mostrarBuscador = false
     @State private var mostrarFiltros = false
     @State private var mostrarMapa = false
+    @State private var mostrarNotificaciones = false
     @State private var hospedajeSeleccionado: Hospedaje?
 
     var body: some View {
@@ -37,6 +38,18 @@ struct BuscarView: View {
                     mostrarMapa = true
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                PHCampanaNotificaciones(noLeidas: session.notificacionesNoLeidas) {
+                    mostrarNotificaciones = true
+                }
+            }
+        }
+        // `.fullScreenCover`, no `.sheet` — esta vista ya encadena tres `.sheet(isPresented:)`
+        // distintos (buscador, filtros, mapa); un cuarto ahí mismo cae en el mismo riesgo de
+        // presentación poco confiable que ya se vio antes en Perfil. `.fullScreenCover` es un
+        // mecanismo de presentación aparte, sin ese conflicto.
+        .fullScreenCover(isPresented: $mostrarNotificaciones) {
+            NotificacionesView()
         }
         .sheet(isPresented: $mostrarBuscador) {
             BuscadorSheet(viewModel: viewModel) {
