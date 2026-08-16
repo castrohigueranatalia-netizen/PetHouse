@@ -32,6 +32,31 @@ struct MisReservasView: View {
             .navigationDestination(item: $reservaSeleccionada) { reserva in
                 ReservaDetailView(reserva: reserva)
             }
+            // Consume la señal de "Ver reserva" del aviso de solicitud nueva (ver
+            // SessionStore.reservaRecibidaParaAbrir y MainTabView, que ya saltó a esta
+            // pestaña) empujando "Reservas recibidas" del hospedaje correspondiente — mismo
+            // mecanismo de "señal + consumo" que `abrirVerificacionAlEntrar` en PerfilView.
+            .navigationDestination(item: Binding(
+                get: { session.reservaRecibidaParaAbrir },
+                set: { session.reservaRecibidaParaAbrir = $0 }
+            )) { reserva in
+                ReservasRecibidasView(hospedaje: hospedajePlaceholder(reserva))
+            }
+    }
+
+    /// `ReservasRecibidasView` solo necesita `hospedaje.id` (para pedir sus reservas) y
+    /// `hospedaje.titulo` (para el título de la pantalla y el mensaje vacío) — el aviso de
+    /// solicitud nueva no trae el resto de campos de un `Hospedaje` real, así que se arma un
+    /// "placeholder" con esos dos datos, mismo patrón que el `Hospedaje` placeholder que usa
+    /// `PublicarHospedajeViewModel` tras crear un hospedaje.
+    private func hospedajePlaceholder(_ reserva: Reserva) -> Hospedaje {
+        Hospedaje(
+            id: reserva.hospedajeId ?? "",
+            titulo: reserva.hospedajeTitulo ?? "Hospedaje",
+            tipo: .guarderia,
+            ciudad: "Bogotá",
+            precioNoche: 0
+        )
     }
 
     @ViewBuilder

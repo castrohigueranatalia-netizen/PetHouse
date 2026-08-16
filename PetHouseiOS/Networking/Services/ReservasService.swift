@@ -27,6 +27,8 @@ public protocol ReservasServicing: Sendable {
     func rechazar(id: String) async throws -> ReservaAccionResponse
     func resueltasSinNotificar() async throws -> [Reserva]
     func marcarNotificada(id: String) async throws
+    func pendientesSinNotificarAnfitrion() async throws -> [Reserva]
+    func marcarNotificadaAnfitrion(id: String) async throws
     func calificarHuesped(reservaId: String, rating: Int, titulo: String?, texto: String?) async throws -> Resena
     func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad
 }
@@ -78,6 +80,21 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
 
     public func marcarNotificada(id: String) async throws {
         let request = APIRequest(method: "POST", path: "/reservas/\(id)/notificado", requiresAuth: true)
+        try await client.sendNoBody(request)
+    }
+
+    /// Solicitudes de reserva NUEVAS (recién creadas por un huésped) que el anfitrión
+    /// todavía no vio — dirección opuesta a `resueltasSinNotificar()` (esa es el aviso al
+    /// huésped de que SU solicitud se resolvió; esta es el aviso al anfitrión de que le
+    /// LLEGÓ una solicitud).
+    public func pendientesSinNotificarAnfitrion() async throws -> [Reserva] {
+        let request = APIRequest(method: "GET", path: "/reservas/notificaciones/pendientes-anfitrion", requiresAuth: true)
+        let response: MisReservasResponse = try await client.send(request)
+        return response.reservas
+    }
+
+    public func marcarNotificadaAnfitrion(id: String) async throws {
+        let request = APIRequest(method: "POST", path: "/reservas/\(id)/notificado-anfitrion", requiresAuth: true)
         try await client.sendNoBody(request)
     }
 

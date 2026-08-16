@@ -75,6 +75,19 @@ public final class SessionStore {
     /// `resolucionVerificacion` arriba.
     public private(set) var resolucionesReserva: [Reserva] = []
 
+    /// Solicitudes de reserva NUEVAS (huéspedes que acaban de pedir reservar) que el
+    /// anfitrión todavía no vio, en cola — mismo patrón que `resolucionesReserva`, pero en
+    /// la otra dirección (ver `revisarSolicitudesNuevasAnfitrion()`). Solo tiene contenido
+    /// si `usuario?.esAnfitrion == true`; para un huésped que no es anfitrión, el servidor
+    /// simplemente no tiene ningún hospedaje suyo con solicitudes que devolver.
+    public private(set) var solicitudesNuevasAnfitrion: [Reserva] = []
+
+    /// Reserva que `MainTabView` debe abrir en la pestaña Reservas al tocar "Ver reserva" en
+    /// el aviso de solicitud nueva — ver `ReservasRecibidasView` y el comentario largo en
+    /// `MisReservasView.swift`. Mismo mecanismo de "señal + consumo" que
+    /// `abrirVerificacionAlEntrar`.
+    public var reservaRecibidaParaAbrir: Reserva?
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private let chatService: ChatServicing
@@ -118,6 +131,7 @@ public final class SessionStore {
             await actualizarContadores()
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
+            await revisarSolicitudesNuevasAnfitrion()
         } catch AppError.sesionExpirada {
             // El único caso que representa una sesión inválida de verdad: `APIClient` ya
             // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
@@ -158,6 +172,7 @@ public final class SessionStore {
             await actualizarContadores()
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
+            await revisarSolicitudesNuevasAnfitrion()
         }
     }
 
@@ -177,6 +192,7 @@ public final class SessionStore {
             await actualizarContadores()
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
+            await revisarSolicitudesNuevasAnfitrion()
         }
     }
 
@@ -192,6 +208,7 @@ public final class SessionStore {
         solicitudesPendientes = 0
         resolucionVerificacion = nil
         resolucionesReserva = []
+        solicitudesNuevasAnfitrion = []
         estado = .invitado
         borrarCache()
     }
@@ -205,6 +222,7 @@ public final class SessionStore {
         solicitudesPendientes = 0
         resolucionVerificacion = nil
         resolucionesReserva = []
+        solicitudesNuevasAnfitrion = []
         estado = .invitado
     }
 
@@ -294,6 +312,25 @@ public final class SessionStore {
         guard let primera = resolucionesReserva.first else { return }
         resolucionesReserva.removeFirst()
         try? await reservasService.marcarNotificada(id: primera.id)
+    }
+
+    /// Revisa si le llegaron solicitudes de reserva NUEVAS que el anfitrión todavía no vio
+    /// — dirección opuesta a `revisarResolucionesReserva()` (esa es "mi solicitud se
+    /// resolvió"; esta es "me llegó una solicitud"). Solo tiene sentido pedirlo si la cuenta
+    /// es anfitrión; para un huésped normal el servidor de todos modos no tendría nada que
+    /// devolver, pero evitar la llamada de red innecesaria es gratis.
+    public func revisarSolicitudesNuevasAnfitrion() async {
+        guard usuario?.esAnfitrion == true else { return }
+        guard let pendientes = try? await reservasService.pendientesSinNotificarAnfitrion(), !pendientes.isEmpty else { return }
+        solicitudesNuevasAnfitrion = pendientes
+    }
+
+    /// Apaga el aviso de la PRIMERA solicitud nueva en cola y le avisa al servidor — mismo
+    /// patrón que `marcarResolucionReservaVista()`.
+    public func marcarSolicitudNuevaAnfitrionVista() async {
+        guard let primera = solicitudesNuevasAnfitrion.first else { return }
+        solicitudesNuevasAnfitrion.removeFirst()
+        try? await reservasService.marcarNotificadaAnfitrion(id: primera.id)
     }
 
     // MARK: - Privado

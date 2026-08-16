@@ -86,9 +86,12 @@ r.post('/', auth, async (req, res, next) => {
     const limpieza = Math.round(h.precio_noche * 0.6)
     const servicio = Math.round(h.precio_noche * noches * 0.1)
 
+    // notificado_anfitrion = FALSE: el anfitrión todavía no vio que llegó esta solicitud —
+    // ver GET /notificaciones/pendientes-anfitrion y POST /:id/notificado-anfitrion más
+    // abajo, mismo patrón que `notificado` (aviso al huésped) pero en la otra dirección.
     const { rows } = await client.query(
-      `INSERT INTO reservas (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, limpieza, servicio)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO reservas (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, limpieza, servicio, notificado_anfitrion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
        RETURNING id, codigo, desde, hasta, noches, mascotas, precio_noche, limpieza, servicio, total, estado, creado_en`,
       [req.usuario.id, hospedaje_id, desde, hasta, mascotas, h.precio_noche, limpieza, servicio]
     )
@@ -230,6 +233,37 @@ r.post('/:id/notificado', auth, async (req, res, next) => {
   try {
     await pool.query(
       'UPDATE reservas SET notificado = TRUE WHERE id = $1 AND usuario_id = $2',
+      [req.params.id, req.usuario.id]
+    )
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+// ---- Solicitudes nuevas que el anfitrión todavía no vio (ver notificado_anfitrion en
+// POST / arriba) — mismo shape que GET /api/hospedajes/:id/reservas (usuario_nombre +
+// mascotas_detalle), para que la app pueda mostrar de una vez quién y qué mascota es. ----
+r.get('/notificaciones/pendientes-anfitrion', auth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
+         FROM reservas rs
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios u ON u.id = rs.usuario_id
+        WHERE h.anfitrion_id = $1 AND rs.notificado_anfitrion = FALSE AND rs.estado = 'pendiente'
+        ORDER BY rs.creado_en ASC`,
+      [req.usuario.id]
+    )
+    res.json({ reservas: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Marca como vista una solicitud nueva (el anfitrión dueño del hospedaje) ----
+r.post('/:id/notificado-anfitrion', auth, async (req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE reservas SET notificado_anfitrion = TRUE
+         FROM hospedajes h
+        WHERE reservas.id = $1 AND reservas.hospedaje_id = h.id AND h.anfitrion_id = $2`,
       [req.params.id, req.usuario.id]
     )
     res.json({ ok: true })

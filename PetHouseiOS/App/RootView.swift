@@ -102,19 +102,21 @@ struct MainTabView: View {
         .onChange(of: session.volverABuscar) { _, volver in
             if volver { pestanaSeleccionada = .buscar }
         }
-        // Aviso de "tu solicitud de anfitrión/reserva se resolvió" (ver SessionStore.
-        // revisarResolucionVerificacion/revisarResolucionesReserva, sin push notifications —
-        // ADR-7): se revisa al arrancar la sesión/loguearse/registrarse, y se muestra ACÁ, en
-        // la raíz de las pestañas, para que sea lo primero que se ve al entrar a la app — no
-        // algo que depende de que el usuario llegue a abrir el Perfil o Mis reservas.
+        // Aviso de "tu solicitud de anfitrión/reserva se resolvió" o "te llegó una
+        // solicitud nueva" (ver SessionStore.revisarResolucionVerificacion/
+        // revisarResolucionesReserva/revisarSolicitudesNuevasAnfitrion, sin push
+        // notifications — ADR-7): se revisa al arrancar la sesión/loguearse/registrarse, y
+        // se muestra ACÁ, en la raíz de las pestañas, para que sea lo primero que se ve al
+        // entrar a la app — no algo que depende de que el usuario llegue a abrir el Perfil o
+        // Mis reservas.
         //
-        // UN SOLO `.alert` para ambos avisos (no dos modificadores separados): dos `.alert`
+        // UN SOLO `.alert` para LOS TRES avisos (no modificadores separados): dos `.alert`
         // con `isPresented` en `true` a la vez es un estado no soportado por SwiftUI (el
-        // segundo puede no aparecer o pisar al primero) — acá se decide adentro cuál mostrar,
-        // dando prioridad a la verificación de anfitrión si ambos están pendientes. Si hay
-        // varias reservas resueltas sin ver, se muestran de a una: al tocar "Entendido" se
-        // apaga la primera y, si `resolucionesReserva` sigue sin estar vacío, el mismo
-        // `.alert` se vuelve a presentar con la siguiente.
+        // segundo puede no aparecer o pisar al primero) — acá se decide adentro cuál
+        // mostrar, con esta prioridad: verificación de anfitrión, después reservas propias
+        // resueltas, después solicitudes nuevas recibidas. Si hay varios avisos en cola (de
+        // cualquiera de los tres tipos), se muestran de a uno: al tocar "Entendido" se apaga
+        // el de arriba y, si queda otro pendiente, el mismo `.alert` se vuelve a presentar.
         //
         // El `set` del binding TIENE que apagar el aviso de verdad, no descartar el valor.
         // SwiftUI escribe `false` acá apenas el aviso se cierra; si ese valor se ignora, el
@@ -132,6 +134,19 @@ struct MainTabView: View {
                 }
             ),
             actions: {
+                // Solo la solicitud nueva tiene una segunda acción — lleva derecho a la
+                // reserva en la pestaña Reservas. La condición repite a mano la misma
+                // prioridad que `tituloAviso`/`mensajeAviso` (verificación > reserva
+                // resuelta > solicitud nueva), para mostrar el botón solo cuando la
+                // solicitud nueva es de verdad el aviso que se está mostrando ahora mismo.
+                // Se lee `.first` ACÁ, antes de que el `set` de arriba la saque de la cola.
+                if session.resolucionVerificacion == nil, session.resolucionesReserva.isEmpty,
+                   let solicitud = session.solicitudesNuevasAnfitrion.first {
+                    Button("Ver reserva") {
+                        session.reservaRecibidaParaAbrir = solicitud
+                        pestanaSeleccionada = .reservas
+                    }
+                }
                 // Sin trabajo propio a propósito: cerrar el aviso ya dispara el `set` de
                 // arriba, que es el único lugar donde se apaga (una sola fuente de verdad).
                 Button("Entendido") {}
@@ -141,14 +156,18 @@ struct MainTabView: View {
     }
 
     private var hayAvisoPendiente: Bool {
-        session.resolucionVerificacion != nil || !session.resolucionesReserva.isEmpty
+        session.resolucionVerificacion != nil
+            || !session.resolucionesReserva.isEmpty
+            || !session.solicitudesNuevasAnfitrion.isEmpty
     }
 
     private func confirmarAvisoPendiente() async {
         if session.resolucionVerificacion != nil {
             await session.marcarResolucionVista()
-        } else {
+        } else if !session.resolucionesReserva.isEmpty {
             await session.marcarResolucionReservaVista()
+        } else {
+            await session.marcarSolicitudNuevaAnfitrionVista()
         }
     }
 
@@ -158,6 +177,9 @@ struct MainTabView: View {
         }
         if let reserva = session.resolucionesReserva.first {
             return reserva.estado == .confirmada ? "¡Reserva confirmada!" : "Solicitud de reserva rechazada"
+        }
+        if session.solicitudesNuevasAnfitrion.first != nil {
+            return "¡Nueva solicitud de reserva!"
         }
         return ""
     }
@@ -173,6 +195,11 @@ struct MainTabView: View {
             return reserva.estado == .confirmada
                 ? "El anfitrión aceptó tu solicitud en \(lugar). Revisa los detalles en la pestaña Reservas."
                 : "El anfitrión no pudo aceptar tu solicitud en \(lugar). Puedes buscar otro hospedaje disponible."
+        }
+        if let solicitud = session.solicitudesNuevasAnfitrion.first {
+            let quien = solicitud.usuarioNombre ?? "Un huésped"
+            let lugar = solicitud.hospedajeTitulo ?? "tu hospedaje"
+            return "\(quien) quiere reservar en \(lugar). Revisa la solicitud para aceptarla o rechazarla."
         }
         return ""
     }
