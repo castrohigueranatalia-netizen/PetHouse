@@ -320,9 +320,20 @@ public final class SessionStore {
     /// es anfitrión; para un huésped normal el servidor de todos modos no tendría nada que
     /// devolver, pero evitar la llamada de red innecesaria es gratis.
     public func revisarSolicitudesNuevasAnfitrion() async {
-        guard usuario?.esAnfitrion == true else { return }
-        guard let pendientes = try? await reservasService.pendientesSinNotificarAnfitrion(), !pendientes.isEmpty else { return }
-        solicitudesNuevasAnfitrion = pendientes
+        // 🔔 Diagnóstico TEMPORAL (quitar apenas se confirme por qué el aviso no aparecía) —
+        // se ve en la consola de Xcode (⌘R) al reproducir el problema.
+        guard usuario?.esAnfitrion == true else {
+            print("🔔 revisarSolicitudesNuevasAnfitrion: usuario.esAnfitrion = \(String(describing: usuario?.esAnfitrion)), no se revisa")
+            return
+        }
+        do {
+            let pendientes = try await reservasService.pendientesSinNotificarAnfitrion()
+            print("🔔 revisarSolicitudesNuevasAnfitrion: el servidor devolvió \(pendientes.count) solicitud(es)")
+            guard !pendientes.isEmpty else { return }
+            solicitudesNuevasAnfitrion = pendientes
+        } catch {
+            print("🔔 revisarSolicitudesNuevasAnfitrion: ERROR al pedirlas — \(error)")
+        }
     }
 
     /// Apaga el aviso de la PRIMERA solicitud nueva en cola y le avisa al servidor — mismo
