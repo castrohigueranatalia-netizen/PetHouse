@@ -98,11 +98,12 @@ struct MisReservasView: View {
     }
 
     private func reservaFila(_ reserva: Reserva) -> some View {
-        // La "x" para quitar la reserva queda como hermana del contenido tocable dentro del
-        // mismo ZStack (arriba a la derecha), no anidada adentro de su botón — mismo patrón
-        // ya usado en PHMascotaCard/PHAdjuntarFotos para que ambos toques respondan bien.
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: PHSpacing.s8) {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            // La "x" va al lado del contenido (hermana del botón dentro del mismo HStack),
+            // no encima — un `ZStack` superpuesto se veía tapando la tarjeta. Sigue siendo
+            // hermana y no anidada adentro del botón grande, para que ambos toques respondan
+            // bien (mismo patrón que PHMascotaCard/PHAdjuntarFotos).
+            HStack(alignment: .top, spacing: PHSpacing.s8) {
                 Button { reservaSeleccionada = reserva } label: {
                     VStack(alignment: .leading, spacing: PHSpacing.s8) {
                         HStack {
@@ -138,40 +139,44 @@ struct MisReservasView: View {
                 }
                 .buttonStyle(.plain)
 
-                if reserva.estado == .pendiente || reserva.estado == .confirmada {
-                    HStack {
-                        PHTextButton("Cancelar", role: .destructive) {
-                            Task { await viewModel.cancelar(reserva, modelContext: modelContext) }
+                if esOcultable(reserva.estado) {
+                    if viewModel.ocultandoId == reserva.id {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Button {
+                            Task { await viewModel.ocultar(reserva, modelContext: modelContext) }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(PHColor.mutedSoft)
+                                .frame(width: 20, height: 20)
+                                .background(PHColor.surfaceSoft, in: Circle())
                         }
-                        if viewModel.cancelandoId == reserva.id {
-                            ProgressView().controlSize(.small)
-                        }
-                        Spacer()
-                    }
-                } else if reserva.estado == .completada {
-                    PHTextButton("Dejar una reseña") {
-                        reservaParaResena = reserva
+                        .accessibilityLabel("Quitar esta reserva de la lista")
                     }
                 }
             }
-            .padding(PHSpacing.s16)
-            .background(PHColor.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
-            .phShadow(PHShadow.level1)
 
-            if esOcultable(reserva.estado) {
-                if viewModel.ocultandoId == reserva.id {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(PHSpacing.s12)
-                } else {
-                    PHIconButton(systemImage: "xmark", accessibilityLabel: "Quitar esta reserva de la lista") {
-                        Task { await viewModel.ocultar(reserva, modelContext: modelContext) }
+            if reserva.estado == .pendiente || reserva.estado == .confirmada {
+                HStack {
+                    PHTextButton("Cancelar", role: .destructive) {
+                        Task { await viewModel.cancelar(reserva, modelContext: modelContext) }
                     }
-                    .padding(PHSpacing.s4)
+                    if viewModel.cancelandoId == reserva.id {
+                        ProgressView().controlSize(.small)
+                    }
+                    Spacer()
+                }
+            } else if reserva.estado == .completada {
+                PHTextButton("Dejar una reseña") {
+                    reservaParaResena = reserva
                 }
             }
         }
+        .padding(PHSpacing.s16)
+        .background(PHColor.canvas)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+        .phShadow(PHShadow.level1)
     }
 
     private func estadoBadge(_ estado: EstadoReserva) -> some View {
