@@ -23,6 +23,7 @@ public protocol ReservasServicing: Sendable {
     func mias() async throws -> MisReservasResponse
     func detalle(id: String) async throws -> ReservaDetailResponse
     func cancelar(id: String) async throws -> CancelarReservaResponse
+    func ocultar(id: String) async throws
     func aceptar(id: String) async throws -> ReservaAccionResponse
     func rechazar(id: String) async throws -> ReservaAccionResponse
     func resueltasSinNotificar() async throws -> [Reserva]
@@ -60,6 +61,14 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
     public func cancelar(id: String) async throws -> CancelarReservaResponse {
         let request = APIRequest(method: "POST", path: "/reservas/\(id)/cancelar", requiresAuth: true)
         return try await client.send(request)
+    }
+
+    /// Quita una reserva ya resuelta ('completada'/'cancelada'/'rechazada') del panel "Mis
+    /// reservas" de quien la hizo — no la borra de verdad (ver db/18-ocultar-reserva.sql: el
+    /// servidor rechaza esto si la reserva sigue activa).
+    public func ocultar(id: String) async throws {
+        let request = APIRequest(method: "POST", path: "/reservas/\(id)/ocultar", requiresAuth: true)
+        try await client.sendNoBody(request)
     }
 
     public func aceptar(id: String) async throws -> ReservaAccionResponse {

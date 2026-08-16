@@ -19,6 +19,7 @@ public final class MisReservasViewModel {
     public private(set) var error: AppError?
     public private(set) var mostrandoDatosDeCache = false
     public private(set) var cancelandoId: String?
+    public private(set) var ocultandoId: String?
 
     private let service: ReservasServicing
 
@@ -59,6 +60,24 @@ public final class MisReservasViewModel {
             if let index = reservas.firstIndex(where: { $0.id == reserva.id }) {
                 reservas[index] = respuesta.reserva
             }
+            guardarEnCache(reservas, modelContext: modelContext)
+        } catch let appError as AppError {
+            error = appError
+        } catch {
+            self.error = .desconocido(error.localizedDescription)
+        }
+    }
+
+    /// Quita del panel una reserva ya resuelta ('completada'/'cancelada'/'rechazada') — el
+    /// servidor la marca oculta (ver ReservasService.ocultar) en vez de borrarla de verdad;
+    /// acá, si el servidor confirma, se saca de la lista local y de la caché igual que si se
+    /// hubiera vuelto a cargar.
+    public func ocultar(_ reserva: Reserva, modelContext: ModelContext) async {
+        ocultandoId = reserva.id
+        defer { ocultandoId = nil }
+        do {
+            try await service.ocultar(id: reserva.id)
+            reservas.removeAll { $0.id == reserva.id }
             guardarEnCache(reservas, modelContext: modelContext)
         } catch let appError as AppError {
             error = appError

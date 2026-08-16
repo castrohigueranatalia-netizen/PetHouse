@@ -89,63 +89,89 @@ struct MisReservasView: View {
         }
     }
 
+    /// Reservas ya resueltas — el huésped las puede quitar del panel con la "x" (no se
+    /// borran de verdad, ver `MisReservasViewModel.ocultar`). Las activas ('pendiente',
+    /// 'confirmada') no tienen esa "x": todavía se pueden cancelar, no tiene sentido
+    /// "perderlas" de la lista mientras siguen vigentes.
+    private func esOcultable(_ estado: EstadoReserva) -> Bool {
+        estado == .completada || estado == .cancelada || estado == .rechazada
+    }
+
     private func reservaFila(_ reserva: Reserva) -> some View {
-        VStack(alignment: .leading, spacing: PHSpacing.s8) {
-            Button { reservaSeleccionada = reserva } label: {
-                VStack(alignment: .leading, spacing: PHSpacing.s8) {
-                    HStack {
-                        Text(reserva.hospedajeTitulo ?? "Hospedaje")
-                            .phText(PHFont.titleMD, color: PHColor.ink)
-                        Spacer()
-                        estadoBadge(reserva.estado)
-                    }
+        // La "x" para quitar la reserva queda como hermana del contenido tocable dentro del
+        // mismo ZStack (arriba a la derecha), no anidada adentro de su botón — mismo patrón
+        // ya usado en PHMascotaCard/PHAdjuntarFotos para que ambos toques respondan bien.
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: PHSpacing.s8) {
+                Button { reservaSeleccionada = reserva } label: {
+                    VStack(alignment: .leading, spacing: PHSpacing.s8) {
+                        HStack {
+                            Text(reserva.hospedajeTitulo ?? "Hospedaje")
+                                .phText(PHFont.titleMD, color: PHColor.ink)
+                            Spacer()
+                            estadoBadge(reserva.estado)
+                        }
 
-                    if let ciudad = reserva.ciudad {
-                        Text([reserva.barrio, ciudad].compactMap { $0 }.joined(separator: ", "))
-                            .phText(PHFont.bodySM, color: PHColor.muted)
-                    }
+                        if let ciudad = reserva.ciudad {
+                            Text([reserva.barrio, ciudad].compactMap { $0 }.joined(separator: ", "))
+                                .phText(PHFont.bodySM, color: PHColor.muted)
+                        }
 
+                        HStack {
+                            if let desde = reserva.desde, let hasta = reserva.hasta {
+                                Label(
+                                    "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
+                                    systemImage: "calendar"
+                                )
+                                .phText(PHFont.captionSM, color: PHColor.body)
+                            }
+                            Spacer()
+                            if let total = reserva.total {
+                                Text(PHFormato.precio(total))
+                                    .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                            }
+                        }
+
+                        Text("Código \(reserva.codigo)")
+                            .phText(PHFont.micro, color: PHColor.mutedSoft)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if reserva.estado == .pendiente || reserva.estado == .confirmada {
                     HStack {
-                        if let desde = reserva.desde, let hasta = reserva.hasta {
-                            Label(
-                                "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
-                                systemImage: "calendar"
-                            )
-                            .phText(PHFont.captionSM, color: PHColor.body)
+                        PHTextButton("Cancelar", role: .destructive) {
+                            Task { await viewModel.cancelar(reserva, modelContext: modelContext) }
+                        }
+                        if viewModel.cancelandoId == reserva.id {
+                            ProgressView().controlSize(.small)
                         }
                         Spacer()
-                        if let total = reserva.total {
-                            Text(PHFormato.precio(total))
-                                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                        }
                     }
-
-                    Text("Código \(reserva.codigo)")
-                        .phText(PHFont.micro, color: PHColor.mutedSoft)
+                } else if reserva.estado == .completada {
+                    PHTextButton("Dejar una reseña") {
+                        reservaParaResena = reserva
+                    }
                 }
             }
-            .buttonStyle(.plain)
+            .padding(PHSpacing.s16)
+            .background(PHColor.canvas)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+            .phShadow(PHShadow.level1)
 
-            if reserva.estado == .pendiente || reserva.estado == .confirmada {
-                HStack {
-                    PHTextButton("Cancelar", role: .destructive) {
-                        Task { await viewModel.cancelar(reserva, modelContext: modelContext) }
+            if esOcultable(reserva.estado) {
+                if viewModel.ocultandoId == reserva.id {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(PHSpacing.s12)
+                } else {
+                    PHIconButton(systemImage: "xmark", accessibilityLabel: "Quitar esta reserva de la lista") {
+                        Task { await viewModel.ocultar(reserva, modelContext: modelContext) }
                     }
-                    if viewModel.cancelandoId == reserva.id {
-                        ProgressView().controlSize(.small)
-                    }
-                    Spacer()
-                }
-            } else if reserva.estado == .completada {
-                PHTextButton("Dejar una reseña") {
-                    reservaParaResena = reserva
+                    .padding(PHSpacing.s4)
                 }
             }
         }
-        .padding(PHSpacing.s16)
-        .background(PHColor.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
-        .phShadow(PHShadow.level1)
     }
 
     private func estadoBadge(_ estado: EstadoReserva) -> some View {

@@ -129,7 +129,7 @@ r.get('/mias', auth, async (req, res, next) => {
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
               ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
-        WHERE rs.usuario_id = $1
+        WHERE rs.usuario_id = $1 AND NOT rs.oculta_por_usuario
         ORDER BY rs.creado_en DESC`,
       [req.usuario.id]
     )
@@ -177,6 +177,25 @@ r.post('/:id/cancelar', auth, async (req, res, next) => {
     )
     if (!rows.length) return res.status(404).json({ error: 'Reserva no encontrada o ya resuelta.' })
     res.json({ reserva: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// ---- Ocultar del panel "Mis reservas" una reserva ya resuelta (el huésped dueño) ----
+// NO borra la fila de verdad (no se puede: `pagos.reserva_id` es ON DELETE RESTRICT, y
+// además destruiría historial real) — ver db/18-ocultar-reserva.sql. Solo para reservas ya
+// resueltas ('completada', 'cancelada', 'rechazada'): una 'pendiente' o 'confirmada' sigue
+// activa, ocultarla la dejaría "perdida" sin poder cancelarla ni verla en la lista.
+r.post('/:id/ocultar', auth, async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { rows } = await pool.query(
+      `UPDATE reservas SET oculta_por_usuario = TRUE
+        WHERE id = $1 AND usuario_id = $2 AND estado IN ('completada', 'cancelada', 'rechazada')
+        RETURNING id`,
+      [req.params.id, req.usuario.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Reserva no encontrada o todavía activa.' })
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 
