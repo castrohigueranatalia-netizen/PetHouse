@@ -108,28 +108,36 @@ private struct FotoZoomable: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .scaleEffect(escala)
             .offset(offset)
+            // El pellizco (dos dedos) queda SIEMPRE activo — nunca compite con deslizar de
+            // un dedo, así que puede quedar pegado sin problema.
             .gesture(
-                SimultaneousGesture(
-                    MagnificationGesture()
+                MagnificationGesture()
+                    .onChanged { valor in
+                        escala = min(max(ultimaEscala * valor, escalaMin), escalaMax)
+                    }
+                    .onEnded { _ in
+                        ultimaEscala = escala
+                        if escala <= escalaMin { recentrar() }
+                    }
+            )
+            // El arrastre (un dedo) para mover la foto acercada SOLO se activa cuando ya
+            // hay zoom (`escala > escalaMin`) — antes quedaba pegado siempre (sin efecto
+            // en 1x, por el `guard` de adentro), pero el solo hecho de tener el gesto
+            // enganchado competía con el deslizar del `TabView` para cambiar de foto y lo
+            // volvía poco confiable. `Optional<Gesture>` con `nil` desengancha el gesto por
+            // completo en vez de solo ignorarlo — a 1x, deslizar con un dedo queda 100%
+            // libre para el `TabView`.
+            .gesture(
+                escala > escalaMin
+                    ? DragGesture()
                         .onChanged { valor in
-                            escala = min(max(ultimaEscala * valor, escalaMin), escalaMax)
-                        }
-                        .onEnded { _ in
-                            ultimaEscala = escala
-                            if escala <= escalaMin { recentrar() }
-                        },
-                    DragGesture()
-                        .onChanged { valor in
-                            guard escala > escalaMin else { return }
                             offset = CGSize(
                                 width: ultimoOffset.width + valor.translation.width,
                                 height: ultimoOffset.height + valor.translation.height
                             )
                         }
-                        .onEnded { _ in
-                            ultimoOffset = offset
-                        }
-                )
+                        .onEnded { _ in ultimoOffset = offset }
+                    : nil
             )
             .onTapGesture(count: 2) {
                 if escala > escalaMin {
