@@ -11,6 +11,10 @@ struct HospedajeDetailView: View {
     @State private var viewModel: HospedajeDetailViewModel?
     @State private var favoritosViewModel = FavoritosViewModel()
     @State private var mostrarReserva = false
+    /// Página actual de la galería de arriba — tocar una foto abre el visor de pantalla
+    /// completa (ver `PHVisorFotos`) empezando en esta misma página.
+    @State private var indiceGaleria = 0
+    @State private var fotoVisor: FotoVisorItem?
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -110,21 +114,31 @@ struct HospedajeDetailView: View {
             .sheet(isPresented: $mostrarReserva) {
                 NuevaReservaView(hospedaje: hospedaje, mascotasDisponibles: session.mascotas)
             }
+            .fullScreenCover(item: $fotoVisor) { item in
+                PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+            }
         }
     }
 
     private func galeria(_ hospedaje: Hospedaje) -> some View {
         let fotos = hospedaje.fotos ?? []
-        return TabView {
+        return TabView(selection: $indiceGaleria) {
             if fotos.isEmpty {
                 Rectangle()
                     .fill(PHColor.surfaceStrong)
                     .overlay(Image(systemName: "photo").font(.largeTitle).foregroundStyle(PHColor.mutedSoft))
+                    .tag(0)
             } else {
-                ForEach(fotos, id: \.self) { url in
-                    PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
-                        Rectangle().fill(PHColor.surfaceStrong)
+                ForEach(Array(fotos.enumerated()), id: \.offset) { index, url in
+                    Button {
+                        fotoVisor = FotoVisorItem(urls: fotos, indiceInicial: index)
+                    } label: {
+                        PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
+                            Rectangle().fill(PHColor.surfaceStrong)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .tag(index)
                 }
             }
         }

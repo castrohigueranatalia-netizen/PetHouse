@@ -14,6 +14,7 @@ struct AdminSolicitudDetailView: View {
     let alResolver: () -> Void
 
     @State private var viewModel: AdminSolicitudDetailViewModel?
+    @State private var fotoVisor: FotoVisorItem?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -80,6 +81,9 @@ struct AdminSolicitudDetailView: View {
                 dismiss()
             }
         }
+        .fullScreenCover(item: $fotoVisor) { item in
+            PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+        }
     }
 
     private func encabezado(_ viewModel: AdminSolicitudDetailViewModel) -> some View {
@@ -111,12 +115,17 @@ struct AdminSolicitudDetailView: View {
             Text(titulo).phText(PHFont.captionSM, color: PHColor.muted)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: PHSpacing.s8) {
-                    ForEach(urls, id: \.self) { url in
-                        PHCachedAsyncImage(urlString: MediaURL.resolver(url)) {
-                            Rectangle().fill(PHColor.surfaceStrong)
+                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                        Button {
+                            fotoVisor = FotoVisorItem(urls: urls, indiceInicial: index)
+                        } label: {
+                            PHCachedAsyncImage(urlString: MediaURL.resolver(url)) {
+                                Rectangle().fill(PHColor.surfaceStrong)
+                            }
+                            .frame(width: 120, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
                         }
-                        .frame(width: 120, height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+                        .buttonStyle(.plain)
                     }
                 }
             }

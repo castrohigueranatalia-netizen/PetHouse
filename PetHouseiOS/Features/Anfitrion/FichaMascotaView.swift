@@ -20,6 +20,7 @@ struct FichaMascotaView: View {
     /// propia mascota desde acá mismo, sin tener que buscar el ícono de lápiz en la lista.
     var onEditar: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @State private var fotoVisor: FotoVisorItem?
 
     var body: some View {
         NavigationStack {
@@ -54,15 +55,23 @@ struct FichaMascotaView: View {
                     }
                 }
             }
+            .fullScreenCover(item: $fotoVisor) { item in
+                PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+            }
         }
     }
 
     private var galeria: some View {
         TabView {
-            ForEach(mascota.fotos, id: \.self) { url in
-                PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
-                    Rectangle().fill(PHColor.surfaceStrong)
+            ForEach(Array(mascota.fotos.enumerated()), id: \.offset) { index, url in
+                Button {
+                    fotoVisor = FotoVisorItem(urls: mascota.fotos, indiceInicial: index)
+                } label: {
+                    PHCachedAsyncImage(urlString: MediaURL.resolver(url), ladoMaximoPt: 500) {
+                        Rectangle().fill(PHColor.surfaceStrong)
+                    }
                 }
+                .buttonStyle(.plain)
             }
         }
         .tabViewStyle(.page)

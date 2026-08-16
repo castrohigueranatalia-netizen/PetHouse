@@ -49,14 +49,22 @@ public struct PHCachedAsyncImage<Placeholder: View>: View {
     /// actuales (avatares, miniaturas, cards de hospedaje) sin decodificar a resolución de
     /// cámara — para la galería de detalle a pantalla completa, sube este valor.
     let ladoMaximoPt: CGFloat
+    /// `.fill` (recorta para llenar el marco) por defecto — el comportamiento de siempre,
+    /// correcto para miniaturas/cards/avatares. `PHVisorFotos` pasa `.fit` (se ve la foto
+    /// completa, sin recortar) porque ahí el punto es poder examinar la foto entera.
+    let modoContenido: ContentMode
     let placeholder: () -> Placeholder
 
     @State private var uiImage: UIImage?
     @State private var isLoading = false
 
-    public init(urlString: String?, ladoMaximoPt: CGFloat = 240, @ViewBuilder placeholder: @escaping () -> Placeholder) {
+    public init(
+        urlString: String?, ladoMaximoPt: CGFloat = 240, modoContenido: ContentMode = .fill,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
         self.urlString = urlString
         self.ladoMaximoPt = ladoMaximoPt
+        self.modoContenido = modoContenido
         self.placeholder = placeholder
     }
 
@@ -65,7 +73,7 @@ public struct PHCachedAsyncImage<Placeholder: View>: View {
             if let uiImage {
                 Image(uiImage: uiImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: modoContenido)
             } else {
                 placeholder()
             }

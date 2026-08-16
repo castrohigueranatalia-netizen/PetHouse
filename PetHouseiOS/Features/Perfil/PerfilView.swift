@@ -36,6 +36,7 @@ struct PerfilView: View {
     @State private var mascotaPendienteParaEditar: Mascota?
     @State private var mostrarConfirmacionLogout = false
     @State private var mostrarVerificacion = false
+    @State private var fotoVisor: FotoVisorItem?
 
     var body: some View {
         ScrollView {
@@ -125,6 +126,9 @@ struct PerfilView: View {
         }
         // El aviso de "tu solicitud se resolvió" se muestra desde MainTabView (aparece
         // apenas se entra a la app, en cualquier pestaña) — ver App/RootView.swift.
+        .fullScreenCover(item: $fotoVisor) { item in
+            PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+        }
     }
 
     /// Apaga las dos señales que pueden abrir la verificación de anfitrión — ver el
@@ -136,7 +140,13 @@ struct PerfilView: View {
 
     private func encabezado(_ usuario: Usuario) -> some View {
         HStack(spacing: PHSpacing.s16) {
-            PHAvatar(name: usuario.nombre, urlString: MediaURL.resolver(usuario.fotoUrl), size: 64)
+            Button {
+                if let foto = usuario.fotoUrl { fotoVisor = FotoVisorItem(urls: [foto]) }
+            } label: {
+                PHAvatar(name: usuario.nombre, urlString: MediaURL.resolver(usuario.fotoUrl), size: 64)
+            }
+            .buttonStyle(.plain)
+            .disabled(usuario.fotoUrl == nil)
             VStack(alignment: .leading, spacing: 4) {
                 Text(usuario.nombre)
                     .phText(PHFont.displaySM, color: PHColor.ink)

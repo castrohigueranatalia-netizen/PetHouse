@@ -17,6 +17,10 @@
 //  que se muestra (ver PHCachedAsyncImage) — causa real de lentitud en pantallas con varias
 //  fotos, como la verificación de anfitrión.
 //
+//  Tocar una miniatura la abre en grande con zoom (ver PHVisorFotos) — el botón de quitar
+//  ("x") queda como hermano de la foto dentro del mismo ZStack, no anidado adentro de su
+//  botón, para que ambos toques respondan de forma confiable.
+//
 
 import SwiftUI
 import PhotosUI
@@ -31,6 +35,7 @@ public struct PHAdjuntarFotos: View {
     @State private var seleccion: [PhotosPickerItem] = []
     @State private var subiendo = false
     @State private var error: String?
+    @State private var fotoVisor: FotoVisorItem?
 
     public init(
         titulo: String, subtitulo: String? = nil, maximo: Int? = nil,
@@ -54,13 +59,18 @@ public struct PHAdjuntarFotos: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: PHSpacing.s8) {
-                    ForEach(urls, id: \.self) { url in
+                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
                         ZStack(alignment: .topTrailing) {
-                            PHCachedAsyncImage(urlString: MediaURL.resolver(url)) {
-                                Rectangle().fill(PHColor.surfaceStrong)
+                            Button {
+                                fotoVisor = FotoVisorItem(urls: urls, indiceInicial: index)
+                            } label: {
+                                PHCachedAsyncImage(urlString: MediaURL.resolver(url)) {
+                                    Rectangle().fill(PHColor.surfaceStrong)
+                                }
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
                             }
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+                            .buttonStyle(.plain)
 
                             Button {
                                 urls.removeAll { $0 == url }
@@ -101,6 +111,9 @@ public struct PHAdjuntarFotos: View {
         .onChange(of: seleccion) { _, nuevos in
             guard !nuevos.isEmpty else { return }
             Task { await subirSeleccion(nuevos) }
+        }
+        .fullScreenCover(item: $fotoVisor) { item in
+            PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
         }
     }
 

@@ -12,9 +12,14 @@ import SwiftUI
 
 struct ReservaDetailView: View {
     @State private var viewModel: ReservaDetailViewModel
+    @State private var fotoVisor: FotoVisorItem?
 
     init(reserva: Reserva) {
         _viewModel = State(initialValue: ReservaDetailViewModel(reserva: reserva))
+    }
+
+    private var fotoHospedaje: String? {
+        viewModel.hospedaje?.fotos?.first ?? viewModel.reserva.fotos?.first
     }
 
     var body: some View {
@@ -53,6 +58,9 @@ struct ReservaDetailView: View {
             ChatDetailView(conversacion: conversacion)
                 .onDisappear { viewModel.limpiarConversacion() }
         }
+        .fullScreenCover(item: $fotoVisor) { item in
+            PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+        }
     }
 
     @ViewBuilder
@@ -62,16 +70,19 @@ struct ReservaDetailView: View {
                 .frame(height: 160)
         } else {
             VStack(alignment: .leading, spacing: PHSpacing.s8) {
-                PHCachedAsyncImage(
-                    urlString: MediaURL.resolver(viewModel.hospedaje?.fotos?.first ?? viewModel.reserva.fotos?.first),
-                    ladoMaximoPt: 400
-                ) {
-                    Rectangle()
-                        .fill(PHColor.surfaceStrong)
-                        .overlay(Image(systemName: "photo").font(.title2).foregroundStyle(PHColor.mutedSoft))
+                Button {
+                    if let foto = fotoHospedaje { fotoVisor = FotoVisorItem(urls: [foto]) }
+                } label: {
+                    PHCachedAsyncImage(urlString: MediaURL.resolver(fotoHospedaje), ladoMaximoPt: 400) {
+                        Rectangle()
+                            .fill(PHColor.surfaceStrong)
+                            .overlay(Image(systemName: "photo").font(.title2).foregroundStyle(PHColor.mutedSoft))
+                    }
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
                 }
-                .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+                .buttonStyle(.plain)
+                .disabled(fotoHospedaje == nil)
 
                 Text(viewModel.hospedaje?.titulo ?? viewModel.reserva.hospedajeTitulo ?? "Hospedaje")
                     .phText(PHFont.displaySM, color: PHColor.ink)
