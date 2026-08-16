@@ -13,6 +13,9 @@ import SwiftUI
 struct ReservaDetailView: View {
     @State private var viewModel: ReservaDetailViewModel
     @State private var fotoVisor: FotoVisorItem?
+    /// Mascota cuya ficha se está mostrando — mismo `FichaMascotaView` de solo lectura que
+    /// ya usa el anfitrión en ReservasRecibidasView para ver la mascota de un huésped.
+    @State private var mascotaFicha: Mascota?
 
     init(reserva: Reserva) {
         _viewModel = State(initialValue: ReservaDetailViewModel(reserva: reserva))
@@ -60,6 +63,9 @@ struct ReservaDetailView: View {
         }
         .fullScreenCover(item: $fotoVisor) { item in
             PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+        }
+        .sheet(item: $mascotaFicha) { mascota in
+            FichaMascotaView(mascota: mascota)
         }
     }
 
@@ -171,19 +177,29 @@ struct ReservaDetailView: View {
                 .phText(PHFont.titleMD, color: PHColor.ink)
             VStack(spacing: PHSpacing.s8) {
                 ForEach(mascotas) { mascota in
-                    HStack(spacing: PHSpacing.s12) {
-                        PHAvatar(name: mascota.nombre, size: 32)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(mascota.nombre).phText(PHFont.bodySM.weight(.medium), color: PHColor.ink)
-                            if let raza = mascota.raza, !raza.isEmpty {
-                                Text(raza).phText(PHFont.micro, color: PHColor.muted)
+                    Button {
+                        mascotaFicha = mascota
+                    } label: {
+                        HStack(spacing: PHSpacing.s12) {
+                            PHAvatar(name: mascota.nombre, urlString: MediaURL.resolver(mascota.fotos.first), size: 32)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(mascota.nombre).phText(PHFont.bodySM.weight(.medium), color: PHColor.ink)
+                                if let raza = mascota.raza, !raza.isEmpty {
+                                    Text(raza).phText(PHFont.micro, color: PHColor.muted)
+                                }
                             }
+                            Spacer()
+                            Text("Ver ficha")
+                                .phText(PHFont.micro.weight(.semibold), color: PHColor.primary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(PHColor.primary)
                         }
-                        Spacer()
+                        .padding(PHSpacing.s12)
+                        .background(PHColor.surfaceSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
                     }
-                    .padding(PHSpacing.s12)
-                    .background(PHColor.surfaceSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+                    .buttonStyle(.plain)
                 }
             }
         }
