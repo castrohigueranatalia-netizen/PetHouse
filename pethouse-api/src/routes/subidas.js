@@ -68,12 +68,16 @@ r.post('/', auth, (req, res, next) => {
     if (err) return res.status(400).json({ error: err.message })
     if (!req.file) return res.status(400).json({ error: 'Falta el archivo (campo "archivo").' })
 
-    // Sin PUBLIC_BASE_URL forzado por variable de entorno (caso normal en desarrollo):
-    // usa el host real con el que llegó ESTA petición (req.protocol + req.get('host')), no
-    // un valor fijo. Así la URL sirve tanto si la app la llama por "localhost" (Simulador)
-    // como por la IP de red (iPhone físico) — ver el comentario largo en config.js.
-    const base = PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`
-    const url = `${base}/uploads/${req.file.filename}`
+    // Con PUBLIC_BASE_URL configurado (producción, dominio fijo): URL absoluta con ese
+    // dominio. SIN configurar (caso normal en desarrollo): URL RELATIVA (`/uploads/...`),
+    // NO construida con el host de esta petición como antes — ese host es la IP de red
+    // local de la Mac en ese instante (ej. "192.168.1.5"), que cambia cada vez que se
+    // reconecta al wifi/reinicia el router. Guardar esa IP en la URL significa que toda
+    // foto subida antes de un cambio de IP queda rota (bug real, visto en producción de
+    // este mismo MVP). Con la URL relativa, el cliente la resuelve SIEMPRE contra la IP
+    // ACTUAL configurada (ver `MediaURL.resolver` en iOS), así que sigue funcionando sin
+    // importar cuántas veces cambie la red.
+    const url = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/uploads/${req.file.filename}` : `/uploads/${req.file.filename}`
     res.status(201).json({ url })
   })
 })
