@@ -53,4 +53,24 @@ r.post('/leer-todas', auth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ---- Registra (o reasigna) el token de push de este dispositivo ----
+// La app lo llama apenas Apple le entrega el token (ver AppDelegate.swift). Un mismo
+// token puede haber quedado de otra cuenta si se cerró sesión y se entró con otra —
+// el UPSERT lo reasigna al usuario actual en vez de fallar por la restricción UNIQUE.
+r.post('/dispositivo', auth, async (req, res, next) => {
+  try {
+    const { token } = req.body
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Falta el token del dispositivo.' })
+    }
+    await pool.query(
+      `INSERT INTO dispositivos_push (usuario_id, token)
+       VALUES ($1, $2)
+       ON CONFLICT (token) DO UPDATE SET usuario_id = EXCLUDED.usuario_id, creado_en = now()`,
+      [req.usuario.id, token]
+    )
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
 export default r

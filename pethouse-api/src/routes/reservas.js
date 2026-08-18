@@ -19,6 +19,7 @@ import { auth } from '../middleware/middleware.js'
 import { MASCOTAS_DETALLE_SQL } from '../lib/mascotasDetalleSql.js'
 import { completarReservasVencidas } from '../lib/completarReservas.js'
 import { crearNotificacion } from '../lib/notificaciones.js'
+import { enviarPush } from '../lib/push.js'
 import { hoyBogota } from '../lib/fechaBogota.js'
 
 const r = Router()
@@ -120,6 +121,12 @@ r.post('/', auth, async (req, res, next) => {
     })
 
     await client.query('COMMIT')
+    // Sin await a propósito: un push lento o fallido a Apple nunca debe demorar la
+    // respuesta de "reserva creada" (ver lib/push.js).
+    enviarPush(h.anfitrion_id, {
+      titulo: '¡Nueva solicitud de reserva!',
+      mensaje: `${req.usuario.nombre} quiere reservar en ${h.titulo}.`
+    })
     res.status(201).json({ reserva: rows[0], detalle: { hospedaje: h.titulo, noches, limpieza, servicio } })
   } catch (err) {
     await client.query('ROLLBACK')
@@ -235,6 +242,10 @@ r.post('/:id/aceptar', auth, async (req, res, next) => {
       reservaId: detalle.id,
       hospedajeId: detalle.hospedaje_id
     })
+    enviarPush(detalle.usuario_id, {
+      titulo: '¡Reserva confirmada!',
+      mensaje: `El anfitrión aceptó tu solicitud en ${detalle.hospedaje_titulo}. Revisa los detalles en la pestaña Reservas.`
+    })
     res.json({ reserva: detalle })
   } catch (err) { next(err) }
 })
@@ -258,6 +269,10 @@ r.post('/:id/rechazar', auth, async (req, res, next) => {
       mensaje: `El anfitrión no pudo aceptar tu solicitud en ${detalle.hospedaje_titulo}. Puedes buscar otro hospedaje disponible.`,
       reservaId: detalle.id,
       hospedajeId: detalle.hospedaje_id
+    })
+    enviarPush(detalle.usuario_id, {
+      titulo: 'Solicitud de reserva rechazada',
+      mensaje: `El anfitrión no pudo aceptar tu solicitud en ${detalle.hospedaje_titulo}. Puedes buscar otro hospedaje disponible.`
     })
     res.json({ reserva: detalle })
   } catch (err) { next(err) }

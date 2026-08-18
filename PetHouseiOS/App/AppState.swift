@@ -17,6 +17,8 @@
 
 import Foundation
 import SwiftData
+import UIKit
+import UserNotifications
 
 @MainActor
 @Observable
@@ -261,6 +263,34 @@ public final class SessionStore {
         guard usuario?.rol == .admin else { return }
         if let estadisticas = try? await adminService.estadisticas() {
             actualizarSolicitudesPendientes(estadisticas.solicitudesPendientes)
+        }
+    }
+
+    // MARK: - Push (APNs)
+
+    /// Pide el permiso de notificaciones al sistema y, si el usuario lo acepta, registra
+    /// el dispositivo ante Apple. Se llama una vez al arrancar, después de `iniciar()`
+    /// (ver PetHouseApp.swift) — con o sin sesión, para no perder el permiso si lo pide
+    /// como invitado y luego inicia sesión.
+    ///
+    /// Sin la capacidad "Push Notifications" habilitada en Xcode (requiere cuenta de pago
+    /// de Apple Developer Program), `registerForRemoteNotifications()` termina en
+    /// `AppDelegate.didFailToRegisterForRemoteNotifications` — un error esperado, no un
+    /// crash. Apenas se habilite esa capacidad, este mismo código empieza a funcionar solo.
+    public func solicitarPermisoPush() async {
+        let centro = UNUserNotificationCenter.current()
+        guard let concedido = try? await centro.requestAuthorization(options: [.alert, .sound, .badge]),
+              concedido else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// Le llega el device token desde `AppDelegate` (ver `AppDelegate.onTokenRecibido`) y
+    /// lo manda al servidor — solo si hay una sesión real, porque el servidor asocia el
+    /// token al usuario autenticado (ver POST /api/notificaciones/dispositivo).
+    public func registrarTokenPush(_ token: String) {
+        guard estado == .autenticado else { return }
+        Task {
+            try? await notificacionesService.registrarDispositivo(token: token)
         }
     }
 

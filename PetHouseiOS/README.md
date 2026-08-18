@@ -172,10 +172,19 @@ normal que es.
   (`Core/Utils/LocationProvider.swift`); fotos solo al tocar "Elegir foto" en Editar
   perfil (`PhotosPicker`, que además hoy termina en el estado "función pendiente" porque
   no hay endpoint de subida — ver arriba).
-- **Sin push del servidor en v1** (decisión de producto ya cerrada, ver
-  `../MVP_SCOPE.md` §3.A): no se pide el permiso de notificaciones ni se registra device
-  token. Los puntos donde iría ese trabajo en v1.1 están marcados con
-  `// TODO v1.1: push`.
+- **Push notifications (APNs): infraestructura lista, falta un paso manual con cuenta de
+  pago.** La app pide el permiso y registra el device token al arrancar (`AppDelegate.swift`,
+  `SessionStore.solicitarPermisoPush()`/`registrarTokenPush(_:)`), y el servidor lo guarda y
+  manda pushes reales (`pethouse-api/src/lib/push.js`, `POST /api/notificaciones/dispositivo`)
+  al crear/aceptar/rechazar una reserva y al aprobar/rechazar una verificación de anfitrión.
+  Con las variables `APNS_*` sin configurar en el servidor (ver `.env.example`), todo esto
+  no hace nada — no rompe la app actual. Para activarlo de verdad, cuando haya una cuenta
+  de pago de Apple Developer Program:
+  1. En Xcode: Signing & Capabilities del target → "+ Capability" → "Push Notifications"
+     (esto SÍ requiere la cuenta paga; por eso no está en `project.yml` todavía).
+  2. Generar la clave `.p8` en developer.apple.com y configurar `APNS_KEY_PATH`,
+     `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` en el servidor (ver `.env.example`).
+  Ningún otro cambio de código es necesario.
 - **Sin pagos reales** (ADR-7, ya cerrado): `POST /api/reservas` confirma la reserva sin
   cobro — la API solo crea un registro `pagos` en estado `pendiente`. La UI lo dice
   explícito en la confirmación: *"Reserva confirmada — el pago se coordina directamente

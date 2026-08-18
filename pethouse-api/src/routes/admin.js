@@ -10,6 +10,7 @@ import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth, soloAdmin } from '../middleware/middleware.js'
 import { crearNotificacion } from '../lib/notificaciones.js'
+import { enviarPush } from '../lib/push.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -61,6 +62,10 @@ r.post('/solicitudes/:id/aprobar', async (req, res, next) => {
       mensaje: 'Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde Perfil › Mis hospedajes.'
     })
     await client.query('COMMIT')
+    enviarPush(rows[0].usuario_id, {
+      titulo: '¡Solicitud aprobada!',
+      mensaje: 'Ya eres anfitrión en PetHouse. Publica tu primer hospedaje desde Perfil › Mis hospedajes.'
+    })
     res.json({ ok: true })
   } catch (err) {
     await client.query('ROLLBACK')
@@ -90,6 +95,10 @@ r.post('/solicitudes/:id/rechazar', async (req, res, next) => {
       mensaje: 'Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil.'
     })
     await client.query('COMMIT')
+    enviarPush(rows[0].usuario_id, {
+      titulo: 'Solicitud rechazada',
+      mensaje: 'Tu solicitud de anfitrión no fue aprobada esta vez. Puedes volver a intentarlo desde tu perfil.'
+    })
     res.json({ ok: true })
   } catch (err) {
     await client.query('ROLLBACK')
