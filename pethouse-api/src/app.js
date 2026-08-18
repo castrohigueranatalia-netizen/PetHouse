@@ -3,6 +3,7 @@
 // ============================================================
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -26,6 +27,17 @@ import { ALLOWED_ORIGINS } from './config.js'
 
 const app = express()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Headers de seguridad HTTP (auditoría §5): antes no había ninguno configurado, ni
+// siquiera los básicos. `helmet()` agrega de una vez los que un escáner de seguridad
+// espera encontrar — Strict-Transport-Security, X-Content-Type-Options,
+// X-Frame-Options/frame-ancestors, Content-Security-Policy por defecto, entre otros.
+// `crossOriginResourcePolicy: 'cross-origin'` es la única parte que hay que pisar: el
+// valor por defecto de helmet ('same-origin') bloquearía que /uploads, /privado/
+// verificacion y /semilla sirvan sus imágenes si alguna vez se cargan desde un origen
+// distinto (ej. un futuro panel de admin web) — la app iOS nativa no se ve afectada de
+// ninguna forma por esto, pero un consumidor basado en navegador sí lo notaría.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
 
 // Sin ALLOWED_ORIGINS configurado, `cors()` sigue abierto (ver config.js) — necesario para
 // no romper apps nativas (no envían Origin) ni el desarrollo local.
