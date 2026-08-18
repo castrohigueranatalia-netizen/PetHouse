@@ -75,6 +75,14 @@ public enum PHDate {
         return display.string(from: date)
     }
 
+    /// Formatea un `TIMESTAMPTZ` completo (`creado_en`) a texto legible en español, ej.
+    /// "9 ago 2026" — usado por el historial de reservas del anfitrión (ver
+    /// HistorialReservasView), donde importa CUÁNDO se hizo la reserva, no la estadía.
+    public static func displayFromTimestamp(_ raw: String) -> String {
+        guard let date = parseTimestamp(raw) else { return raw }
+        return display.string(from: date)
+    }
+
     /// Tiempo relativo en español, ej. "hace 2 horas" — usado por el historial de
     /// notificaciones (ver NotificacionesView). Si el timestamp no se puede interpretar,
     /// cae al string original en vez de mostrar algo confuso.

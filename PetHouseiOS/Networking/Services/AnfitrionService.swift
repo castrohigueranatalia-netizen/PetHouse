@@ -12,6 +12,11 @@ import Foundation
 public protocol AnfitrionServicing: Sendable {
     func misHospedajes() async throws -> [Hospedaje]
     func reservasRecibidas(hospedajeId: String) async throws -> [Reserva]
+    /// TODAS las reservas de TODOS mis hospedajes, cualquier estado — el historial completo
+    /// (ver Features/Anfitrion/HistorialReservasView.swift), a diferencia de
+    /// `reservasRecibidas`, que es una sola propiedad y solo tiene sentido para las
+    /// pendientes de aceptar/rechazar.
+    func historialReservas() async throws -> [Reserva]
 
     /// Envía la verificación de seguridad — activa `Usuario.esAnfitrion` en el servidor
     /// si tiene éxito (ver pethouse-api/src/routes/anfitrion.js).
@@ -39,6 +44,12 @@ public final class AnfitrionService: AnfitrionServicing, @unchecked Sendable {
 
     public func reservasRecibidas(hospedajeId: String) async throws -> [Reserva] {
         let request = APIRequest(method: "GET", path: "/hospedajes/\(hospedajeId)/reservas", requiresAuth: true)
+        let response: ReservasRecibidasResponse = try await client.send(request)
+        return response.reservas
+    }
+
+    public func historialReservas() async throws -> [Reserva] {
+        let request = APIRequest(method: "GET", path: "/hospedajes/mios/reservas", requiresAuth: true)
         let response: ReservasRecibidasResponse = try await client.send(request)
         return response.reservas
     }

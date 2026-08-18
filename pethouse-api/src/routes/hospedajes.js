@@ -170,6 +170,30 @@ r.get('/mios', auth, soloAnfitrion, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ---- Historial: TODAS las reservas de TODOS mis hospedajes (anfitrión) ----
+// IMPORTANTE: debe ir antes de GET /:id/reservas (si no, Express interpreta "mios" como :id).
+// A diferencia de /:id/reservas (una sola propiedad, con acciones de aceptar/rechazar), esta
+// es de solo lectura — la tabla de historial de la app (ver Features/Anfitrion/
+// HistorialReservasView.swift), con TODOS los estados (no solo pendientes) para que el
+// anfitrión vea el panorama completo de cuánto ha ganado con cada hospedaje.
+r.get('/mios/reservas', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { rows } = await pool.query(
+      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
+              u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
+              ${MASCOTAS_DETALLE_SQL}
+         FROM reservas rs
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios u ON u.id = rs.usuario_id
+        WHERE h.anfitrion_id = $1
+        ORDER BY rs.creado_en DESC`,
+      [req.usuario.id]
+    )
+    res.json({ reservas: rows })
+  } catch (err) { next(err) }
+})
+
 // ---- Reservas recibidas en un hospedaje propio ----
 r.get('/:id/reservas', auth, async (req, res, next) => {
   try {

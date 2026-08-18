@@ -63,25 +63,30 @@ struct MisHospedajesView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: PHSpacing.s16) {
+                    botonHistorial
+
                     ForEach(viewModel.hospedajes) { hospedaje in
                         VStack(alignment: .leading, spacing: PHSpacing.s8) {
+                            // El botón de editar va ARRIBA de la imagen, a la derecha — un
+                            // ícono de 40pt, mucho más fácil de ver y de tocar que el texto
+                            // chico que tenía antes debajo de la tarjeta.
+                            HStack {
+                                Spacer()
+                                PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(hospedaje.titulo)") {
+                                    hospedajeParaEditar = hospedaje
+                                }
+                            }
+
                             Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
                             }
                             .buttonStyle(.plain)
 
-                            HStack(spacing: PHSpacing.s16) {
-                                NavigationLink {
-                                    ReservasRecibidasView(hospedaje: hospedaje)
-                                } label: {
-                                    Label("Ver reservas recibidas", systemImage: "calendar")
-                                        .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
-                                }
-
-                                Button { hospedajeParaEditar = hospedaje } label: {
-                                    Label("Editar", systemImage: "pencil")
-                                        .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
-                                }
+                            NavigationLink {
+                                ReservasRecibidasView(hospedaje: hospedaje)
+                            } label: {
+                                Label("Ver reservas recibidas", systemImage: "calendar")
+                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
                             }
                             .padding(.horizontal, PHSpacing.s4)
                         }
@@ -90,5 +95,23 @@ struct MisHospedajesView: View {
                 .padding(PHSpacing.s16)
             }
         }
+    }
+
+    /// Botón mediano al principio de la lista — lleva al historial de TODAS las reservas de
+    /// TODOS los hospedajes (ver HistorialReservasView), a diferencia de "Ver reservas
+    /// recibidas" de cada tarjeta, que es solo de ese hospedaje y solo pensada para
+    /// aceptar/rechazar solicitudes pendientes.
+    private var botonHistorial: some View {
+        NavigationLink {
+            HistorialReservasView()
+        } label: {
+            Label("Historial de reservas", systemImage: "clock.arrow.circlepath")
+                .frame(maxWidth: .infinity)
+                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.primary)
+                .padding(.vertical, PHSpacing.s12)
+                .background(PHColor.primaryContainer)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
