@@ -20,18 +20,29 @@ struct LoginView: View {
 
                 if let viewModel {
                     VStack(spacing: PHSpacing.s16) {
-                        PHTextField(
-                            label: "Correo",
-                            placeholder: "tú@correo.com",
-                            text: Binding(get: { viewModel.email }, set: { viewModel.email = $0 }),
-                            errorMessage: viewModel.errorEmailMostrable,
-                            keyboardType: .emailAddress,
-                            textContentType: .username,
-                            autocapitalization: .never
-                        )
-                        .focused($campoActivo, equals: .email)
-                        .submitLabel(.next)
-                        .onSubmit { campoActivo = .password }
+                        VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                            PHTextField(
+                                label: "Correo",
+                                placeholder: "tú@correo.com",
+                                text: Binding(get: { viewModel.email }, set: { viewModel.email = $0 }),
+                                errorMessage: viewModel.errorEmailMostrable,
+                                keyboardType: .emailAddress,
+                                textContentType: .username,
+                                autocapitalization: .never
+                            )
+                            .focused($campoActivo, equals: .email)
+                            .submitLabel(.next)
+                            .onSubmit { campoActivo = .password }
+
+                            // Desplegable de correos guardados por "Recuérdame" — solo
+                            // mientras el campo de correo tiene el foco, para no tapar el
+                            // resto del formulario el resto del tiempo. Elegir uno rellena
+                            // también la contraseña de una (ver `seleccionarCuenta`), así
+                            // cambiar de cuenta no obliga a volver a escribirla.
+                            if campoActivo == .email, !viewModel.cuentasRecordadas.isEmpty {
+                                cuentasGuardadas(viewModel)
+                            }
+                        }
 
                         PHTextField(
                             label: "Contraseña",
@@ -85,6 +96,33 @@ struct LoginView: View {
             if viewModel == nil { viewModel = LoginViewModel(session: session) }
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func cuentasGuardadas(_ viewModel: LoginViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(viewModel.cuentasRecordadas) { cuenta in
+                if cuenta.id != viewModel.cuentasRecordadas.first?.id {
+                    Divider()
+                }
+                Button {
+                    viewModel.seleccionarCuenta(cuenta)
+                    campoActivo = .password
+                } label: {
+                    HStack(spacing: PHSpacing.s8) {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(PHColor.muted)
+                        Text(cuenta.email)
+                            .phText(PHFont.bodySM, color: PHColor.ink)
+                        Spacer()
+                    }
+                    .padding(PHSpacing.s12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
     }
 
     private var encabezado: some View {
