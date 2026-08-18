@@ -45,6 +45,14 @@ struct LoginView: View {
                         .submitLabel(.go)
                         .onSubmit { enviar(viewModel) }
 
+                        Toggle(
+                            "Recuérdame",
+                            isOn: Binding(get: { viewModel.recuerdame }, set: { viewModel.recuerdame = $0 })
+                        )
+                        .toggleStyle(.switch)
+                        .tint(PHColor.primary)
+                        .phText(PHFont.bodySM, color: PHColor.ink)
+
                         if let errorGeneral = viewModel.errorGeneral {
                             Text(errorGeneral)
                                 .phText(PHFont.bodySM, color: PHColor.error)

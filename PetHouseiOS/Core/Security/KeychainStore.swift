@@ -28,6 +28,14 @@ public final class KeychainStore: KeychainStoring, @unchecked Sendable {
     public enum Llave: String {
         case accessToken = "co.pethouse.accessToken"
         case refreshToken = "co.pethouse.refreshToken"
+        // Credenciales de "Recuérdame" (ver LoginViewModel) — a propósito NO se borran en
+        // `borrarTodo()`: esa función se llama al cerrar sesión o cuando el refresh token
+        // expira, y el punto de "Recuérdame" es que el correo/contraseña sigan precargados
+        // la próxima vez que la persona vuelva a la pantalla de inicio de sesión, aunque
+        // haya cerrado sesión mientras tanto. Solo se borran si la persona desmarca la
+        // casilla y vuelve a iniciar sesión (ver LoginViewModel.iniciarSesion()).
+        case emailRecordado = "co.pethouse.emailRecordado"
+        case passwordRecordada = "co.pethouse.passwordRecordada"
     }
 
     public enum KeychainError: Error {
