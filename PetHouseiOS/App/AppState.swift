@@ -269,9 +269,11 @@ public final class SessionStore {
     // MARK: - Push (APNs)
 
     /// Pide el permiso de notificaciones al sistema y, si el usuario lo acepta, registra
-    /// el dispositivo ante Apple. Se llama una vez al arrancar, después de `iniciar()`
-    /// (ver PetHouseApp.swift) — con o sin sesión, para no perder el permiso si lo pide
-    /// como invitado y luego inicia sesión.
+    /// el dispositivo ante Apple. La llama `MainTabView` (ver RootView.swift) una vez que
+    /// hay sesión iniciada y la ventana ya está completamente visible — pedirlo antes,
+    /// desde `PetHouseApp` al arrancar, hacía que el diálogo del sistema no se mostrara
+    /// bien y la app pareciera congelada en el arranque (mismo principio que el resto de
+    /// permisos del proyecto: justo antes de usarse, nunca al abrir la app).
     ///
     /// Sin la capacidad "Push Notifications" habilitada en Xcode (requiere cuenta de pago
     /// de Apple Developer Program), `registerForRemoteNotifications()` termina en

@@ -6,11 +6,12 @@
 //  `SessionStore` y arranca la verificación de sesión guardada en Keychain antes de
 //  mostrar la primera pantalla real (ver `RootView`).
 //
-//  Notificaciones push: se pide el permiso y se registra el dispositivo apenas arranca
-//  (ver `AppDelegate.swift` y `SessionStore.solicitarPermisoPush()`/`registrarTokenPush(_:)`).
-//  Sin la capacidad "Push Notifications" habilitada en Xcode (requiere cuenta de pago de
-//  Apple Developer Program), el registro falla de forma esperada y silenciosa — el resto
-//  de la app funciona igual.
+//  Notificaciones push: el permiso se pide desde `MainTabView` (ver RootView.swift), NO
+//  acá — pedirlo en este `.task`, antes de que la ventana esté completamente visible, hacía
+//  que el diálogo del sistema no se mostrara bien y la app pareciera congelada en el
+//  arranque (mismo principio que el resto de permisos del proyecto: se piden justo antes de
+//  usarse, nunca al abrir la app). Acá solo se prepara el puente del device token — ver
+//  `AppDelegate.swift` y `SessionStore.registrarTokenPush(_:)`.
 //
 
 import SwiftUI
@@ -42,7 +43,6 @@ struct PetHouseApp: App {
                         Task { @MainActor in store.registrarTokenPush(token) }
                     }
                     await sessionStore.iniciar()
-                    await sessionStore.solicitarPermisoPush()
                 }
         }
     }

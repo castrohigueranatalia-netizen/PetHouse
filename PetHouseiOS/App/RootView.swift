@@ -92,6 +92,14 @@ struct MainTabView: View {
         // (ver SessionStore.abrirVerificacionAlEntrar): salta a la pestaña Perfil, que a su
         // vez empuja VerificacionAnfitrionView al ver la misma señal en `true`.
         .task { if session.abrirVerificacionAlEntrar { pestanaSeleccionada = .perfil } }
+        // Pide el permiso de notificaciones push acá, no en PetHouseApp — para cuando esto
+        // corre, la ventana ya está completamente visible (mismo principio que el resto de
+        // permisos del proyecto: justo antes de usarse, nunca al abrir la app). Pedirlo antes
+        // de que la ventana esté lista hacía que el diálogo del sistema no se mostrara bien
+        // y la app pareciera congelada en el arranque. `requestAuthorization` no vuelve a
+        // preguntar si el usuario ya respondió antes, así que repetirlo en cada apertura de
+        // esta vista (cada vez que se pasa de invitado a autenticado) es seguro.
+        .task { await session.solicitarPermisoPush() }
         .onChange(of: session.abrirVerificacionAlEntrar) { _, abrir in
             if abrir { pestanaSeleccionada = .perfil }
         }
