@@ -17,6 +17,7 @@
 import { Router } from 'express'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
+import { firmarVerificacion } from '../lib/urlsPrivadas.js'
 
 const r = Router()
 
@@ -33,7 +34,7 @@ r.get('/verificacion', auth, async (req, res, next) => {
       'SELECT * FROM verificaciones_anfitrion WHERE usuario_id = $1',
       [req.usuario.id]
     )
-    res.json({ verificacion: rows[0] || null })
+    res.json({ verificacion: firmarVerificacion(rows[0]) || null })
   } catch (err) { next(err) }
 })
 
@@ -93,7 +94,7 @@ r.post('/verificacion', auth, async (req, res, next) => {
       [req.usuario.id, String(nombreLegal).trim(), String(cedula).trim(), certificadoPolicialUrl,
        comoArreglo(referencias), fotosPersonaArr, fotosViviendaArr]
     )
-    res.status(201).json({ verificacion: rows[0] })
+    res.status(201).json({ verificacion: firmarVerificacion(rows[0]) })
   } catch (err) { next(err) }
 })
 

@@ -77,9 +77,11 @@ public final class VerificacionAnfitrionViewModel {
     }
 
     /// Pasado a cada `PHAdjuntarFotos` — sube el archivo y devuelve la URL, o `nil` si falla
-    /// (la vista ya muestra su propio mensaje de error en ese caso).
+    /// (la vista ya muestra su propio mensaje de error en ese caso). `privado: true`: esta
+    /// es la única pantalla que sube cédula/antecedentes/fotos de verificación — el
+    /// servidor las guarda separadas de las fotos públicas (ver ImagenesService.swift).
     public func subirFoto(_ datos: Data) async -> String? {
-        try? await imagenesService.subir(datos: datos, nombreArchivo: "adjunto.jpg", mimeType: "image/jpeg")
+        try? await imagenesService.subir(datos: datos, nombreArchivo: "adjunto.jpg", mimeType: "image/jpeg", privado: true)
     }
 
     public func enviar() async {

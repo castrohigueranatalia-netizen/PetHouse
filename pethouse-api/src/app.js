@@ -15,7 +15,7 @@ import chatRoutes from './routes/chat.js'
 import iaRoutes from './routes/ia.js'
 import mascotasRoutes from './routes/mascotas.js'
 import favoritosRoutes from './routes/favoritos.js'
-import subidasRoutes, { uploadsDir } from './routes/subidas.js'
+import subidasRoutes, { uploadsDir, verificacionPrivadaRouter } from './routes/subidas.js'
 import anfitrionVerificacionRoutes from './routes/anfitrion.js'
 import adminRoutes from './routes/admin.js'
 import usuariosRoutes from './routes/usuarios.js'
@@ -33,6 +33,10 @@ app.use(cors(ALLOWED_ORIGINS ? { origin: ALLOWED_ORIGINS } : undefined))
 app.use(express.json({ limit: '1mb' }))
 // Archivos subidos vía POST /api/subidas (ver routes/subidas.js) — servidos como estáticos.
 app.use('/uploads', express.static(uploadsDir))
+// Fotos de verificación de anfitrión (cédula, antecedentes, persona, vivienda) — NUNCA
+// públicas: viven fuera de `uploadsDir` y solo se sirven con una URL firmada de corta
+// duración (ver lib/urlsPrivadas.js y routes/subidas.js).
+app.use('/privado/verificacion', verificacionPrivadaRouter)
 // Fotos reales de ejemplo (db/02-seed.sql las referencia como rutas relativas
 // "/semilla/g1.jpg" etc. — antes eran nombres sin sentido como "guarderia-1", que no
 // resolvían a ninguna imagen real desde un cliente nativo). Copiadas de ../_src/ (las

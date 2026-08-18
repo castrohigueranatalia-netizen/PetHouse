@@ -11,6 +11,7 @@ import { pool } from '../config.js'
 import { auth, soloAdmin } from '../middleware/middleware.js'
 import { crearNotificacion } from '../lib/notificaciones.js'
 import { enviarPush } from '../lib/push.js'
+import { firmarVerificacion } from '../lib/urlsPrivadas.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -39,7 +40,7 @@ r.get('/solicitudes', async (req, res, next) => {
         ORDER BY v.creado_en DESC`,
       params
     )
-    res.json({ total: rows.length, solicitudes: rows })
+    res.json({ total: rows.length, solicitudes: rows.map(firmarVerificacion) })
   } catch (err) { next(err) }
 })
 

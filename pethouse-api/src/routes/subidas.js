@@ -1,6 +1,7 @@
 // ============================================================
-// PETHOUSE API · Módulo Subidas (imágenes de perfil, mascota, hospedaje)
+// PETHOUSE API · Módulo Subidas (imágenes de perfil, mascota, hospedaje, verificación)
 // POST /api/subidas  (multipart/form-data, campo "archivo")
+// GET  /privado/verificacion/:archivo?exp=...&sig=...  (fotos de verificación, firmadas)
 //
 // Antes no existía ningún endpoint de subida (gap BLOQUEANTE #1, ver
 // ARCHITECTURE_AUDIT.md §6): un anfitrión no podía publicar fotos reales ni un dueño poner
@@ -14,6 +15,13 @@
 // S3/Cloudinary como la migración natural cuando el tráfico lo amerite — cambiar el
 // storage detrás de este mismo endpoint no requiere tocar el cliente (sigue recibiendo una
 // URL en la misma forma).
+//
+// Fotos de VERIFICACIÓN DE ANFITRIÓN (cédula, certificado de antecedentes, fotos de la
+// persona/vivienda) son un caso aparte: es el dato más sensible de toda la app, así que NO
+// van a `uploadsDir` (público, servido sin control de acceso) sino a `uploadsPrivadoDir`,
+// una carpeta que express.static nunca toca. Solo se leen con una URL firmada de corta
+// duración — ver lib/urlsPrivadas.js para el porqué completo del diseño. El cliente pide
+// esto mandando `POST /api/subidas?tipo=verificacion` en vez de `POST /api/subidas`.
 // ============================================================
 import { Router } from 'express'
 import multer from 'multer'
@@ -23,10 +31,13 @@ import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { auth } from '../middleware/middleware.js'
 import { PUBLIC_BASE_URL } from '../config.js'
+import { PREFIJO_PRIVADO, verificarFirma } from '../lib/urlsPrivadas.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export const uploadsDir = path.join(__dirname, '..', '..', 'uploads')
+export const uploadsPrivadoDir = path.join(__dirname, '..', '..', 'uploads-privado')
 fs.mkdirSync(uploadsDir, { recursive: true })
+fs.mkdirSync(uploadsPrivadoDir, { recursive: true })
 
 // image/* para fotos (perfil, mascota, hospedaje, verificación de anfitrión) y
 // application/pdf para documentos (ej. certificado de antecedentes policiales, si el
@@ -39,7 +50,11 @@ const EXTENSION_POR_TIPO = {
 }
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  // `req.query.tipo`, no `req.body.tipo`: multer procesa el multipart en streaming, en el
+  // mismo orden en que llegan las partes — un campo de texto que viniera DESPUÉS del
+  // archivo en el body todavía no estaría disponible acá. El query string, en cambio, ya
+  // se conoce completo desde el principio de la petición.
+  destination: (req, _file, cb) => cb(null, req.query.tipo === 'verificacion' ? uploadsPrivadoDir : uploadsDir),
   filename: (_req, file, cb) => {
     const ext = EXTENSION_POR_TIPO[file.mimetype] || path.extname(file.originalname) || ''
     cb(null, `${randomUUID()}${ext}`)
@@ -77,8 +92,33 @@ r.post('/', auth, (req, res, next) => {
     // este mismo MVP). Con la URL relativa, el cliente la resuelve SIEMPRE contra la IP
     // ACTUAL configurada (ver `MediaURL.resolver` en iOS), así que sigue funcionando sin
     // importar cuántas veces cambie la red.
-    const url = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/uploads/${req.file.filename}` : `/uploads/${req.file.filename}`
+    const rutaRelativa = req.query.tipo === 'verificacion'
+      ? `${PREFIJO_PRIVADO}${req.file.filename}`
+      : `/uploads/${req.file.filename}`
+    const url = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}${rutaRelativa}` : rutaRelativa
     res.status(201).json({ url })
+  })
+})
+
+// ---- Sirve una foto de verificación, solo con una URL firmada y vigente ----
+// Sin `auth` a propósito — la firma en la URL YA es la credencial (ver lib/urlsPrivadas.js
+// para el porqué). Una URL sin firma, con firma incorrecta, o vencida (15 min) no sirve
+// para nada: no hay forma de "adivinar" una firma válida sin conocer JWT_SECRET.
+export const verificacionPrivadaRouter = Router()
+verificacionPrivadaRouter.get('/:archivo', (req, res) => {
+  const { archivo } = req.params
+  const { exp, sig } = req.query
+  // El nombre siempre lo genera el servidor con randomUUID() + una extensión conocida (ver
+  // `filename` arriba) — cualquier otra forma (con "..", "/", etc.) es, en el mejor de los
+  // casos, un enlace corrupto y, en el peor, un intento de salirse de uploadsPrivadoDir.
+  if (!/^[a-f0-9-]{36}\.(jpg|png|webp|heic|heif|pdf)$/i.test(archivo)) {
+    return res.status(400).json({ error: 'Nombre de archivo inválido.' })
+  }
+  if (!verificarFirma(archivo, exp, sig)) {
+    return res.status(403).json({ error: 'Enlace inválido o vencido.' })
+  }
+  res.sendFile(path.join(uploadsPrivadoDir, archivo), (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'Archivo no encontrado.' })
   })
 })
 

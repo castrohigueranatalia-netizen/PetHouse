@@ -2,16 +2,24 @@
 //  ImagenesService.swift
 //  Networking/Services
 //
-//  🔴 No existe endpoint de subida de imágenes (gap BLOQUEANTE #1, ver
-//  ARCHITECTURE_AUDIT.md §6 y Core/Models/SubidaDTO.swift). Compartido por Perfil,
-//  Mascotas y Anfitrión (publicar hospedaje) — todos necesitan "subir una foto" y
-//  todos deben mostrar el mismo estado "función pendiente" hasta que exista storage.
+//  Sube un archivo a POST /api/subidas (perfil, mascota, hospedaje) o, con `privado:
+//  true`, a POST /api/subidas?tipo=verificacion — cédula/antecedentes/fotos de la
+//  verificación de anfitrión, que el servidor guarda aparte y solo sirve con una URL
+//  firmada de corta duración (ver pethouse-api/src/lib/urlsPrivadas.js). El único llamador
+//  que pasa `privado: true` es VerificacionAnfitrionViewModel; el resto (Perfil, Mascotas,
+//  Publicar hospedaje) usa el valor por defecto `false` sin tener que cambiar nada.
 //
 
 import Foundation
 
 public protocol ImagenesServicing: Sendable {
-    func subir(datos: Data, nombreArchivo: String, mimeType: String) async throws -> String
+    func subir(datos: Data, nombreArchivo: String, mimeType: String, privado: Bool) async throws -> String
+}
+
+public extension ImagenesServicing {
+    func subir(datos: Data, nombreArchivo: String, mimeType: String) async throws -> String {
+        try await subir(datos: datos, nombreArchivo: nombreArchivo, mimeType: mimeType, privado: false)
+    }
 }
 
 public final class ImagenesService: ImagenesServicing, @unchecked Sendable {
@@ -21,10 +29,8 @@ public final class ImagenesService: ImagenesServicing, @unchecked Sendable {
         self.client = client
     }
 
-    /// Multipart/form-data manual (sin dependencias de terceros). Como la ruta no existe
-    /// hoy, esto siempre va a terminar en `AppError.rutaNoImplementada` contra el backend
-    /// actual — se deja implementado por completo para que funcione el día que exista.
-    public func subir(datos: Data, nombreArchivo: String, mimeType: String) async throws -> String {
+    /// Multipart/form-data manual (sin dependencias de terceros).
+    public func subir(datos: Data, nombreArchivo: String, mimeType: String, privado: Bool = false) async throws -> String {
         let boundary = "PetHouse-\(UUID().uuidString)"
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -33,8 +39,9 @@ public final class ImagenesService: ImagenesServicing, @unchecked Sendable {
         body.append(datos)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
+        let queryItems = privado ? [URLQueryItem(name: "tipo", value: "verificacion")] : []
         let request = APIRequest(
-            method: "POST", path: "/subidas", body: body,
+            method: "POST", path: "/subidas", queryItems: queryItems, body: body,
             contentType: "multipart/form-data; boundary=\(boundary)", requiresAuth: true
         )
         let response: SubidaImagenResponse = try await client.send(request)
