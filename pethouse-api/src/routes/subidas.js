@@ -26,6 +26,7 @@
 import { Router } from 'express'
 import multer from 'multer'
 import sharp from 'sharp'
+import { fileTypeFromFile } from 'file-type'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -123,9 +124,23 @@ r.post('/', auth, (req, res, next) => {
     if (err) return res.status(400).json({ error: err.message })
     if (!req.file) return res.status(400).json({ error: 'Falta el archivo (campo "archivo").' })
 
+    const carpeta = req.query.tipo === 'verificacion' ? uploadsPrivadoDir : uploadsDir
+    const rutaGuardada = path.join(carpeta, req.file.filename)
+
+    // El filtro de multer (`fileFilter` arriba) solo mira el `Content-Type` que declaró
+    // quien sube el archivo — un campo que pone el cliente, así que se puede falsificar
+    // (ej. subir un ejecutable con Content-Type: image/jpeg). Acá se abren los primeros
+    // bytes del archivo YA guardado y se detecta el formato real por su firma binaria
+    // (magic number) — si no coincide con ninguno de los tipos permitidos, se rechaza y se
+    // borra, sin importar lo que decía el header.
+    const tipoReal = await fileTypeFromFile(rutaGuardada).catch(() => undefined)
+    if (!tipoReal || !TIPOS_PERMITIDOS.has(tipoReal.mime)) {
+      fs.unlinkSync(rutaGuardada)
+      return res.status(400).json({ error: 'El archivo no es una imagen o PDF válido.' })
+    }
+
     let nombreArchivo = req.file.filename
     if (req.file.mimetype.startsWith('image/')) {
-      const carpeta = req.query.tipo === 'verificacion' ? uploadsPrivadoDir : uploadsDir
       const comprimido = await recomprimir(req.file.filename, carpeta)
       if (comprimido) nombreArchivo = comprimido
     }
