@@ -1,17 +1,27 @@
 // ============================================================
 // PETHOUSE API · Módulo Auth
 // POST /api/auth/registro · /login · /refresh · /logout · /logout-todo · /me
+// POST /api/auth/olvide-password · /restablecer-password
 // ============================================================
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
+import { randomInt, createHash } from 'node:crypto'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { emitirTokens, renovarRefresh, revocarRefresh, revocarTodasLasSesiones } from '../lib/tokens.js'
 import { limitadorAuth } from '../middleware/rateLimit.js'
+import { enviarCorreo } from '../lib/correo.js'
 
 const r = Router()
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function generarCodigo() {
+  return String(randomInt(0, 1000000)).padStart(6, '0')
+}
+function hashCodigo(codigo) {
+  return createHash('sha256').update(codigo).digest('hex')
+}
 
 // `limitadorAuth` va PUNTUAL en /registro y /login, no en todo este router (antes estaba en
 // app.js como `app.use('/api/auth', limitadorAuth, authRoutes)`) — /refresh, /logout, /me y
@@ -111,6 +121,72 @@ r.post('/logout', async (req, res, next) => {
   try {
     const { refreshToken } = req.body || {}
     if (refreshToken) await revocarRefresh(refreshToken)
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+// ---- "Olvidé mi contraseña" (paso 1): envía un código de 6 dígitos por correo ----
+// Responde igual exista o no una cuenta con ese correo — a propósito, para no dejar que
+// alguien use este endpoint para averiguar qué correos están registrados en PetHouse.
+r.post('/olvide-password', limitadorAuth, async (req, res, next) => {
+  try {
+    const { email } = req.body || {}
+    if (!email || !EMAIL_RE.test(String(email))) {
+      return res.status(400).json({ error: 'Ingresa un correo válido.' })
+    }
+    const correo = String(email).trim().toLowerCase()
+    const { rows } = await pool.query('SELECT id, nombre FROM usuarios WHERE email = $1', [correo])
+
+    if (rows.length) {
+      const codigo = generarCodigo()
+      await pool.query(
+        `INSERT INTO restablecimientos_password (usuario_id, codigo_hash, expira_en)
+         VALUES ($1, $2, now() + interval '15 minutes')`,
+        [rows[0].id, hashCodigo(codigo)]
+      )
+      // Sin await a propósito: un correo lento/fallido no debe demorar la respuesta
+      // (mismo principio que enviarPush) — y de todos modos la respuesta es genérica.
+      enviarCorreo({
+        para: correo,
+        asunto: 'Tu código para restablecer tu contraseña en PetHouse',
+        texto: `Hola ${rows[0].nombre},\n\nTu código para restablecer tu contraseña en PetHouse es: ${codigo}\n\nVence en 15 minutos. Si no lo pediste tú, ignora este mensaje — tu cuenta sigue segura.`
+      })
+    }
+
+    res.json({ ok: true, mensaje: 'Si el correo existe, te enviamos un código de 6 dígitos.' })
+  } catch (err) { next(err) }
+})
+
+// ---- "Olvidé mi contraseña" (paso 2): confirma el código y guarda la contraseña nueva ----
+r.post('/restablecer-password', limitadorAuth, async (req, res, next) => {
+  try {
+    const { email, codigo, passwordNueva } = req.body || {}
+    if (!email || !codigo) return res.status(400).json({ error: 'Faltan datos.' })
+    if (!passwordNueva || String(passwordNueva).length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' })
+    }
+
+    const correo = String(email).trim().toLowerCase()
+    const { rows: usuarios } = await pool.query('SELECT id FROM usuarios WHERE email = $1', [correo])
+    // Mismo mensaje genérico tanto si el correo no existe como si el código está mal —
+    // no hay forma de distinguir "correo equivocado" de "código equivocado" desde afuera.
+    if (!usuarios.length) return res.status(400).json({ error: 'Código incorrecto o vencido.' })
+
+    const { rows } = await pool.query(
+      `SELECT id FROM restablecimientos_password
+        WHERE usuario_id = $1 AND codigo_hash = $2 AND NOT usado AND expira_en > now()
+        ORDER BY creado_en DESC LIMIT 1`,
+      [usuarios[0].id, hashCodigo(String(codigo).trim())]
+    )
+    if (!rows.length) return res.status(400).json({ error: 'Código incorrecto o vencido.' })
+
+    const hash = await bcrypt.hash(String(passwordNueva), 10)
+    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, usuarios[0].id])
+    await pool.query('UPDATE restablecimientos_password SET usado = TRUE WHERE id = $1', [rows[0].id])
+    // Cierra TODAS las sesiones existentes de esta cuenta — si alguien más tenía acceso
+    // con la contraseña vieja (o un refresh token robado), queda fuera apenas se cambia.
+    await revocarTodasLasSesiones(usuarios[0].id)
+
     res.json({ ok: true })
   } catch (err) { next(err) }
 })

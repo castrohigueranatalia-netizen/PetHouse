@@ -9,6 +9,7 @@ struct LoginView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel: LoginViewModel?
     @State private var mostrarRegistro = false
+    @State private var mostrarOlvidePassword = false
     @FocusState private var campoActivo: Campo?
 
     private enum Campo { case email, password }
@@ -74,6 +75,11 @@ struct LoginView: View {
                             enviar(viewModel)
                         }
                         .disabled(!viewModel.puedeEnviar)
+
+                        PHTextButton("¿Olvidaste tu contraseña?") {
+                            mostrarOlvidePassword = true
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
 
                     HStack {
@@ -91,6 +97,9 @@ struct LoginView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $mostrarRegistro) {
             RegistroView()
+        }
+        .navigationDestination(isPresented: $mostrarOlvidePassword) {
+            OlvidePasswordView()
         }
         .onAppear {
             if viewModel == nil { viewModel = LoginViewModel(session: session) }
