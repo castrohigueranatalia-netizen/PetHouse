@@ -25,6 +25,7 @@
 // ============================================================
 import { Router } from 'express'
 import multer from 'multer'
+import sharp from 'sharp'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -72,16 +73,62 @@ const upload = multer({
   }
 })
 
+// Recomprime una imagen ya guardada en disco: reduce su tamaño máximo, la pasa a JPEG y
+// (con `.rotate()`, sin pedirle que conserve metadata) le quita los metadatos EXIF —
+// incluida la ubicación GPS, si la cámara la guardó, algo que ni el usuario ni PetHouse
+// necesitan que viaje pegado a la foto. Devuelve el nombre del archivo final (puede
+// terminar en .jpg aunque haya entrado como .png/.heic/etc.) o `null` si no se pudo
+// recomprimir (formato raro, HEIC sin soporte en este servidor, etc.) — en ese caso se dice
+// que se deje el original tal cual: mejor una foto pesada que perder la subida por completo.
+//
+// Nota: el cliente iOS (ver Core/Utils/ImagenComprimida.swift) YA comprime cada foto antes
+// de subirla (máx. 1600px, JPEG calidad 0.7) — así que para la app de hoy esto es una
+// segunda pasada redundante. Se agrega igual como red de seguridad del lado del servidor:
+// cubre cualquier subida que no pase por ese camino (una futura integración, alguien
+// llamando la API directo) y, sobre todo, es la única capa que de verdad limpia el EXIF —
+// el cliente no lo hace hoy.
+async function recomprimir(archivo, carpeta) {
+  const rutaOriginal = path.join(carpeta, archivo)
+  const base = path.basename(archivo, path.extname(archivo))
+  const nombreFinal = `${base}.jpg`
+  const rutaFinal = path.join(carpeta, nombreFinal)
+  // Sharp no permite leer y escribir el MISMO archivo a la vez — pasa justo cuando la
+  // subida ya venía en .jpg (nombreFinal == archivo). Se escribe siempre a un archivo
+  // temporal aparte y se renombra al final, sea cual sea la extensión de entrada.
+  const rutaTemporal = path.join(carpeta, `${base}.tmp-${randomUUID()}.jpg`)
+  try {
+    await sharp(rutaOriginal)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toFile(rutaTemporal)
+    fs.renameSync(rutaTemporal, rutaFinal) // reemplaza el destino de forma atómica si ya existía
+    if (rutaOriginal !== rutaFinal) fs.unlinkSync(rutaOriginal)
+    return nombreFinal
+  } catch (err) {
+    console.error('No se pudo recomprimir la imagen (se deja el original):', err.message)
+    if (fs.existsSync(rutaTemporal)) fs.unlinkSync(rutaTemporal)
+    return null
+  }
+}
+
 const r = Router()
 
 r.post('/', auth, (req, res, next) => {
-  upload.single('archivo')(req, res, (err) => {
+  upload.single('archivo')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'La imagen no puede pesar más de 8MB.' : err.message
       return res.status(400).json({ error: mensaje })
     }
     if (err) return res.status(400).json({ error: err.message })
     if (!req.file) return res.status(400).json({ error: 'Falta el archivo (campo "archivo").' })
+
+    let nombreArchivo = req.file.filename
+    if (req.file.mimetype.startsWith('image/')) {
+      const carpeta = req.query.tipo === 'verificacion' ? uploadsPrivadoDir : uploadsDir
+      const comprimido = await recomprimir(req.file.filename, carpeta)
+      if (comprimido) nombreArchivo = comprimido
+    }
 
     // Con PUBLIC_BASE_URL configurado (producción, dominio fijo): URL absoluta con ese
     // dominio. SIN configurar (caso normal en desarrollo): URL RELATIVA (`/uploads/...`),
@@ -93,8 +140,8 @@ r.post('/', auth, (req, res, next) => {
     // ACTUAL configurada (ver `MediaURL.resolver` en iOS), así que sigue funcionando sin
     // importar cuántas veces cambie la red.
     const rutaRelativa = req.query.tipo === 'verificacion'
-      ? `${PREFIJO_PRIVADO}${req.file.filename}`
-      : `/uploads/${req.file.filename}`
+      ? `${PREFIJO_PRIVADO}${nombreArchivo}`
+      : `/uploads/${nombreArchivo}`
     const url = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}${rutaRelativa}` : rutaRelativa
     res.status(201).json({ url })
   })
