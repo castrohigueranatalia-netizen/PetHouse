@@ -2,7 +2,7 @@
 // PETHOUSE API · Tokens JWT (access) + refresh rotativo
 // ============================================================
 import jwt from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import { JWT_SECRET, pool } from '../config.js'
 
 const ACCESS_TTL = '15m'        // access token: 15 minutos
@@ -12,13 +12,26 @@ export function firmarAccess(usuario) {
   return jwt.sign({ uid: usuario.id, rol: usuario.rol }, JWT_SECRET, { expiresIn: ACCESS_TTL })
 }
 
-// Crea el refresh token, lo guarda en la tabla `sesiones` y lo devuelve
+// La tabla `sesiones` guarda un HASH del refresh token, no el token en sí (mismo principio
+// que las contraseñas: si alguna vez se filtra un backup o hay una fuga de datos, un
+// refresh token en texto plano es usable de inmediato por quien lo tenga, sin tener que
+// "romper" nada — hashearlo hace que la fuga por sí sola no alcance para tomar la sesión de
+// nadie). SHA-256 (no bcrypt) porque el token YA tiene su propia entropía alta (dos UUID
+// random, ver `crearRefresh`) — a diferencia de una contraseña elegida por una persona, acá
+// no hace falta un hash lento diseñado contra fuerza bruta de diccionario.
+function hashToken(token) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+// Crea el refresh token, guarda su HASH en la tabla `sesiones` y devuelve el token real
+// (el único momento en que existe en texto plano es en la respuesta al cliente, que lo
+// guarda en su Keychain — ver PetHouseiOS/Core/Security/KeychainStore.swift).
 export async function crearRefresh(usuarioId, userAgent) {
   const token = randomUUID() + randomUUID()
   await pool.query(
     `INSERT INTO sesiones (usuario_id, refresh_token, user_agent, expira_en)
      VALUES ($1, $2, $3, now() + interval '${REFRESH_DIAS} days')`,
-    [usuarioId, token, userAgent || null]
+    [usuarioId, hashToken(token), userAgent || null]
   )
   return token
 }
@@ -45,12 +58,19 @@ export async function renovarRefresh(refreshToken) {
        FROM sesiones s
        JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.refresh_token = $1 AND s.expira_en > now()`,
-    [refreshToken]
+    [hashToken(refreshToken)]
   )
   if (!rows.length) return null
   return rows[0]
 }
 
 export async function revocarRefresh(refreshToken) {
-  await pool.query('DELETE FROM sesiones WHERE refresh_token = $1', [refreshToken])
+  await pool.query('DELETE FROM sesiones WHERE refresh_token = $1', [hashToken(refreshToken)])
+}
+
+// Cierra TODAS las sesiones de un usuario en todos sus dispositivos (ej. si sospecha que
+// perdió el teléfono, o como medida general al detectar algo raro) — a diferencia de
+// `revocarRefresh`, que solo cierra la sesión de ESTE refresh token puntual.
+export async function revocarTodasLasSesiones(usuarioId) {
+  await pool.query('DELETE FROM sesiones WHERE usuario_id = $1', [usuarioId])
 }

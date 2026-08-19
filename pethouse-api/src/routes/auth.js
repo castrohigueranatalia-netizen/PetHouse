@@ -1,12 +1,12 @@
 // ============================================================
 // PETHOUSE API · Módulo Auth
-// POST /api/auth/registro · /login · /refresh · /logout · /me
+// POST /api/auth/registro · /login · /refresh · /logout · /logout-todo · /me
 // ============================================================
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
-import { emitirTokens, renovarRefresh, revocarRefresh } from '../lib/tokens.js'
+import { emitirTokens, renovarRefresh, revocarRefresh, revocarTodasLasSesiones } from '../lib/tokens.js'
 import { limitadorAuth } from '../middleware/rateLimit.js'
 
 const r = Router()
@@ -81,14 +81,28 @@ r.post('/login', limitadorAuth, async (req, res, next) => {
 })
 
 // ---- Renovar sesión con el refresh token ----
+// Rotativo: el refresh token que se usa acá queda revocado de inmediato y se emite uno
+// nuevo — así, si alguna vez un refresh token se filtra y alguien más lo usa, el dueño
+// legítimo lo nota en su próximo refresh normal (el token que él tenía ya no sirve, porque
+// quien lo robó ya lo "gastó" primero) en vez de que ambos sigan usándolo en paralelo
+// hasta que venza solo, hasta 30 días después.
 r.post('/refresh', async (req, res, next) => {
   try {
     const { refreshToken } = req.body || {}
     if (!refreshToken) return res.status(400).json({ error: 'Falta el refresh token.' })
     const usuario = await renovarRefresh(refreshToken)
     if (!usuario) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' })
+    await revocarRefresh(refreshToken)
     const tokens = await emitirTokens(usuario, req.headers['user-agent'])
     res.json({ usuario, ...tokens })
+  } catch (err) { next(err) }
+})
+
+// ---- Cerrar sesión en TODOS los dispositivos (ej. sospecha de robo del teléfono) ----
+r.post('/logout-todo', auth, async (req, res, next) => {
+  try {
+    await revocarTodasLasSesiones(req.usuario.id)
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 
