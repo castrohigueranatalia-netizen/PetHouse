@@ -120,7 +120,88 @@
   }
   .btnSecundario:hover { background: var(--border); }
 
-  main { max-width: 1080px; margin: 0 auto; padding: 28px; }
+  .shell { display: flex; max-width: 1240px; margin: 0 auto; align-items: flex-start; }
+  .sidebar {
+    width: 190px;
+    flex-shrink: 0;
+    padding: 24px 14px;
+    position: sticky;
+    top: 65px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .navItem {
+    background: none;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .navItem:hover { background: var(--surface-2); color: var(--ink); }
+  .navItem.activo { background: var(--coral); color: #fff; }
+
+  main { flex: 1; min-width: 0; padding: 28px 28px 28px 0; }
+  .vista.oculto { display: none; }
+
+  .buscador {
+    width: 100%;
+    max-width: 320px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    margin-bottom: 16px;
+    font-family: inherit;
+  }
+  .buscador:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+  .filaClicable { cursor: pointer; }
+  .filaClicable:hover td { background: var(--surface-2); }
+
+  .modalFondo {
+    position: fixed;
+    inset: 0;
+    background: rgba(36,30,27,.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+  .modalCaja {
+    background: var(--surface);
+    border-radius: var(--radius);
+    max-width: 560px;
+    width: 100%;
+    padding: 28px 28px 32px;
+    position: relative;
+    box-shadow: var(--shadow);
+  }
+  .modalCerrar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--surface-2);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  .modalCerrar:hover { background: var(--border); }
+  .fichaTitulo { font-size: 1.2rem; font-weight: 800; margin: 0 0 2px; }
+  .fichaSub { color: var(--muted); font-size: .85rem; margin: 0 0 20px; }
+  .fichaSeccion { margin-bottom: 18px; }
+  .fichaSeccion h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 0 0 8px; }
+  .fichaFila { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: .88rem; border-bottom: 1px solid var(--surface-2); }
+  .fichaFila:last-child { border-bottom: none; }
+  .fichaFila span:first-child { color: var(--muted); }
 
   .grid-stats {
     display: grid;
@@ -202,31 +283,92 @@
       <button class="btnSecundario" id="btnLogout">Cerrar sesión</button>
     </header>
 
-    <main>
-      <div id="cargandoDatos" class="cargando">Cargando…</div>
+    <div class="shell">
+      <nav class="sidebar">
+        <button class="navItem" data-vista="resumen">Resumen</button>
+        <button class="navItem" data-vista="usuarios">Usuarios</button>
+        <button class="navItem" data-vista="hospedajes">Hospedajes</button>
+        <button class="navItem" data-vista="reservas">Reservas</button>
+        <button class="navItem" data-vista="verificacion">Verificación</button>
+      </nav>
 
-      <div id="contenido" class="oculto">
-        <div class="grid-stats" id="gridStats"></div>
+      <main>
+        <div id="cargandoDatos" class="cargando">Cargando…</div>
 
-        <section class="panel">
-          <h2>Reservas por estado</h2>
-          <p class="desc">Todas las reservas hechas en la app, agrupadas por su estado actual.</p>
-          <table id="tablaEstados"></table>
-        </section>
+        <div id="contenido" class="oculto">
+          <!-- ---- Resumen ---- -->
+          <section id="vistaResumen" class="vista">
+            <div class="grid-stats" id="gridStats"></div>
 
-        <section class="panel">
-          <h2>Reservas por ciudad</h2>
-          <p class="desc">En qué ciudades se están haciendo reservas.</p>
-          <table id="tablaCiudades"></table>
-        </section>
+            <section class="panel">
+              <h2>Reservas por estado</h2>
+              <p class="desc">Todas las reservas hechas en la app, agrupadas por su estado actual.</p>
+              <table id="tablaEstados"></table>
+            </section>
 
-        <section class="panel">
-          <h2>Solicitudes de anfitrión pendientes</h2>
-          <p class="desc">Revisa la cédula, el certificado de antecedentes y las fotos antes de aprobar o rechazar.</p>
-          <div id="listaSolicitudes"></div>
-        </section>
-      </div>
-    </main>
+            <section class="panel">
+              <h2>Reservas por ciudad</h2>
+              <p class="desc">En qué ciudades se están haciendo reservas.</p>
+              <table id="tablaCiudades"></table>
+            </section>
+          </section>
+
+          <!-- ---- Usuarios ---- -->
+          <section id="vistaUsuarios" class="vista oculto">
+            <section class="panel">
+              <h2>Usuarios</h2>
+              <p class="desc">Clientes (con sus mascotas) y anfitriones. Toca una fila para ver el detalle.</p>
+              <input type="search" id="buscarUsuarios" class="buscador" placeholder="Buscar por nombre o correo…">
+              <table id="tablaUsuarios"></table>
+            </section>
+          </section>
+
+          <!-- ---- Hospedajes ---- -->
+          <section id="vistaHospedajes" class="vista oculto">
+            <section class="panel">
+              <h2>Hospedajes</h2>
+              <p class="desc">Todos los hospedajes publicados, por ubicación y anfitrión.</p>
+              <table id="tablaHospedajes"></table>
+            </section>
+          </section>
+
+          <!-- ---- Reservas ---- -->
+          <section id="vistaReservas" class="vista oculto">
+            <section class="panel">
+              <h2>Reservas</h2>
+              <p class="desc">Activas, cumplidas o canceladas, con su valor.</p>
+              <select id="filtroEstadoReservas" class="buscador">
+                <option value="">Todas</option>
+                <option value="activa">Activas (pendiente + confirmada)</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="confirmada">Confirmadas</option>
+                <option value="completada">Completadas</option>
+                <option value="cancelada">Canceladas</option>
+                <option value="rechazada">Rechazadas</option>
+              </select>
+              <table id="tablaReservas"></table>
+            </section>
+          </section>
+
+          <!-- ---- Verificación ---- -->
+          <section id="vistaVerificacion" class="vista oculto">
+            <section class="panel">
+              <h2>Solicitudes de anfitrión pendientes</h2>
+              <p class="desc">Revisa la cédula, el certificado de antecedentes y las fotos antes de aprobar o rechazar.</p>
+              <div id="listaSolicitudes"></div>
+            </section>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: detalle de usuario ============ -->
+  <div id="modalUsuario" class="modalFondo oculto">
+    <div class="modalCaja">
+      <button class="modalCerrar" id="btnCerrarModal" aria-label="Cerrar">✕</button>
+      <div id="modalContenido"></div>
+    </div>
   </div>
 
 <script src="app.js"></script>

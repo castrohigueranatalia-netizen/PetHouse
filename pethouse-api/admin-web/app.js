@@ -138,8 +138,8 @@ async function cargarSolicitudes() {
     fila.className = 'solicitud'
     fila.innerHTML = `
       <div class="info">
-        <b>${s.usuario_nombre}</b>
-        <span>${s.usuario_email} · Cédula ${s.cedula}</span>
+        <b>${esc(s.usuario_nombre)}</b>
+        <span>${esc(s.usuario_email)} · Cédula ${esc(s.cedula)}</span>
       </div>
       <div class="acciones">
         <button class="btnAprobar">Aprobar</button>
@@ -150,6 +150,174 @@ async function cargarSolicitudes() {
     contenedor.append(fila)
   }
 }
+
+// ---- Utilidad: texto de usuario/base de datos SIEMPRE escapado antes de meterlo en
+// innerHTML — un nombre o correo con caracteres como "<" no debe interpretarse como HTML.
+function esc(valor) {
+  const div = document.createElement('div')
+  div.textContent = valor ?? ''
+  return div.innerHTML
+}
+
+const FORMATO_MONEDA = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+const FORMATO_FECHA = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+function formatoFecha(iso) { return iso ? FORMATO_FECHA.format(new Date(iso)) : '—' }
+
+// ---- Navegación entre secciones ----
+
+// El resumen solo necesita el CONTEO de solicitudes pendientes (ya viene incluido en
+// /admin/estadisticas) — la lista completa con botones de aprobar/rechazar es de la
+// pestaña Verificación, no se carga acá.
+const CARGADORES_VISTA = {
+  resumen: () => cargarEstadisticas(),
+  usuarios: () => cargarUsuarios(),
+  hospedajes: () => cargarHospedajes(),
+  reservas: () => cargarReservas(),
+  verificacion: () => cargarSolicitudes()
+}
+
+async function mostrarVista(nombre) {
+  document.querySelectorAll('.navItem').forEach(b => b.classList.toggle('activo', b.dataset.vista === nombre))
+  document.querySelectorAll('.vista').forEach(v => v.classList.toggle('oculto', v.id !== `vista${capitalizar(nombre)}`))
+  try {
+    await CARGADORES_VISTA[nombre]()
+  } catch (err) {
+    if (err.message !== 'sesión expirada') alert(err.message)
+  }
+}
+function capitalizar(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
+
+document.querySelectorAll('.navItem').forEach(btn => {
+  btn.addEventListener('click', () => mostrarVista(btn.dataset.vista))
+})
+
+// ---- Usuarios ----
+
+let filtroUsuarios = ''
+let temporizadorBusqueda = null
+
+async function cargarUsuarios() {
+  const { usuarios } = await llamarApi(`/admin/usuarios?porPagina=100&q=${encodeURIComponent(filtroUsuarios)}`)
+  const tabla = $('#tablaUsuarios')
+  if (!usuarios.length) {
+    tabla.innerHTML = '<tr><td class="vacio">No hay usuarios que coincidan.</td></tr>'
+    return
+  }
+  tabla.innerHTML = '<tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Mascotas</th><th>Reservas</th><th>Hospedajes</th></tr>' +
+    usuarios.map(u => `
+      <tr class="filaClicable" data-id="${u.id}">
+        <td>${esc(u.nombre)}</td>
+        <td>${esc(u.email)}</td>
+        <td>${u.es_anfitrion ? 'Anfitrión' : 'Cliente'}</td>
+        <td>${u.num_mascotas}</td>
+        <td>${u.num_reservas}</td>
+        <td>${u.num_hospedajes}</td>
+      </tr>`
+    ).join('')
+  tabla.querySelectorAll('tr.filaClicable').forEach(fila => {
+    fila.addEventListener('click', () => mostrarDetalleUsuario(fila.dataset.id))
+  })
+}
+
+$('#buscarUsuarios').addEventListener('input', (e) => {
+  filtroUsuarios = e.target.value
+  clearTimeout(temporizadorBusqueda)
+  temporizadorBusqueda = setTimeout(cargarUsuarios, 350)
+})
+
+async function mostrarDetalleUsuario(id) {
+  const modal = $('#modalUsuario')
+  const contenido = $('#modalContenido')
+  contenido.innerHTML = '<div class="cargando">Cargando…</div>'
+  modal.classList.remove('oculto')
+  try {
+    const d = await llamarApi(`/admin/usuarios/${id}`)
+    const u = d.usuario
+    let html = `
+      <div class="fichaTitulo">${esc(u.nombre)}</div>
+      <div class="fichaSub">${esc(u.email)} · ${u.es_anfitrion ? 'Anfitrión' : 'Cliente'} · desde ${formatoFecha(u.creado_en)}</div>
+      <div class="fichaSeccion">
+        <h3>Datos</h3>
+        <div class="fichaFila"><span>Teléfono</span><span>${esc(u.telefono) || '—'}</span></div>
+        <div class="fichaFila"><span>Rol</span><span>${esc(u.rol)}</span></div>
+      </div>`
+
+    if (d.mascotas.length) {
+      html += `<div class="fichaSeccion"><h3>Mascotas (${d.mascotas.length})</h3>` +
+        d.mascotas.map(m => `<div class="fichaFila"><span>${esc(m.nombre)}</span><span>${esc(m.especie)}${m.raza ? ' · ' + esc(m.raza) : ''}</span></div>`).join('') +
+        `</div>`
+    }
+    if (d.hospedajes.length) {
+      html += `<div class="fichaSeccion"><h3>Hospedajes (${d.hospedajes.length})</h3>` +
+        d.hospedajes.map(h => `<div class="fichaFila"><span>${esc(h.titulo)}</span><span>${esc(h.localidad) || esc(h.ciudad)}</span></div>`).join('') +
+        `</div>`
+    }
+    if (d.verificacion) {
+      html += `<div class="fichaSeccion"><h3>Verificación de anfitrión</h3>` +
+        `<div class="fichaFila"><span>Estado</span><span class="pill ${d.verificacion.estado === 'aprobado' ? 'confirmada' : d.verificacion.estado === 'rechazado' ? 'rechazada' : 'pendiente'}">${esc(d.verificacion.estado)}</span></div>` +
+        `</div>`
+    }
+    if (d.reservas.length) {
+      html += `<div class="fichaSeccion"><h3>Últimas reservas (${d.reservas.length})</h3>` +
+        d.reservas.map(r => `<div class="fichaFila"><span>${esc(r.hospedaje_titulo)}</span><span>${FORMATO_MONEDA.format(r.total)} · ${esc(r.estado)}</span></div>`).join('') +
+        `</div>`
+    }
+    contenido.innerHTML = html
+  } catch (err) {
+    contenido.innerHTML = `<div class="errorLogin">${esc(err.message)}</div>`
+  }
+}
+
+$('#btnCerrarModal').addEventListener('click', () => $('#modalUsuario').classList.add('oculto'))
+$('#modalUsuario').addEventListener('click', (e) => { if (e.target.id === 'modalUsuario') e.currentTarget.classList.add('oculto') })
+
+// ---- Hospedajes ----
+
+async function cargarHospedajes() {
+  const { hospedajes } = await llamarApi('/admin/hospedajes?porPagina=100')
+  const tabla = $('#tablaHospedajes')
+  if (!hospedajes.length) {
+    tabla.innerHTML = '<tr><td class="vacio">Todavía no hay hospedajes publicados.</td></tr>'
+    return
+  }
+  tabla.innerHTML = '<tr><th>Hospedaje</th><th>Anfitrión</th><th>Ubicación</th><th>Precio/noche</th><th>Reservas</th><th>Estado</th></tr>' +
+    hospedajes.map(h => `
+      <tr>
+        <td>${esc(h.titulo)}</td>
+        <td>${esc(h.anfitrion_nombre)}</td>
+        <td>${esc(h.localidad) || esc(h.barrio) || esc(h.ciudad)}</td>
+        <td>${FORMATO_MONEDA.format(h.precio_noche)}</td>
+        <td>${h.num_reservas}</td>
+        <td><span class="pill ${h.activo ? 'confirmada' : 'cancelada'}">${h.activo ? 'Activo' : 'Inactivo'}</span></td>
+      </tr>`
+    ).join('')
+}
+
+// ---- Reservas ----
+
+async function cargarReservas() {
+  const estado = $('#filtroEstadoReservas').value
+  const { reservas } = await llamarApi(`/admin/reservas?porPagina=100${estado ? `&estado=${estado}` : ''}`)
+  const tabla = $('#tablaReservas')
+  if (!reservas.length) {
+    tabla.innerHTML = '<tr><td class="vacio">No hay reservas que coincidan.</td></tr>'
+    return
+  }
+  tabla.innerHTML = '<tr><th>Código</th><th>Huésped</th><th>Hospedaje</th><th>Anfitrión</th><th>Fechas</th><th>Valor</th><th>Estado</th></tr>' +
+    reservas.map(r => `
+      <tr>
+        <td>${esc(r.codigo)}</td>
+        <td>${esc(r.usuario_nombre)}</td>
+        <td>${esc(r.hospedaje_titulo)}</td>
+        <td>${esc(r.anfitrion_nombre)}</td>
+        <td>${formatoFecha(r.desde)} → ${formatoFecha(r.hasta)}</td>
+        <td>${FORMATO_MONEDA.format(r.total)}</td>
+        <td><span class="pill ${ETIQUETAS_ESTADO[r.estado] ? r.estado : ''}">${ETIQUETAS_ESTADO[r.estado] || r.estado}</span></td>
+      </tr>`
+    ).join('')
+}
+
+$('#filtroEstadoReservas').addEventListener('change', cargarReservas)
 
 async function resolverSolicitud(id, accion) {
   if (!confirm(accion === 'aprobar' ? '¿Aprobar esta solicitud de anfitrión?' : '¿Rechazar esta solicitud?')) return
@@ -167,7 +335,7 @@ async function mostrarDashboard() {
   $('#cargandoDatos').classList.remove('oculto')
   $('#contenido').classList.add('oculto')
   try {
-    await Promise.all([cargarEstadisticas(), cargarSolicitudes()])
+    await mostrarVista('resumen')
     $('#cargandoDatos').classList.add('oculto')
     $('#contenido').classList.remove('oculto')
   } catch (err) {
