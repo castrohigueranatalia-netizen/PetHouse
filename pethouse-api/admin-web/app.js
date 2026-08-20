@@ -186,7 +186,8 @@ const CARGADORES_VISTA = {
   hospedajes: () => cargarHospedajes(),
   reservas: () => cargarReservas(),
   cancelaciones: () => cargarCancelaciones(),
-  verificacion: () => cargarSolicitudes()
+  verificacion: () => cargarSolicitudes(),
+  legal: () => cargarLegal()
 }
 
 async function mostrarVista(nombre) {
@@ -344,6 +345,61 @@ async function cargarCancelaciones() {
     ? ENCABEZADO_RESERVAS + reservas.map(filaReserva).join('')
     : '<tr><td class="vacio">No hay cancelaciones ni rechazos todavía.</td></tr>'
 }
+
+// ---- Entidad legal + documentos legales ----
+
+async function cargarLegal() {
+  const { entidad, documentos } = await llamarApi('/admin/legal')
+  $('#legalNombre').value = entidad.nombre_legal || ''
+  $('#legalNit').value = entidad.nit || ''
+  $('#legalDomicilio').value = entidad.domicilio || ''
+  $('#legalCorreo').value = entidad.correo_contacto || ''
+  $('#legalTelefono').value = entidad.telefono_contacto || ''
+
+  const privacidad = documentos.find(d => d.tipo === 'privacidad')
+  const terminos = documentos.find(d => d.tipo === 'terminos')
+  $('#textoPrivacidad').value = privacidad?.contenido || ''
+  $('#textoTerminos').value = terminos?.contenido || ''
+}
+
+function mostrarGuardado(idIndicador) {
+  const el = $(idIndicador)
+  el.classList.remove('oculto')
+  setTimeout(() => el.classList.add('oculto'), 2500)
+}
+
+$('#formEntidad').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    await llamarApi('/admin/legal/entidad', {
+      method: 'PUT',
+      body: JSON.stringify({
+        nombreLegal: $('#legalNombre').value.trim(),
+        nit: $('#legalNit').value.trim(),
+        domicilio: $('#legalDomicilio').value.trim(),
+        correoContacto: $('#legalCorreo').value.trim(),
+        telefonoContacto: $('#legalTelefono').value.trim()
+      })
+    })
+    mostrarGuardado('#okEntidad')
+  } catch (err) { alert(err.message) }
+})
+
+$('#formPrivacidad').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    await llamarApi('/admin/legal/privacidad', { method: 'PUT', body: JSON.stringify({ contenido: $('#textoPrivacidad').value }) })
+    mostrarGuardado('#okPrivacidad')
+  } catch (err) { alert(err.message) }
+})
+
+$('#formTerminos').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    await llamarApi('/admin/legal/terminos', { method: 'PUT', body: JSON.stringify({ contenido: $('#textoTerminos').value }) })
+    mostrarGuardado('#okTerminos')
+  } catch (err) { alert(err.message) }
+})
 
 async function resolverSolicitud(id, accion) {
   if (!confirm(accion === 'aprobar' ? '¿Aprobar esta solicitud de anfitrión?' : '¿Rechazar esta solicitud?')) return

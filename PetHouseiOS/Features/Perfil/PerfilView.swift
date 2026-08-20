@@ -53,6 +53,8 @@ struct PerfilView: View {
 
                     seccionCuenta
 
+                    seccionLegal
+
                     PHTextButton("Cerrar sesión", role: .destructive) {
                         mostrarConfirmacionLogout = true
                     }
@@ -252,6 +254,28 @@ struct PerfilView: View {
 
             if session.usuario?.esAnfitrion == false {
                 conviertete
+            }
+        }
+    }
+
+    /// Política de privacidad y términos de uso — su contenido lo edita un administrador
+    /// desde el panel web, esta pantalla solo enlaza a mostrarlos (ver DocumentoLegalView).
+    /// Requisito de la App Store (Guideline 5.1.1) tener esto accesible dentro de la app,
+    /// no solo en App Store Connect.
+    private var seccionLegal: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text("Legal")
+                .phText(PHFont.titleMD, color: PHColor.ink)
+                .padding(.top, PHSpacing.s8)
+            NavigationLink {
+                DocumentoLegalView(tipo: .privacidad)
+            } label: {
+                filaCuenta("Política de privacidad", icono: "hand.raised")
+            }
+            NavigationLink {
+                DocumentoLegalView(tipo: .terminos)
+            } label: {
+                filaCuenta("Términos de uso", icono: "doc.text")
             }
         }
     }

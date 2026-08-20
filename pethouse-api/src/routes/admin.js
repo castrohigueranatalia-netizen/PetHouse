@@ -5,6 +5,7 @@
 // GET /api/admin/usuarios · /usuarios/:id
 // GET /api/admin/hospedajes
 // GET /api/admin/reservas
+// GET /api/admin/legal · PUT /api/admin/legal/entidad · PUT /api/admin/legal/:tipo
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -341,6 +342,54 @@ r.get('/reservas', async (req, res, next) => {
       pagina,
       porPagina
     })
+  } catch (err) { next(err) }
+})
+
+// ---- Entidad legal + documentos legales (privacidad, términos) ----
+// El lado de solo-lectura está en routes/legal.js (GET /api/legal/..., sin auth — la app
+// y quien no tenga cuenta todavía necesitan poder leerlos). Acá solo la edición.
+
+const TIPOS_DOCUMENTO_VALIDOS = ['privacidad', 'terminos']
+
+r.get('/legal', async (_req, res, next) => {
+  try {
+    const [entidad, documentos] = await Promise.all([
+      pool.query('SELECT * FROM entidad_legal WHERE id = 1'),
+      pool.query('SELECT tipo, contenido, actualizado_en FROM documentos_legales ORDER BY tipo')
+    ])
+    res.json({ entidad: entidad.rows[0], documentos: documentos.rows })
+  } catch (err) { next(err) }
+})
+
+r.put('/legal/entidad', async (req, res, next) => {
+  try {
+    const { nombreLegal, nit, domicilio, correoContacto, telefonoContacto } = req.body || {}
+    const { rows } = await pool.query(
+      `UPDATE entidad_legal
+          SET nombre_legal = $1, nit = $2, domicilio = $3, correo_contacto = $4,
+              telefono_contacto = $5, actualizado_en = now()
+        WHERE id = 1
+        RETURNING *`,
+      [nombreLegal || null, nit || null, domicilio || null, correoContacto || null, telefonoContacto || null]
+    )
+    res.json({ entidad: rows[0] })
+  } catch (err) { next(err) }
+})
+
+r.put('/legal/:tipo', async (req, res, next) => {
+  try {
+    if (!TIPOS_DOCUMENTO_VALIDOS.includes(req.params.tipo)) {
+      return res.status(404).json({ error: 'Documento no encontrado.' })
+    }
+    const { contenido } = req.body || {}
+    if (typeof contenido !== 'string') return res.status(400).json({ error: 'Falta el contenido.' })
+    const { rows } = await pool.query(
+      `UPDATE documentos_legales SET contenido = $1, actualizado_en = now()
+        WHERE tipo = $2
+        RETURNING tipo, contenido, actualizado_en`,
+      [contenido, req.params.tipo]
+    )
+    res.json({ documento: rows[0] })
   } catch (err) { next(err) }
 })
 

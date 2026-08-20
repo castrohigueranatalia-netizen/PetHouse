@@ -203,6 +203,25 @@
   .fichaFila:last-child { border-bottom: none; }
   .fichaFila span:first-child { color: var(--muted); }
 
+  /* ---- Formularios (Entidad legal, Soporte, etc.) ---- */
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .campo input[type=text], .campo input[type=email], .campo textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .9rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .campo textarea { min-height: 260px; resize: vertical; line-height: 1.5; font-family: ui-monospace, Menlo, monospace; font-size: .84rem; }
+  .campo input:focus, .campo textarea:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+  .filaCampos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  @media (max-width: 640px) { .filaCampos { grid-template-columns: 1fr; } }
+  .guardadoOk { color: var(--success); font-size: .82rem; margin-left: 10px; }
+
   .grid-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -291,6 +310,7 @@
         <button class="navItem" data-vista="reservas">Reservas</button>
         <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
         <button class="navItem" data-vista="verificacion">Verificación</button>
+        <button class="navItem" data-vista="legal">Entidad legal</button>
       </nav>
 
       <main>
@@ -372,6 +392,61 @@
                 <option value="rechazado">Rechazadas</option>
               </select>
               <div id="listaSolicitudes"></div>
+            </section>
+          </section>
+
+          <!-- ---- Entidad legal ---- -->
+          <section id="vistaLegal" class="vista oculto">
+            <section class="panel">
+              <h2>Datos de la empresa</h2>
+              <p class="desc">Se muestran en la política de privacidad y los términos de uso dentro de la app.</p>
+              <form id="formEntidad">
+                <div class="filaCampos">
+                  <div class="campo">
+                    <label for="legalNombre">Nombre legal</label>
+                    <input type="text" id="legalNombre" placeholder="Ej. PetHouse SAS">
+                  </div>
+                  <div class="campo">
+                    <label for="legalNit">NIT</label>
+                    <input type="text" id="legalNit" placeholder="Ej. 900123456-7">
+                  </div>
+                </div>
+                <div class="campo">
+                  <label for="legalDomicilio">Domicilio</label>
+                  <input type="text" id="legalDomicilio" placeholder="Ej. Bogotá, Colombia">
+                </div>
+                <div class="filaCampos">
+                  <div class="campo">
+                    <label for="legalCorreo">Correo de contacto</label>
+                    <input type="email" id="legalCorreo" placeholder="contacto@pethouse.co">
+                  </div>
+                  <div class="campo">
+                    <label for="legalTelefono">Teléfono de contacto</label>
+                    <input type="text" id="legalTelefono" placeholder="300 000 0000">
+                  </div>
+                </div>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar datos</button>
+                <span class="guardadoOk oculto" id="okEntidad">✓ Guardado</span>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Política de privacidad</h2>
+              <p class="desc">La app la muestra tal cual la escribas acá (admite texto plano o Markdown simple).</p>
+              <form id="formPrivacidad">
+                <div class="campo"><textarea id="textoPrivacidad" placeholder="Escribe aquí la política de privacidad…"></textarea></div>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar</button>
+                <span class="guardadoOk oculto" id="okPrivacidad">✓ Guardado</span>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Términos de uso</h2>
+              <form id="formTerminos">
+                <div class="campo"><textarea id="textoTerminos" placeholder="Escribe aquí los términos de uso…"></textarea></div>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar</button>
+                <span class="guardadoOk oculto" id="okTerminos">✓ Guardado</span>
+              </form>
             </section>
           </section>
         </div>
