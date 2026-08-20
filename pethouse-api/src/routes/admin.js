@@ -8,6 +8,8 @@
 // GET /api/admin/legal · PUT /api/admin/legal/entidad · PUT /api/admin/legal/:tipo
 // GET /api/admin/soporte · GET /api/admin/soporte/:id · POST /api/admin/soporte/:id/responder
 // POST /api/admin/soporte/:id/resolver
+// GET /api/admin/privacidad · GET /api/admin/privacidad/:id
+// POST /api/admin/privacidad/:id/en-proceso · POST /api/admin/privacidad/:id/responder
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -130,7 +132,7 @@ r.get('/estadisticas', async (_req, res, next) => {
 
     const [
       usuarios, anfitriones, hospedajes, reservas, reservasActivas,
-      usuariosConReserva, porEstado, pendientes, porCiudad
+      usuariosConReserva, porEstado, pendientes, porCiudad, privacidadPendientes
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios'),
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE es_anfitrion'),
@@ -145,7 +147,8 @@ r.get('/estadisticas', async (_req, res, next) => {
            FROM reservas r JOIN hospedajes h ON h.id = r.hospedaje_id
           GROUP BY h.ciudad
           ORDER BY total DESC`
-      )
+      ),
+      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_privacidad WHERE estado != 'resuelta'")
     ])
     res.json({
       totalUsuarios: usuarios.rows[0].total,
@@ -156,7 +159,8 @@ r.get('/estadisticas', async (_req, res, next) => {
       usuariosConReserva: usuariosConReserva.rows[0].total,
       reservasPorEstado: porEstado.rows,
       solicitudesPendientes: pendientes.rows[0].total,
-      reservasPorCiudad: porCiudad.rows
+      reservasPorCiudad: porCiudad.rows,
+      solicitudesPrivacidadPendientes: privacidadPendientes.rows[0].total
     })
   } catch (err) { next(err) }
 })
@@ -477,6 +481,92 @@ r.post('/soporte/:id/resolver', async (req, res, next) => {
     )
     if (!rows.length) return res.status(404).json({ error: 'Ticket no encontrado.' })
     res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+// ---- Solicitudes de privacidad — el lado del usuario está en routes/privacidad.js ----
+// Se ordenan por `vence_en` ascendente (la más urgente primero), no por fecha de creación,
+// para que el panel muestre de una vez cuál se está por vencer.
+
+const ESTADOS_PRIVACIDAD_VALIDOS = ['pendiente', 'en_proceso', 'resuelta']
+
+r.get('/privacidad', async (req, res, next) => {
+  try {
+    const { estado } = req.query
+    const condiciones = []
+    const params = []
+    if (estado) {
+      if (!ESTADOS_PRIVACIDAD_VALIDOS.includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
+      params.push(estado)
+      condiciones.push(`s.estado = $${params.length}`)
+    }
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT s.*, u.nombre AS usuario_nombre, u.email AS usuario_email
+         FROM solicitudes_privacidad s
+         JOIN usuarios u ON u.id = s.usuario_id
+         ${where}
+        ORDER BY s.vence_en ASC`,
+      params
+    )
+    res.json({ total: rows.length, solicitudes: rows })
+  } catch (err) { next(err) }
+})
+
+r.get('/privacidad/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.*, u.nombre AS usuario_nombre, u.email AS usuario_email
+         FROM solicitudes_privacidad s JOIN usuarios u ON u.id = s.usuario_id
+        WHERE s.id = $1`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada.' })
+    res.json({ solicitud: rows[0] })
+  } catch (err) { next(err) }
+})
+
+r.post('/privacidad/:id/en-proceso', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE solicitudes_privacidad SET estado = 'en_proceso', actualizado_en = now()
+        WHERE id = $1 AND estado = 'pendiente' RETURNING id`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya no está pendiente.' })
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+r.post('/privacidad/:id/responder', async (req, res, next) => {
+  try {
+    const { respuesta } = req.body || {}
+    if (!respuesta || !String(respuesta).trim()) return res.status(400).json({ error: 'Escribe una respuesta.' })
+
+    const { rows: solicitud } = await pool.query('SELECT usuario_id FROM solicitudes_privacidad WHERE id = $1', [req.params.id])
+    if (!solicitud.length) return res.status(404).json({ error: 'Solicitud no encontrada.' })
+
+    const { rows } = await pool.query(
+      `UPDATE solicitudes_privacidad
+          SET respuesta = $1, respondido_en = now(), estado = 'resuelta', actualizado_en = now()
+        WHERE id = $2
+        RETURNING *`,
+      [String(respuesta).trim(), req.params.id]
+    )
+
+    await crearNotificacion(pool, {
+      usuarioId: solicitud[0].usuario_id,
+      tipo: 'privacidad_respondida',
+      titulo: 'Respondimos tu solicitud de privacidad',
+      mensaje: 'Ya puedes ver la respuesta en Perfil › Privacidad.'
+    })
+    enviarPush(solicitud[0].usuario_id, {
+      titulo: 'Respondimos tu solicitud de privacidad',
+      mensaje: 'Ya puedes ver la respuesta en Perfil › Privacidad.'
+    })
+
+    res.json({ solicitud: rows[0] })
   } catch (err) { next(err) }
 })
 

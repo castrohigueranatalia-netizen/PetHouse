@@ -54,7 +54,7 @@ Como titular de tus datos, en cualquier momento puedes:
 - Acceder gratuitamente a tus datos personales.
 - Presentar una queja ante la Superintendencia de Industria y Comercio (SIC) si consideras que no estamos cumpliendo la ley.
 
-Para ejercer cualquiera de estos derechos, escríbenos a [correo de contacto]. Vamos a responder dentro de los plazos que establece la ley (15 días hábiles para consultas, 10 días hábiles para reclamos).
+Para ejercer cualquiera de estos derechos, escríbenos a [correo de contacto]. Vamos a responder dentro de los plazos que establece la ley (10 días hábiles para consultas, 15 días hábiles para reclamos).
 
 7. Seguridad
 

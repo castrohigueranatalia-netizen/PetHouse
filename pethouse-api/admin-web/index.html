@@ -269,6 +269,10 @@
   .pill.confirmada { background: var(--success-bg); color: var(--success); }
   .pill.completada { background: var(--surface-2); color: var(--muted); }
   .pill.cancelada, .pill.rechazada { background: var(--error-bg); color: var(--error); }
+  .pill.en_proceso { background: #E4ECF3; color: #1D5A94; }
+  .plazo { font-size: .82rem; }
+  .plazo.vencido { color: var(--error); font-weight: 700; }
+  .plazo.porVencer { color: var(--warning); font-weight: 700; }
 
   .solicitud {
     display: flex;
@@ -321,6 +325,7 @@
         <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
         <button class="navItem" data-vista="verificacion">Verificación</button>
         <button class="navItem" data-vista="soporte">Soporte</button>
+        <button class="navItem" data-vista="privacidad">Solicitudes de privacidad</button>
         <button class="navItem" data-vista="legal">Entidad legal</button>
       </nav>
 
@@ -417,6 +422,25 @@
                 <option value="resuelto">Resueltos</option>
               </select>
               <table id="tablaSoporte"></table>
+            </section>
+          </section>
+
+          <!-- ---- Solicitudes de privacidad ---- -->
+          <section id="vistaPrivacidad" class="vista oculto">
+            <section class="panel">
+              <h2>Solicitudes de privacidad</h2>
+              <p class="desc">
+                Lo que un usuario pide desde Perfil › Privacidad: conocer, corregir o eliminar sus datos, u otra
+                duda. Ordenadas por la más urgente primero — la fecha límite es un cálculo aproximado según la
+                Ley 1581 de 2012 (10 días hábiles para consultas, 15 para reclamos; no descuenta festivos).
+              </p>
+              <select id="filtroEstadoPrivacidad" class="buscador">
+                <option value="">Todas</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="en_proceso">En proceso</option>
+                <option value="resuelta">Resueltas</option>
+              </select>
+              <table id="tablaPrivacidad"></table>
             </section>
           </section>
 

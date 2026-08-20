@@ -114,6 +114,7 @@ struct NotificacionesView: View {
         case .reservaResuelta: "calendar"
         case .solicitudNueva: "bell.badge"
         case .soporteRespondido: "bubble.left.and.bubble.right"
+        case .privacidadRespondida: "hand.raised"
         }
     }
 
@@ -134,9 +135,10 @@ struct NotificacionesView: View {
             hospedajeParaAbrir = Hospedaje(
                 id: hospedajeId, titulo: "Hospedaje", tipo: .guarderia, ciudad: "Bogotá", precioNoche: 0
             )
-        case .verificacionResuelta, .soporteRespondido:
+        case .verificacionResuelta, .soporteRespondido, .privacidadRespondida:
             // Sin navegación directa desde la campana todavía — el usuario entra a ver la
-            // respuesta desde Perfil › Soporte (ver SoporteListView).
+            // respuesta desde Perfil › Soporte / Privacidad (ver SoporteListView,
+            // SolicitudPrivacidadListView).
             break
         }
     }

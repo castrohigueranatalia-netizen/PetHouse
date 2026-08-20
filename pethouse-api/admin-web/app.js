@@ -103,7 +103,8 @@ async function cargarEstadisticas() {
     tarjetaStat(e.totalHospedajes, 'Hospedajes publicados'),
     tarjetaStat(e.totalReservas, 'Reservas en total'),
     tarjetaStat(e.reservasActivas, 'Reservas activas ahora'),
-    tarjetaStat(e.solicitudesPendientes, 'Solicitudes por revisar')
+    tarjetaStat(e.solicitudesPendientes, 'Solicitudes por revisar'),
+    tarjetaStat(e.solicitudesPrivacidadPendientes, 'Solicitudes de privacidad sin resolver')
   )
 
   const tablaEstados = $('#tablaEstados')
@@ -188,6 +189,7 @@ const CARGADORES_VISTA = {
   cancelaciones: () => cargarCancelaciones(),
   verificacion: () => cargarSolicitudes(),
   soporte: () => cargarSoporte(),
+  privacidad: () => cargarPrivacidad(),
   legal: () => cargarLegal()
 }
 
@@ -428,6 +430,114 @@ async function resolverTicket(id) {
     await llamarApi(`/admin/soporte/${id}/resolver`, { method: 'POST' })
     $('#modalUsuario').classList.add('oculto')
     await cargarSoporte()
+  } catch (err) { alert(err.message) }
+}
+
+// ---- Solicitudes de privacidad ----
+
+const ETIQUETAS_CATEGORIA_PRIVACIDAD = {
+  conocer: 'Conocer sus datos', corregir: 'Corregir sus datos',
+  eliminar: 'Eliminar cuenta y datos', otra: 'Otra queja o duda'
+}
+const ETIQUETAS_PRIVACIDAD = { pendiente: 'Pendiente', en_proceso: 'En proceso', resuelta: 'Resuelta' }
+const PILL_PRIVACIDAD = { pendiente: 'pendiente', en_proceso: 'en_proceso', resuelta: 'confirmada' }
+
+// Días hábiles restantes hasta `venceEn` (aprox., no descuenta festivos — igual que el
+// cálculo del servidor, ver lib/diasHabiles.js). Solo se usa para decidir el color, no como
+// plazo legal exacto.
+function claseUrgencia(venceEn, estado) {
+  if (estado === 'resuelta') return ''
+  const msRestantes = new Date(venceEn).getTime() - Date.now()
+  if (msRestantes < 0) return 'vencido'
+  if (msRestantes < 3 * 24 * 60 * 60 * 1000) return 'porVencer'
+  return ''
+}
+
+async function cargarPrivacidad() {
+  const estado = $('#filtroEstadoPrivacidad').value
+  const { solicitudes } = await llamarApi(`/admin/privacidad${estado ? `?estado=${estado}` : ''}`)
+  const tabla = $('#tablaPrivacidad')
+  if (!solicitudes.length) {
+    tabla.innerHTML = '<tr><td class="vacio">No hay solicitudes que coincidan.</td></tr>'
+    return
+  }
+  tabla.innerHTML = '<tr><th>De</th><th>Tipo</th><th>Recibida</th><th>Vence</th><th>Estado</th></tr>' +
+    solicitudes.map(s => `
+      <tr class="filaClicable" data-id="${s.id}">
+        <td>${esc(s.usuario_nombre)}</td>
+        <td>${ETIQUETAS_CATEGORIA_PRIVACIDAD[s.categoria] || esc(s.categoria)}</td>
+        <td>${formatoFecha(s.creado_en)}</td>
+        <td><span class="plazo ${claseUrgencia(s.vence_en, s.estado)}">${formatoFecha(s.vence_en)}</span></td>
+        <td><span class="pill ${PILL_PRIVACIDAD[s.estado] || ''}">${ETIQUETAS_PRIVACIDAD[s.estado] || esc(s.estado)}</span></td>
+      </tr>`
+    ).join('')
+  tabla.querySelectorAll('tr.filaClicable').forEach(fila => {
+    fila.addEventListener('click', () => mostrarDetallePrivacidad(fila.dataset.id))
+  })
+}
+
+$('#filtroEstadoPrivacidad').addEventListener('change', cargarPrivacidad)
+
+async function mostrarDetallePrivacidad(id) {
+  const modal = $('#modalUsuario')
+  const contenido = $('#modalContenido')
+  contenido.innerHTML = '<div class="cargando">Cargando…</div>'
+  modal.classList.remove('oculto')
+  try {
+    const { solicitud: s } = await llamarApi(`/admin/privacidad/${id}`)
+    contenido.innerHTML = `
+      <div class="fichaTitulo">${ETIQUETAS_CATEGORIA_PRIVACIDAD[s.categoria] || esc(s.categoria)}</div>
+      <div class="fichaSub">${esc(s.usuario_nombre)} · ${esc(s.usuario_email)} ·
+        <span class="pill ${PILL_PRIVACIDAD[s.estado] || ''}">${ETIQUETAS_PRIVACIDAD[s.estado] || esc(s.estado)}</span>
+      </div>
+      <div class="fichaSeccion">
+        <h3>Mensaje del usuario</h3>
+        <div class="fichaFila"><span>${esc(s.mensaje)}</span></div>
+      </div>
+      <div class="fichaSeccion">
+        <h3>Plazo</h3>
+        <div class="fichaFila"><span>Recibida</span><span>${formatoFecha(s.creado_en)}</span></div>
+        <div class="fichaFila"><span>Vence (${s.plazo_dias} días hábiles)</span>
+          <span class="plazo ${claseUrgencia(s.vence_en, s.estado)}">${formatoFecha(s.vence_en)}</span></div>
+      </div>
+      ${s.respuesta ? `
+      <div class="fichaSeccion">
+        <h3>Tu respuesta</h3>
+        <div class="fichaFila"><span>${esc(s.respuesta)}</span></div>
+      </div>` : ''}
+      ${s.estado !== 'resuelta' ? `
+      <div class="cajaResponder">
+        <textarea id="textoRespuestaPrivacidad" placeholder="Escribe la respuesta que verá el usuario…"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btnPrimario" id="btnResponderPrivacidad" style="width:auto; padding:9px 18px;">Responder y cerrar</button>
+        ${s.estado === 'pendiente' ? `<button class="btnSecundario" id="btnEnProcesoPrivacidad">Marcar en proceso</button>` : ''}
+      </div>` : ''}`
+
+    const btnResponder = $('#btnResponderPrivacidad')
+    if (btnResponder) btnResponder.addEventListener('click', () => responderPrivacidad(id))
+    const btnEnProceso = $('#btnEnProcesoPrivacidad')
+    if (btnEnProceso) btnEnProceso.addEventListener('click', () => marcarEnProcesoPrivacidad(id))
+  } catch (err) {
+    contenido.innerHTML = `<div class="errorLogin">${esc(err.message)}</div>`
+  }
+}
+
+async function marcarEnProcesoPrivacidad(id) {
+  try {
+    await llamarApi(`/admin/privacidad/${id}/en-proceso`, { method: 'POST' })
+    await mostrarDetallePrivacidad(id)
+    await cargarPrivacidad()
+  } catch (err) { alert(err.message) }
+}
+
+async function responderPrivacidad(id) {
+  const respuesta = $('#textoRespuestaPrivacidad').value.trim()
+  if (!respuesta) return
+  try {
+    await llamarApi(`/admin/privacidad/${id}/responder`, { method: 'POST', body: JSON.stringify({ respuesta }) })
+    $('#modalUsuario').classList.add('oculto')
+    await cargarPrivacidad()
   } catch (err) { alert(err.message) }
 }
 

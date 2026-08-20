@@ -17,6 +17,7 @@ public enum TipoNotificacion: String, Decodable, Hashable {
     case reservaResuelta = "reserva_resuelta"
     case solicitudNueva = "solicitud_nueva"
     case soporteRespondido = "soporte_respondido"
+    case privacidadRespondida = "privacidad_respondida"
 }
 
 public struct Notificacion: Decodable, Identifiable, Hashable {

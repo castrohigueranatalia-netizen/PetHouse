@@ -283,6 +283,11 @@ struct PerfilView: View {
             } label: {
                 filaCuenta("Términos de uso", icono: "doc.text")
             }
+            NavigationLink {
+                SolicitudPrivacidadListView()
+            } label: {
+                filaCuenta("Solicitar mis datos", icono: "doc.text.magnifyingglass")
+            }
         }
     }
 
