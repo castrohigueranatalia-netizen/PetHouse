@@ -55,6 +55,14 @@ app.use('/privado/verificacion', verificacionPrivadaRouter)
 // mismas fotos de marca que usa index.html) a public/semilla con extensión real.
 app.use('/semilla', express.static(path.join(__dirname, '..', 'public', 'semilla')))
 
+// Panel de administración — página web aparte de la app de iOS (ver admin-web/index.html),
+// servida por este mismo servidor. Al vivir en el mismo origen que la API, sus peticiones
+// a /api/... son same-origin: no necesita configurar CORS aparte, y sigue funcionando
+// igual sin importar dónde termine desplegándose la API (localhost hoy, un dominio real
+// después). La autorización real la sigue haciendo el servidor (auth + soloAdmin en
+// routes/admin.js) — esta página es solo la interfaz, no un mecanismo de seguridad.
+app.use('/admin', express.static(path.join(__dirname, '..', 'admin-web')))
+
 app.get('/health', (_req, res) => res.json({ ok: true, servicio: 'pethouse-api', hora: new Date().toISOString() }))
 
 // El rate limit va DENTRO de auth.js, solo en /registro y /login (los únicos endpoints

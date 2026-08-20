@@ -12,6 +12,7 @@ import { auth, soloAdmin } from '../middleware/middleware.js'
 import { crearNotificacion } from '../lib/notificaciones.js'
 import { enviarPush } from '../lib/push.js'
 import { firmarVerificacion } from '../lib/urlsPrivadas.js'
+import { completarReservasVencidas } from '../lib/completarReservas.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -110,13 +111,28 @@ r.post('/solicitudes/:id/rechazar', async (req, res, next) => {
 })
 
 // ---- Panel de control ----
-
+// Campos originales (totalUsuarios/totalAnfitriones/totalReservas/solicitudesPendientes/
+// reservasPorCiudad) SIN TOCAR — el panel web nuevo (ver admin-web/) y la app de iOS
+// (EstadisticasAdmin.swift) leen esta misma respuesta; agregar campos es seguro (Swift
+// ignora las claves que no conoce), pero quitar o renombrar uno rompería la app.
 r.get('/estadisticas', async (_req, res, next) => {
   try {
-    const [usuarios, anfitriones, reservas, pendientes, porCiudad] = await Promise.all([
+    // Al día antes de contar — sin esto, una reserva 'confirmada' cuya fecha ya pasó
+    // seguiría contando como activa hasta que alguien más la consultara (mismo patrón que
+    // GET /reservas/mias y la búsqueda de hospedajes).
+    await completarReservasVencidas()
+
+    const [
+      usuarios, anfitriones, hospedajes, reservas, reservasActivas,
+      usuariosConReserva, porEstado, pendientes, porCiudad
+    ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios'),
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE es_anfitrion'),
+      pool.query('SELECT COUNT(*)::int AS total FROM hospedajes WHERE activo'),
       pool.query('SELECT COUNT(*)::int AS total FROM reservas'),
+      pool.query("SELECT COUNT(*)::int AS total FROM reservas WHERE estado IN ('pendiente', 'confirmada')"),
+      pool.query('SELECT COUNT(DISTINCT usuario_id)::int AS total FROM reservas'),
+      pool.query('SELECT estado, COUNT(*)::int AS total FROM reservas GROUP BY estado ORDER BY total DESC'),
       pool.query("SELECT COUNT(*)::int AS total FROM verificaciones_anfitrion WHERE estado = 'pendiente'"),
       pool.query(
         `SELECT h.ciudad, COUNT(*)::int AS total
@@ -128,7 +144,11 @@ r.get('/estadisticas', async (_req, res, next) => {
     res.json({
       totalUsuarios: usuarios.rows[0].total,
       totalAnfitriones: anfitriones.rows[0].total,
+      totalHospedajes: hospedajes.rows[0].total,
       totalReservas: reservas.rows[0].total,
+      reservasActivas: reservasActivas.rows[0].total,
+      usuariosConReserva: usuariosConReserva.rows[0].total,
+      reservasPorEstado: porEstado.rows,
       solicitudesPendientes: pendientes.rows[0].total,
       reservasPorCiudad: porCiudad.rows
     })
