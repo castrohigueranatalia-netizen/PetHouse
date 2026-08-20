@@ -12,6 +12,7 @@
 // POST /api/admin/privacidad/:id/en-proceso · POST /api/admin/privacidad/:id/responder
 // GET /api/admin/identidad · GET /api/admin/identidad/:id
 // POST /api/admin/identidad/:id/aprobar · POST /api/admin/identidad/:id/rechazar
+// GET /api/admin/reportes/resumen · /reportes/reservas.csv · /reportes/usuarios.csv
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -25,6 +26,7 @@ import { firmarVerificacion, firmarUrlPrivada } from '../lib/urlsPrivadas.js'
 import { completarReservasVencidas } from '../lib/completarReservas.js'
 import { generarCodigo, hashCodigo } from '../lib/codigos.js'
 import { enviarCorreo } from '../lib/correo.js'
+import { aCSV } from '../lib/csv.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -674,6 +676,119 @@ r.post('/identidad/:id/rechazar', async (req, res, next) => {
     })
 
     res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+// ---- Reportes (resumen + CSV descargable, filtrables por rango de fechas) ----
+// `desde`/`hasta` son fechas puras (YYYY-MM-DD, del `<input type=date>` del panel) — se
+// comparan contra `creado_en` (TIMESTAMPTZ) sumando un día a `hasta` para incluir TODO ese
+// día completo, no solo hasta la medianoche.
+
+function condicionRangoFecha(campo, desde, hasta, params) {
+  const condiciones = []
+  if (desde) { params.push(desde); condiciones.push(`${campo} >= $${params.length}`) }
+  if (hasta) { params.push(hasta); condiciones.push(`${campo} < ($${params.length}::date + interval '1 day')`) }
+  return condiciones
+}
+
+r.get('/reportes/resumen', async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { desde, hasta } = req.query
+
+    const paramsReservas = []
+    const condReservas = condicionRangoFecha('creado_en', desde, hasta, paramsReservas)
+    const whereReservas = condReservas.length ? `WHERE ${condReservas.join(' AND ')}` : ''
+
+    // El valor del negocio solo cuenta reservas que de verdad se concretaron o van a
+    // concretarse — una 'pendiente' o 'rechazada' no es plata real todavía.
+    const paramsValor = [...paramsReservas]
+    const whereValor = `WHERE ${[...condReservas, `estado IN ('confirmada', 'completada')`].join(' AND ')}`
+
+    const paramsUsuarios = []
+    const condUsuarios = condicionRangoFecha('creado_en', desde, hasta, paramsUsuarios)
+    const whereUsuarios = condUsuarios.length ? `WHERE ${condUsuarios.join(' AND ')}` : ''
+
+    const [totalReservas, valorTotal, usuariosNuevos, porEstado] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total FROM reservas ${whereReservas}`, paramsReservas),
+      pool.query(`SELECT COALESCE(SUM(total), 0)::float AS total FROM reservas ${whereValor}`, paramsValor),
+      pool.query(`SELECT COUNT(*)::int AS total FROM usuarios ${whereUsuarios}`, paramsUsuarios),
+      pool.query(`SELECT estado, COUNT(*)::int AS total FROM reservas ${whereReservas} GROUP BY estado ORDER BY total DESC`, paramsReservas)
+    ])
+
+    res.json({
+      totalReservas: totalReservas.rows[0].total,
+      valorTotal: valorTotal.rows[0].total,
+      usuariosNuevos: usuariosNuevos.rows[0].total,
+      reservasPorEstado: porEstado.rows
+    })
+  } catch (err) { next(err) }
+})
+
+r.get('/reportes/reservas.csv', async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { desde, hasta } = req.query
+    const params = []
+    const condiciones = condicionRangoFecha('rs.creado_en', desde, hasta, params)
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT rs.codigo, u.nombre AS huesped, h.titulo AS hospedaje, an.nombre AS anfitrion,
+              h.localidad, h.ciudad, to_char(rs.desde, 'YYYY-MM-DD') AS desde,
+              to_char(rs.hasta, 'YYYY-MM-DD') AS hasta, rs.noches, rs.total, rs.estado,
+              to_char(rs.creado_en, 'YYYY-MM-DD HH24:MI') AS creado_en
+         FROM reservas rs
+         JOIN usuarios u ON u.id = rs.usuario_id
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios an ON an.id = h.anfitrion_id
+         ${where}
+        ORDER BY rs.creado_en DESC`,
+      params
+    )
+    const csv = aCSV([
+      { campo: 'codigo', etiqueta: 'Código' },
+      { campo: 'huesped', etiqueta: 'Huésped' },
+      { campo: 'hospedaje', etiqueta: 'Hospedaje' },
+      { campo: 'anfitrion', etiqueta: 'Anfitrión' },
+      { campo: 'localidad', etiqueta: 'Localidad' },
+      { campo: 'ciudad', etiqueta: 'Ciudad' },
+      { campo: 'desde', etiqueta: 'Desde' },
+      { campo: 'hasta', etiqueta: 'Hasta' },
+      { campo: 'noches', etiqueta: 'Noches' },
+      { campo: 'total', etiqueta: 'Valor' },
+      { campo: 'estado', etiqueta: 'Estado' },
+      { campo: 'creado_en', etiqueta: 'Fecha de reserva' }
+    ], rows)
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', 'attachment; filename="reservas.csv"')
+    res.send(csv)
+  } catch (err) { next(err) }
+})
+
+r.get('/reportes/usuarios.csv', async (req, res, next) => {
+  try {
+    const { desde, hasta } = req.query
+    const params = []
+    const condiciones = condicionRangoFecha('creado_en', desde, hasta, params)
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT nombre, email, telefono, rol, es_anfitrion, to_char(creado_en, 'YYYY-MM-DD HH24:MI') AS creado_en
+         FROM usuarios ${where} ORDER BY creado_en DESC`,
+      params
+    )
+    const csv = aCSV([
+      { campo: 'nombre', etiqueta: 'Nombre' },
+      { campo: 'email', etiqueta: 'Correo' },
+      { campo: 'telefono', etiqueta: 'Teléfono' },
+      { campo: 'rol', etiqueta: 'Rol' },
+      { campo: 'es_anfitrion', etiqueta: 'Es anfitrión' },
+      { campo: 'creado_en', etiqueta: 'Fecha de registro' }
+    ], rows)
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', 'attachment; filename="usuarios.csv"')
+    res.send(csv)
   } catch (err) { next(err) }
 })
 

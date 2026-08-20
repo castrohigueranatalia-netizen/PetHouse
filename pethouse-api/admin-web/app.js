@@ -253,6 +253,7 @@ const CARGADORES_VISTA = {
   identidad: () => cargarIdentidad(),
   soporte: () => cargarSoporte(),
   privacidad: () => cargarPrivacidad(),
+  reportes: () => cargarReportes(),
   legal: () => cargarLegal()
 }
 
@@ -603,6 +604,70 @@ async function responderPrivacidad(id) {
     await cargarPrivacidad()
   } catch (err) { alert(err.message) }
 }
+
+// ---- Reportes (resumen + CSV descargable) ----
+
+function inicializarFechasReporte() {
+  // Solo la primera vez que se abre la pestaña — si el admin ya eligió un rango, no se lo
+  // pisamos cada vez que vuelve a esta vista.
+  if ($('#reporteDesde').value || $('#reporteHasta').value) return
+  const hoy = new Date()
+  const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+  $('#reporteDesde').value = primerDiaMes.toISOString().slice(0, 10)
+  $('#reporteHasta').value = hoy.toISOString().slice(0, 10)
+}
+
+function rangoFechasQuery() {
+  const desde = $('#reporteDesde').value
+  const hasta = $('#reporteHasta').value
+  const params = new URLSearchParams()
+  if (desde) params.set('desde', desde)
+  if (hasta) params.set('hasta', hasta)
+  return params.toString()
+}
+
+async function cargarReportes() {
+  inicializarFechasReporte()
+  const query = rangoFechasQuery()
+  const r = await llamarApi(`/admin/reportes/resumen${query ? `?${query}` : ''}`)
+  const grid = $('#gridReportes')
+  grid.innerHTML = ''
+  grid.append(
+    tarjetaStat(r.totalReservas, 'Reservas en el rango'),
+    tarjetaStat(FORMATO_MONEDA.format(r.valorTotal), 'Valor (confirmadas + completadas)'),
+    tarjetaStat(r.usuariosNuevos, 'Usuarios nuevos')
+  )
+}
+
+$('#btnAplicarReporte').addEventListener('click', cargarReportes)
+
+// A diferencia de `llamarApi` (que espera JSON), esto pide el archivo directo con el token
+// en el header, arma un blob en memoria y lo "descarga" con un <a download> temporal — así
+// el CSV nunca pasa por la URL (que quedaría en el historial del navegador).
+async function descargarCSV(ruta, nombreArchivo) {
+  try {
+    const query = rangoFechasQuery()
+    const resp = await fetch(API + ruta + (query ? `?${query}` : ''), {
+      headers: { Authorization: 'Bearer ' + tokenGuardado() }
+    })
+    if (!resp.ok) {
+      const datos = await resp.json().catch(() => ({}))
+      throw new Error(datos.error || 'No se pudo generar el reporte.')
+    }
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombreArchivo
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (err) { alert(err.message) }
+}
+
+$('#btnDescargarReservas').addEventListener('click', () => descargarCSV('/admin/reportes/reservas.csv', 'reservas.csv'))
+$('#btnDescargarUsuarios').addEventListener('click', () => descargarCSV('/admin/reportes/usuarios.csv', 'usuarios-nuevos.csv'))
 
 // ---- Entidad legal + documentos legales ----
 

@@ -206,6 +206,18 @@
   /* ---- Formularios (Entidad legal, Soporte, etc.) ---- */
   .campo { margin-bottom: 14px; }
   .campo label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .filaFechas { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+  .filaFechas .campo { margin-bottom: 0; }
+  .campo input[type=date] {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .campo input[type=date]:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
   .campo input[type=text], .campo input[type=email], .campo textarea {
     width: 100%;
     padding: 10px 12px;
@@ -335,6 +347,7 @@
         <button class="navItem" data-vista="identidad">Recuperar contraseña</button>
         <button class="navItem" data-vista="soporte">Soporte</button>
         <button class="navItem" data-vista="privacidad">Solicitudes de privacidad</button>
+        <button class="navItem" data-vista="reportes">Reportes</button>
         <button class="navItem" data-vista="legal">Entidad legal</button>
       </nav>
 
@@ -470,6 +483,32 @@
                 <option value="resuelta">Resueltas</option>
               </select>
               <table id="tablaPrivacidad"></table>
+            </section>
+          </section>
+
+          <!-- ---- Reportes ---- -->
+          <section id="vistaReportes" class="vista oculto">
+            <section class="panel">
+              <h2>Reportes</h2>
+              <p class="desc">Elige un rango de fechas (o déjalo vacío para ver todo) y descarga los datos en CSV, listos para abrir en Excel o Numbers.</p>
+              <div class="filaFechas">
+                <div class="campo">
+                  <label for="reporteDesde">Desde</label>
+                  <input type="date" id="reporteDesde">
+                </div>
+                <div class="campo">
+                  <label for="reporteHasta">Hasta</label>
+                  <input type="date" id="reporteHasta">
+                </div>
+                <button class="btnSecundario" id="btnAplicarReporte" style="align-self: flex-end; margin-bottom: 14px;">Aplicar</button>
+              </div>
+
+              <div class="grid-stats" id="gridReportes"></div>
+
+              <div style="display:flex; gap:10px; flex-wrap: wrap; margin-top: 8px;">
+                <button class="btnPrimario" id="btnDescargarReservas" style="width:auto; padding:10px 18px;">Descargar reservas (CSV)</button>
+                <button class="btnPrimario" id="btnDescargarUsuarios" style="width:auto; padding:10px 18px;">Descargar usuarios nuevos (CSV)</button>
+              </div>
             </section>
           </section>
 
