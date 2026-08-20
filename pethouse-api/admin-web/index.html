@@ -289,6 +289,7 @@
         <button class="navItem" data-vista="usuarios">Usuarios</button>
         <button class="navItem" data-vista="hospedajes">Hospedajes</button>
         <button class="navItem" data-vista="reservas">Reservas</button>
+        <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
         <button class="navItem" data-vista="verificacion">Verificación</button>
       </nav>
 
@@ -350,11 +351,26 @@
             </section>
           </section>
 
+          <!-- ---- Cancelaciones ---- -->
+          <section id="vistaCancelaciones" class="vista oculto">
+            <section class="panel">
+              <h2>Cancelaciones</h2>
+              <p class="desc">Reservas que no se concretaron — canceladas por el huésped o rechazadas por el anfitrión.</p>
+              <table id="tablaCancelaciones"></table>
+            </section>
+          </section>
+
           <!-- ---- Verificación ---- -->
           <section id="vistaVerificacion" class="vista oculto">
             <section class="panel">
-              <h2>Solicitudes de anfitrión pendientes</h2>
+              <h2>Solicitudes de anfitrión</h2>
               <p class="desc">Revisa la cédula, el certificado de antecedentes y las fotos antes de aprobar o rechazar.</p>
+              <select id="filtroEstadoSolicitudes" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="aprobado">Aprobadas</option>
+                <option value="rechazado">Rechazadas</option>
+              </select>
               <div id="listaSolicitudes"></div>
             </section>
           </section>

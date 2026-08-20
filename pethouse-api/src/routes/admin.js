@@ -307,6 +307,10 @@ r.get('/reservas', async (req, res, next) => {
     const params = []
     if (estado === 'activa') {
       condiciones.push(`rs.estado IN ('pendiente', 'confirmada')`)
+    } else if (estado === 'canceladas') {
+      // Atajo para la sección "Cancelaciones" del panel: reservas que NO se concretaron,
+      // sea porque el huésped canceló o porque el anfitrión rechazó la solicitud.
+      condiciones.push(`rs.estado IN ('cancelada', 'rechazada')`)
     } else if (estado) {
       if (!ESTADOS_RESERVA_VALIDOS.includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
       params.push(estado)

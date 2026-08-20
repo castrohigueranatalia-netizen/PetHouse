@@ -125,31 +125,43 @@ async function cargarEstadisticas() {
   }
 }
 
+const ETIQUETAS_VERIFICACION = { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado' }
+const PILL_VERIFICACION = { pendiente: 'pendiente', aprobado: 'confirmada', rechazado: 'rechazada' }
+
 async function cargarSolicitudes() {
-  const { solicitudes } = await llamarApi('/admin/solicitudes?estado=pendiente')
+  const estado = $('#filtroEstadoSolicitudes').value
+  const { solicitudes } = await llamarApi(`/admin/solicitudes${estado ? `?estado=${estado}` : ''}`)
   const contenedor = $('#listaSolicitudes')
   if (!solicitudes.length) {
-    contenedor.innerHTML = '<div class="vacio">No hay solicitudes pendientes por revisar.</div>'
+    contenedor.innerHTML = '<div class="vacio">No hay solicitudes que coincidan.</div>'
     return
   }
   contenedor.innerHTML = ''
   for (const s of solicitudes) {
     const fila = document.createElement('div')
     fila.className = 'solicitud'
+    // Los botones de aprobar/rechazar solo tienen sentido mientras sigue 'pendiente' — una
+    // ya resuelta muestra su resultado, no se puede volver a resolver desde acá.
     fila.innerHTML = `
       <div class="info">
         <b>${esc(s.usuario_nombre)}</b>
         <span>${esc(s.usuario_email)} · Cédula ${esc(s.cedula)}</span>
       </div>
       <div class="acciones">
-        <button class="btnAprobar">Aprobar</button>
-        <button class="btnRechazar">Rechazar</button>
+        ${s.estado === 'pendiente'
+          ? `<button class="btnAprobar">Aprobar</button><button class="btnRechazar">Rechazar</button>`
+          : `<span class="pill ${PILL_VERIFICACION[s.estado] || ''}">${ETIQUETAS_VERIFICACION[s.estado] || esc(s.estado)}</span>`
+        }
       </div>`
-    fila.querySelector('.btnAprobar').addEventListener('click', () => resolverSolicitud(s.id, 'aprobar'))
-    fila.querySelector('.btnRechazar').addEventListener('click', () => resolverSolicitud(s.id, 'rechazar'))
+    if (s.estado === 'pendiente') {
+      fila.querySelector('.btnAprobar').addEventListener('click', () => resolverSolicitud(s.id, 'aprobar'))
+      fila.querySelector('.btnRechazar').addEventListener('click', () => resolverSolicitud(s.id, 'rechazar'))
+    }
     contenedor.append(fila)
   }
 }
+
+$('#filtroEstadoSolicitudes').addEventListener('change', cargarSolicitudes)
 
 // ---- Utilidad: texto de usuario/base de datos SIEMPRE escapado antes de meterlo en
 // innerHTML — un nombre o correo con caracteres como "<" no debe interpretarse como HTML.
@@ -173,6 +185,7 @@ const CARGADORES_VISTA = {
   usuarios: () => cargarUsuarios(),
   hospedajes: () => cargarHospedajes(),
   reservas: () => cargarReservas(),
+  cancelaciones: () => cargarCancelaciones(),
   verificacion: () => cargarSolicitudes()
 }
 
@@ -295,29 +308,42 @@ async function cargarHospedajes() {
 
 // ---- Reservas ----
 
+// Compartida entre la tabla de Reservas y la de Cancelaciones — misma forma de fila,
+// solo cambia el filtro con el que se pidieron.
+function filaReserva(r) {
+  return `
+    <tr>
+      <td>${esc(r.codigo)}</td>
+      <td>${esc(r.usuario_nombre)}</td>
+      <td>${esc(r.hospedaje_titulo)}</td>
+      <td>${esc(r.anfitrion_nombre)}</td>
+      <td>${formatoFecha(r.desde)} → ${formatoFecha(r.hasta)}</td>
+      <td>${FORMATO_MONEDA.format(r.total)}</td>
+      <td><span class="pill ${ETIQUETAS_ESTADO[r.estado] ? r.estado : ''}">${ETIQUETAS_ESTADO[r.estado] || r.estado}</span></td>
+    </tr>`
+}
+const ENCABEZADO_RESERVAS = '<tr><th>Código</th><th>Huésped</th><th>Hospedaje</th><th>Anfitrión</th><th>Fechas</th><th>Valor</th><th>Estado</th></tr>'
+
 async function cargarReservas() {
   const estado = $('#filtroEstadoReservas').value
   const { reservas } = await llamarApi(`/admin/reservas?porPagina=100${estado ? `&estado=${estado}` : ''}`)
   const tabla = $('#tablaReservas')
-  if (!reservas.length) {
-    tabla.innerHTML = '<tr><td class="vacio">No hay reservas que coincidan.</td></tr>'
-    return
-  }
-  tabla.innerHTML = '<tr><th>Código</th><th>Huésped</th><th>Hospedaje</th><th>Anfitrión</th><th>Fechas</th><th>Valor</th><th>Estado</th></tr>' +
-    reservas.map(r => `
-      <tr>
-        <td>${esc(r.codigo)}</td>
-        <td>${esc(r.usuario_nombre)}</td>
-        <td>${esc(r.hospedaje_titulo)}</td>
-        <td>${esc(r.anfitrion_nombre)}</td>
-        <td>${formatoFecha(r.desde)} → ${formatoFecha(r.hasta)}</td>
-        <td>${FORMATO_MONEDA.format(r.total)}</td>
-        <td><span class="pill ${ETIQUETAS_ESTADO[r.estado] ? r.estado : ''}">${ETIQUETAS_ESTADO[r.estado] || r.estado}</span></td>
-      </tr>`
-    ).join('')
+  tabla.innerHTML = reservas.length
+    ? ENCABEZADO_RESERVAS + reservas.map(filaReserva).join('')
+    : '<tr><td class="vacio">No hay reservas que coincidan.</td></tr>'
 }
 
 $('#filtroEstadoReservas').addEventListener('change', cargarReservas)
+
+// ---- Cancelaciones (reservas canceladas o rechazadas) ----
+
+async function cargarCancelaciones() {
+  const { reservas } = await llamarApi('/admin/reservas?porPagina=100&estado=canceladas')
+  const tabla = $('#tablaCancelaciones')
+  tabla.innerHTML = reservas.length
+    ? ENCABEZADO_RESERVAS + reservas.map(filaReserva).join('')
+    : '<tr><td class="vacio">No hay cancelaciones ni rechazos todavía.</td></tr>'
+}
 
 async function resolverSolicitud(id, accion) {
   if (!confirm(accion === 'aprobar' ? '¿Aprobar esta solicitud de anfitrión?' : '¿Rechazar esta solicitud?')) return
