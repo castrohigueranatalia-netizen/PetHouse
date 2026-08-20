@@ -6,6 +6,8 @@
 // GET /api/admin/hospedajes
 // GET /api/admin/reservas
 // GET /api/admin/legal · PUT /api/admin/legal/entidad · PUT /api/admin/legal/:tipo
+// GET /api/admin/soporte · GET /api/admin/soporte/:id · POST /api/admin/soporte/:id/responder
+// POST /api/admin/soporte/:id/resolver
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -390,6 +392,91 @@ r.put('/legal/:tipo', async (req, res, next) => {
       [contenido, req.params.tipo]
     )
     res.json({ documento: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// ---- Soporte (buzón) — el lado del usuario está en routes/soporte.js ----
+
+r.get('/soporte', async (req, res, next) => {
+  try {
+    const { estado } = req.query
+    const condiciones = []
+    const params = []
+    if (estado) {
+      if (!['abierto', 'resuelto'].includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
+      params.push(estado)
+      condiciones.push(`t.estado = $${params.length}`)
+    }
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT t.*, u.nombre AS usuario_nombre, u.email AS usuario_email,
+              (SELECT COUNT(*)::int FROM mensajes_soporte m WHERE m.ticket_id = t.id) AS num_mensajes
+         FROM tickets_soporte t
+         JOIN usuarios u ON u.id = t.usuario_id
+         ${where}
+        ORDER BY t.actualizado_en DESC`,
+      params
+    )
+    res.json({ total: rows.length, tickets: rows })
+  } catch (err) { next(err) }
+})
+
+r.get('/soporte/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.*, u.nombre AS usuario_nombre, u.email AS usuario_email
+         FROM tickets_soporte t JOIN usuarios u ON u.id = t.usuario_id
+        WHERE t.id = $1`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Ticket no encontrado.' })
+    const { rows: mensajes } = await pool.query(
+      'SELECT id, es_admin, texto, creado_en FROM mensajes_soporte WHERE ticket_id = $1 ORDER BY creado_en ASC',
+      [req.params.id]
+    )
+    res.json({ ticket: rows[0], mensajes })
+  } catch (err) { next(err) }
+})
+
+r.post('/soporte/:id/responder', async (req, res, next) => {
+  try {
+    const { texto } = req.body || {}
+    if (!texto || !String(texto).trim()) return res.status(400).json({ error: 'Escribe una respuesta.' })
+
+    const { rows: ticket } = await pool.query('SELECT usuario_id, asunto FROM tickets_soporte WHERE id = $1', [req.params.id])
+    if (!ticket.length) return res.status(404).json({ error: 'Ticket no encontrado.' })
+
+    const { rows } = await pool.query(
+      `INSERT INTO mensajes_soporte (ticket_id, es_admin, texto) VALUES ($1, TRUE, $2)
+       RETURNING id, es_admin, texto, creado_en`,
+      [req.params.id, String(texto).trim()]
+    )
+    await pool.query(`UPDATE tickets_soporte SET actualizado_en = now() WHERE id = $1`, [req.params.id])
+
+    await crearNotificacion(pool, {
+      usuarioId: ticket[0].usuario_id,
+      tipo: 'soporte_respondido',
+      titulo: 'Te respondieron en soporte',
+      mensaje: `Hay una respuesta nueva en tu ticket "${ticket[0].asunto}".`
+    })
+    enviarPush(ticket[0].usuario_id, {
+      titulo: 'Te respondieron en soporte',
+      mensaje: `Hay una respuesta nueva en tu ticket "${ticket[0].asunto}".`
+    })
+
+    res.status(201).json({ mensaje: rows[0] })
+  } catch (err) { next(err) }
+})
+
+r.post('/soporte/:id/resolver', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE tickets_soporte SET estado = 'resuelto', actualizado_en = now() WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Ticket no encontrado.' })
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

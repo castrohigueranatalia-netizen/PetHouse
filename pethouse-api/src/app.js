@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.js'
 import usuariosRoutes from './routes/usuarios.js'
 import notificacionesRoutes from './routes/notificaciones.js'
 import legalRoutes from './routes/legal.js'
+import soporteRoutes from './routes/soporte.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
 import { limitadorIA } from './middleware/rateLimit.js'
 import { ALLOWED_ORIGINS } from './config.js'
@@ -98,6 +99,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/usuarios', usuariosRoutes)
 app.use('/api/notificaciones', notificacionesRoutes)
 app.use('/api/legal', legalRoutes)
+app.use('/api/soporte', soporteRoutes)
 
 app.use(noEncontrado)
 app.use(manejadorErrores)

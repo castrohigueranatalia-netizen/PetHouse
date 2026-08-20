@@ -236,6 +236,12 @@ struct PerfilView: View {
                 filaCuenta("Favoritos", icono: "heart")
             }
 
+            NavigationLink {
+                SoporteListView()
+            } label: {
+                filaCuenta("Soporte", icono: "bubble.left.and.bubble.right")
+            }
+
             if session.usuario?.esAnfitrion == true {
                 NavigationLink {
                     MisHospedajesView()

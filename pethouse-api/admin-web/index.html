@@ -222,6 +222,16 @@
   @media (max-width: 640px) { .filaCampos { grid-template-columns: 1fr; } }
   .guardadoOk { color: var(--success); font-size: .82rem; margin-left: 10px; }
 
+  /* ---- Hilo de soporte (dentro del modal) ---- */
+  .hilo { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; max-height: 320px; overflow-y: auto; }
+  .burbuja { max-width: 85%; padding: 10px 13px; border-radius: 12px; font-size: .87rem; line-height: 1.4; }
+  .burbuja.usuario { background: var(--surface-2); align-self: flex-start; }
+  .burbuja.admin { background: var(--coral); color: #fff; align-self: flex-end; }
+  .burbuja .quien { display: block; font-size: .7rem; opacity: .7; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .cajaResponder { display: flex; gap: 8px; margin-top: 12px; }
+  .cajaResponder textarea { flex: 1; min-height: 60px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: .87rem; background: var(--bg); color: var(--ink); }
+  .cajaResponder textarea:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
   .grid-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -310,6 +320,7 @@
         <button class="navItem" data-vista="reservas">Reservas</button>
         <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
         <button class="navItem" data-vista="verificacion">Verificación</button>
+        <button class="navItem" data-vista="soporte">Soporte</button>
         <button class="navItem" data-vista="legal">Entidad legal</button>
       </nav>
 
@@ -392,6 +403,20 @@
                 <option value="rechazado">Rechazadas</option>
               </select>
               <div id="listaSolicitudes"></div>
+            </section>
+          </section>
+
+          <!-- ---- Soporte ---- -->
+          <section id="vistaSoporte" class="vista oculto">
+            <section class="panel">
+              <h2>Soporte</h2>
+              <p class="desc">Mensajes que los usuarios escriben desde la app. Toca uno para leer el hilo y responder.</p>
+              <select id="filtroEstadoSoporte" class="buscador">
+                <option value="abierto">Abiertos</option>
+                <option value="">Todos</option>
+                <option value="resuelto">Resueltos</option>
+              </select>
+              <table id="tablaSoporte"></table>
             </section>
           </section>
 

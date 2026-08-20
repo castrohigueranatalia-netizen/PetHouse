@@ -187,6 +187,7 @@ const CARGADORES_VISTA = {
   reservas: () => cargarReservas(),
   cancelaciones: () => cargarCancelaciones(),
   verificacion: () => cargarSolicitudes(),
+  soporte: () => cargarSoporte(),
   legal: () => cargarLegal()
 }
 
@@ -344,6 +345,90 @@ async function cargarCancelaciones() {
   tabla.innerHTML = reservas.length
     ? ENCABEZADO_RESERVAS + reservas.map(filaReserva).join('')
     : '<tr><td class="vacio">No hay cancelaciones ni rechazos todavía.</td></tr>'
+}
+
+// ---- Soporte ----
+
+const ETIQUETAS_SOPORTE = { abierto: 'Abierto', resuelto: 'Resuelto' }
+const PILL_SOPORTE = { abierto: 'pendiente', resuelto: 'confirmada' }
+
+async function cargarSoporte() {
+  const estado = $('#filtroEstadoSoporte').value
+  const { tickets } = await llamarApi(`/admin/soporte${estado ? `?estado=${estado}` : ''}`)
+  const tabla = $('#tablaSoporte')
+  if (!tickets.length) {
+    tabla.innerHTML = '<tr><td class="vacio">No hay tickets que coincidan.</td></tr>'
+    return
+  }
+  tabla.innerHTML = '<tr><th>Asunto</th><th>De</th><th>Mensajes</th><th>Última actividad</th><th>Estado</th></tr>' +
+    tickets.map(t => `
+      <tr class="filaClicable" data-id="${t.id}">
+        <td>${esc(t.asunto)}</td>
+        <td>${esc(t.usuario_nombre)}</td>
+        <td>${t.num_mensajes}</td>
+        <td>${formatoFecha(t.actualizado_en)}</td>
+        <td><span class="pill ${PILL_SOPORTE[t.estado] || ''}">${ETIQUETAS_SOPORTE[t.estado] || esc(t.estado)}</span></td>
+      </tr>`
+    ).join('')
+  tabla.querySelectorAll('tr.filaClicable').forEach(fila => {
+    fila.addEventListener('click', () => mostrarDetalleTicket(fila.dataset.id))
+  })
+}
+
+$('#filtroEstadoSoporte').addEventListener('change', cargarSoporte)
+
+async function mostrarDetalleTicket(id) {
+  const modal = $('#modalUsuario')
+  const contenido = $('#modalContenido')
+  contenido.innerHTML = '<div class="cargando">Cargando…</div>'
+  modal.classList.remove('oculto')
+  try {
+    const { ticket, mensajes } = await llamarApi(`/admin/soporte/${id}`)
+    contenido.innerHTML = `
+      <div class="fichaTitulo">${esc(ticket.asunto)}</div>
+      <div class="fichaSub">${esc(ticket.usuario_nombre)} · ${esc(ticket.usuario_email)} ·
+        <span class="pill ${PILL_SOPORTE[ticket.estado] || ''}">${ETIQUETAS_SOPORTE[ticket.estado] || esc(ticket.estado)}</span>
+      </div>
+      <div class="hilo" id="hiloTicket">
+        ${mensajes.map(m => `
+          <div class="burbuja ${m.es_admin ? 'admin' : 'usuario'}">
+            <span class="quien">${m.es_admin ? 'Tú (soporte)' : esc(ticket.usuario_nombre)}</span>
+            ${esc(m.texto)}
+          </div>`
+        ).join('')}
+      </div>
+      <div class="cajaResponder">
+        <textarea id="textoRespuesta" placeholder="Escribe una respuesta…"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btnPrimario" id="btnResponderTicket" style="width:auto; padding:9px 18px;">Responder</button>
+        ${ticket.estado === 'abierto' ? `<button class="btnSecundario" id="btnResolverTicket">Marcar resuelto</button>` : ''}
+      </div>`
+
+    $('#btnResponderTicket').addEventListener('click', () => responderTicket(id))
+    const btnResolver = $('#btnResolverTicket')
+    if (btnResolver) btnResolver.addEventListener('click', () => resolverTicket(id))
+  } catch (err) {
+    contenido.innerHTML = `<div class="errorLogin">${esc(err.message)}</div>`
+  }
+}
+
+async function responderTicket(id) {
+  const texto = $('#textoRespuesta').value.trim()
+  if (!texto) return
+  try {
+    await llamarApi(`/admin/soporte/${id}/responder`, { method: 'POST', body: JSON.stringify({ texto }) })
+    await mostrarDetalleTicket(id)
+    await cargarSoporte()
+  } catch (err) { alert(err.message) }
+}
+
+async function resolverTicket(id) {
+  try {
+    await llamarApi(`/admin/soporte/${id}/resolver`, { method: 'POST' })
+    $('#modalUsuario').classList.add('oculto')
+    await cargarSoporte()
+  } catch (err) { alert(err.message) }
 }
 
 // ---- Entidad legal + documentos legales ----
