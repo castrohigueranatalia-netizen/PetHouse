@@ -35,9 +35,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // `crossOriginResourcePolicy: 'cross-origin'` es la única parte que hay que pisar: el
 // valor por defecto de helmet ('same-origin') bloquearía que /uploads, /privado/
 // verificacion y /semilla sirvan sus imágenes si alguna vez se cargan desde un origen
-// distinto (ej. un futuro panel de admin web) — la app iOS nativa no se ve afectada de
-// ninguna forma por esto, pero un consumidor basado en navegador sí lo notaría.
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+// distinto (ej. el panel de admin web) — la app iOS nativa no se ve afectada de ninguna
+// forma por esto, pero un consumidor basado en navegador sí lo notaría.
+//
+// `upgrade-insecure-requests` (parte del CSP por defecto de helmet) le dice al navegador
+// que cambie TODA petición http:// de la página a https:// automáticamente — perfecto en
+// producción con HTTPS real, pero rompe todo en desarrollo: el servidor de PetHouse hoy
+// solo habla http (sin certificado), así que el navegador intentaba pedir cada archivo del
+// panel de admin (y hasta enviar el formulario de login) por https, fallaba porque no hay
+// nada escuchando ahí, y el propio CSP terminaba bloqueando la petición. Documentado en el
+// propio README de helmet como el arreglo recomendado para este caso exacto.
+const enProduccion = process.env.NODE_ENV === 'production'
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: { 'upgrade-insecure-requests': enProduccion ? [] : null }
+  }
+}))
 
 // Sin ALLOWED_ORIGINS configurado, `cors()` sigue abierto (ver config.js) — necesario para
 // no romper apps nativas (no envían Origin) ni el desarrollo local.
