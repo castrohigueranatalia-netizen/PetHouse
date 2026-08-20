@@ -104,7 +104,8 @@ async function cargarEstadisticas() {
     tarjetaStat(e.totalReservas, 'Reservas en total'),
     tarjetaStat(e.reservasActivas, 'Reservas activas ahora'),
     tarjetaStat(e.solicitudesPendientes, 'Solicitudes por revisar'),
-    tarjetaStat(e.solicitudesPrivacidadPendientes, 'Solicitudes de privacidad sin resolver')
+    tarjetaStat(e.solicitudesPrivacidadPendientes, 'Solicitudes de privacidad sin resolver'),
+    tarjetaStat(e.solicitudesIdentidadPendientes, 'Verificaciones de identidad pendientes')
   )
 
   const tablaEstados = $('#tablaEstados')
@@ -164,6 +165,67 @@ async function cargarSolicitudes() {
 
 $('#filtroEstadoSolicitudes').addEventListener('change', cargarSolicitudes)
 
+// ---- Recuperar contraseña (verificación de identidad con foto de cédula) ----
+
+const ETIQUETAS_IDENTIDAD = { pendiente: 'Pendiente', aprobada: 'Aprobada', rechazada: 'Rechazada' }
+const PILL_IDENTIDAD = { pendiente: 'pendiente', aprobada: 'confirmada', rechazada: 'rechazada' }
+
+async function cargarIdentidad() {
+  const estado = $('#filtroEstadoIdentidad').value
+  const { solicitudes } = await llamarApi(`/admin/identidad${estado ? `?estado=${estado}` : ''}`)
+  const contenedor = $('#listaIdentidad')
+  if (!solicitudes.length) {
+    contenedor.innerHTML = '<div class="vacio">No hay solicitudes que coincidan.</div>'
+    return
+  }
+  contenedor.innerHTML = ''
+  for (const s of solicitudes) {
+    const fila = document.createElement('div')
+    fila.className = 'solicitudIdentidad'
+    fila.innerHTML = `
+      <a href="${s.foto_cedula_url}" target="_blank" rel="noopener" title="Ver foto completa">
+        <img src="${s.foto_cedula_url}" class="fotoCedula" alt="Foto de cédula de ${esc(s.email)}">
+      </a>
+      <div class="info">
+        <b>${s.usuario_nombre ? esc(s.usuario_nombre) : 'Sin cuenta con ese correo'}</b>
+        <span>${esc(s.email)} · ${formatoFecha(s.creado_en)}</span>
+        ${s.estado !== 'pendiente' ? `<span class="pill ${PILL_IDENTIDAD[s.estado] || ''}">${ETIQUETAS_IDENTIDAD[s.estado] || esc(s.estado)}</span>` : ''}
+      </div>
+      <div class="acciones">
+        ${s.estado === 'pendiente' ? (
+          s.usuario_id
+            ? `<button class="btnAprobar">Aprobar</button><button class="btnRechazar">Rechazar</button>`
+            : `<span class="avisoSinCuenta">Sin cuenta</span><button class="btnRechazar">Rechazar</button>`
+        ) : ''}
+      </div>`
+    if (s.estado === 'pendiente') {
+      const btnAprobar = fila.querySelector('.btnAprobar')
+      if (btnAprobar) btnAprobar.addEventListener('click', () => aprobarIdentidad(s.id))
+      fila.querySelector('.btnRechazar').addEventListener('click', () => rechazarIdentidad(s.id))
+    }
+    contenedor.append(fila)
+  }
+}
+
+$('#filtroEstadoIdentidad').addEventListener('change', cargarIdentidad)
+
+async function aprobarIdentidad(id) {
+  if (!confirm('¿La foto de la cédula sí corresponde a esta cuenta? Se va a generar un PIN.')) return
+  try {
+    const { pin, vigenciaHoras } = await llamarApi(`/admin/identidad/${id}/aprobar`, { method: 'POST' })
+    alert(`PIN generado: ${pin}\n\nCópialo y pásaselo al usuario (llamada, WhatsApp, en persona…). Lo escribe en la pantalla del código de 6 dígitos de la app. Vence en ${vigenciaHoras} horas — después de eso hay que generar uno nuevo.`)
+    await cargarIdentidad()
+  } catch (err) { alert(err.message) }
+}
+
+async function rechazarIdentidad(id) {
+  if (!confirm('¿Rechazar esta solicitud?')) return
+  try {
+    await llamarApi(`/admin/identidad/${id}/rechazar`, { method: 'POST' })
+    await cargarIdentidad()
+  } catch (err) { alert(err.message) }
+}
+
 // ---- Utilidad: texto de usuario/base de datos SIEMPRE escapado antes de meterlo en
 // innerHTML — un nombre o correo con caracteres como "<" no debe interpretarse como HTML.
 function esc(valor) {
@@ -188,6 +250,7 @@ const CARGADORES_VISTA = {
   reservas: () => cargarReservas(),
   cancelaciones: () => cargarCancelaciones(),
   verificacion: () => cargarSolicitudes(),
+  identidad: () => cargarIdentidad(),
   soporte: () => cargarSoporte(),
   privacidad: () => cargarPrivacidad(),
   legal: () => cargarLegal()

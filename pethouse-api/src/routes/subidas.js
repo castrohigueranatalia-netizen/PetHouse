@@ -88,7 +88,7 @@ const upload = multer({
 // cubre cualquier subida que no pase por ese camino (una futura integración, alguien
 // llamando la API directo) y, sobre todo, es la única capa que de verdad limpia el EXIF —
 // el cliente no lo hace hoy.
-async function recomprimir(archivo, carpeta) {
+export async function recomprimir(archivo, carpeta) {
   const rutaOriginal = path.join(carpeta, archivo)
   const base = path.basename(archivo, path.extname(archivo))
   const nombreFinal = `${base}.jpg`

@@ -8,6 +8,7 @@ import SwiftUI
 struct OlvidePasswordView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = OlvidePasswordViewModel()
+    @State private var mostrarVerificarIdentidad = false
     @FocusState private var campoActivo: Campo?
 
     private enum Campo { case email, codigo, passwordNueva, passwordConfirmar }
@@ -126,11 +127,21 @@ struct OlvidePasswordView: View {
             }
             .disabled(!viewModel.puedeRestablecer)
 
+            PHTextButton("¿No te llegó el código? Verifica tu identidad con tu cédula") {
+                campoActivo = nil
+                mostrarVerificarIdentidad = true
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .multilineTextAlignment(.center)
+
             PHTextButton("Usar otro correo") {
                 campoActivo = nil
                 viewModel.volverAlCorreo()
             }
             .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .sheet(isPresented: $mostrarVerificarIdentidad) {
+            VerificarIdentidadView(email: viewModel.email)
         }
     }
 

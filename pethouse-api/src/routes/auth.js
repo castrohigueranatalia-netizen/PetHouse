@@ -1,27 +1,27 @@
 // ============================================================
 // PETHOUSE API · Módulo Auth
 // POST /api/auth/registro · /login · /refresh · /logout · /logout-todo · /me
-// POST /api/auth/olvide-password · /restablecer-password
+// POST /api/auth/olvide-password · /restablecer-password · /verificar-identidad
 // ============================================================
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { randomInt, createHash } from 'node:crypto'
+import multer from 'multer'
+import { fileTypeFromFile } from 'file-type'
+import { randomUUID } from 'node:crypto'
+import path from 'node:path'
+import fs from 'node:fs'
 import { pool } from '../config.js'
 import { auth } from '../middleware/middleware.js'
 import { emitirTokens, renovarRefresh, revocarRefresh, revocarTodasLasSesiones } from '../lib/tokens.js'
 import { limitadorAuth } from '../middleware/rateLimit.js'
 import { enviarCorreo } from '../lib/correo.js'
+import { generarCodigo, hashCodigo } from '../lib/codigos.js'
+import { uploadsPrivadoDir, recomprimir } from './subidas.js'
+import { PREFIJO_PRIVADO } from '../lib/urlsPrivadas.js'
 
 const r = Router()
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function generarCodigo() {
-  return String(randomInt(0, 1000000)).padStart(6, '0')
-}
-function hashCodigo(codigo) {
-  return createHash('sha256').update(codigo).digest('hex')
-}
 
 // `limitadorAuth` va PUNTUAL en /registro y /login, no en todo este router (antes estaba en
 // app.js como `app.use('/api/auth', limitadorAuth, authRoutes)`) — /refresh, /logout, /me y
@@ -189,6 +189,71 @@ r.post('/restablecer-password', limitadorAuth, async (req, res, next) => {
 
     res.json({ ok: true })
   } catch (err) { next(err) }
+})
+
+// ---- "Olvidé mi contraseña", respaldo: no llegó el código por correo ----
+// Sube una foto de la cédula SIN sesión (el usuario, por definición, no puede loguearse
+// todavía) para que un admin la revise a mano y, si corresponde, genere un PIN — ver
+// POST /api/admin/identidad/:id/aprobar. Va a uploads-privado/ con el mismo mecanismo que
+// las fotos de verificación de anfitrión (nunca a /uploads, que es público).
+const TIPOS_IMAGEN_PERMITIDOS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+const EXTENSION_POR_TIPO_IMAGEN = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/heic': '.heic', 'image/heif': '.heif' }
+
+const uploadIdentidad = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsPrivadoDir),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${EXTENSION_POR_TIPO_IMAGEN[file.mimetype] || path.extname(file.originalname) || ''}`)
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: (_req, file, cb) => {
+    if (!TIPOS_IMAGEN_PERMITIDOS.has(file.mimetype)) return cb(new Error('Sube una foto en JPEG, PNG, WEBP o HEIC.'))
+    cb(null, true)
+  }
+})
+
+r.post('/verificar-identidad', limitadorAuth, (req, res, next) => {
+  uploadIdentidad.single('archivo')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'La foto no puede pesar más de 8MB.' : err.message
+      return res.status(400).json({ error: mensaje })
+    }
+    if (err) return res.status(400).json({ error: err.message })
+
+    const { email } = req.query
+    if (!email || !EMAIL_RE.test(String(email))) {
+      if (req.file) fs.unlinkSync(req.file.path)
+      return res.status(400).json({ error: 'Ingresa un correo válido.' })
+    }
+    if (!req.file) return res.status(400).json({ error: 'Falta la foto de tu cédula (campo "archivo").' })
+
+    try {
+      // Mismo control que POST /api/subidas: el Content-Type que declaró el cliente se
+      // puede falsificar, así que se confirma el formato real por la firma binaria del
+      // archivo ya guardado antes de aceptarlo.
+      const tipoReal = await fileTypeFromFile(req.file.path).catch(() => undefined)
+      if (!tipoReal || !TIPOS_IMAGEN_PERMITIDOS.has(tipoReal.mime)) {
+        fs.unlinkSync(req.file.path)
+        return res.status(400).json({ error: 'El archivo no es una imagen válida.' })
+      }
+
+      const comprimido = await recomprimir(req.file.filename, uploadsPrivadoDir)
+      const fotoCedulaUrl = `${PREFIJO_PRIVADO}${comprimido || req.file.filename}`
+
+      const correo = String(email).trim().toLowerCase()
+      const { rows: usuarios } = await pool.query('SELECT id FROM usuarios WHERE email = $1', [correo])
+
+      await pool.query(
+        `INSERT INTO solicitudes_identidad_password (email, usuario_id, foto_cedula_url)
+         VALUES ($1, $2, $3)`,
+        [correo, usuarios[0]?.id || null, fotoCedulaUrl]
+      )
+
+      res.status(201).json({ ok: true, mensaje: 'Recibimos tu solicitud. Nuestro equipo la revisará y te contactará.' })
+    } catch (err) {
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path)
+      next(err)
+    }
+  })
 })
 
 // ---- Datos del usuario logueado + sus mascotas ----

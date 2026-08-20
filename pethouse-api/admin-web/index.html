@@ -289,6 +289,14 @@
   .btnAprobar { background: var(--success); color: #fff; padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
   .btnRechazar { background: var(--surface-2); color: var(--error); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
 
+  .solicitudIdentidad { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--surface-2); }
+  .solicitudIdentidad:last-child { border-bottom: none; }
+  .fotoCedula { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; flex-shrink: 0; }
+  .solicitudIdentidad .info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .solicitudIdentidad .info b { display: block; }
+  .solicitudIdentidad .info span { color: var(--muted); font-size: .82rem; }
+  .avisoSinCuenta { color: var(--error); font-size: .8rem; font-weight: 600; }
+
   .vacio { color: var(--faint); font-size: .88rem; padding: 8px 0; }
   .cargando { color: var(--muted); font-size: .88rem; padding: 20px 0; text-align: center; }
 </style>
@@ -324,6 +332,7 @@
         <button class="navItem" data-vista="reservas">Reservas</button>
         <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
         <button class="navItem" data-vista="verificacion">Verificación</button>
+        <button class="navItem" data-vista="identidad">Recuperar contraseña</button>
         <button class="navItem" data-vista="soporte">Soporte</button>
         <button class="navItem" data-vista="privacidad">Solicitudes de privacidad</button>
         <button class="navItem" data-vista="legal">Entidad legal</button>
@@ -408,6 +417,26 @@
                 <option value="rechazado">Rechazadas</option>
               </select>
               <div id="listaSolicitudes"></div>
+            </section>
+          </section>
+
+          <!-- ---- Recuperar contraseña (verificación de identidad con cédula) ---- -->
+          <section id="vistaIdentidad" class="vista oculto">
+            <section class="panel">
+              <h2>Recuperar contraseña</h2>
+              <p class="desc">
+                Cuando a alguien no le llega el código por correo, puede subir una foto de su cédula desde la app.
+                Compara la foto con el nombre de la cuenta y aprueba o rechaza. Al aprobar se genera un PIN de 6
+                dígitos que tienes que copiar y pasarle tú mismo (llamada, WhatsApp, etc.) — el usuario lo escribe
+                en la misma pantalla del código de la app, y vence en 24 horas.
+              </p>
+              <select id="filtroEstadoIdentidad" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="aprobada">Aprobadas</option>
+                <option value="rechazada">Rechazadas</option>
+              </select>
+              <div id="listaIdentidad"></div>
             </section>
           </section>
 

@@ -10,6 +10,8 @@
 // POST /api/admin/soporte/:id/resolver
 // GET /api/admin/privacidad · GET /api/admin/privacidad/:id
 // POST /api/admin/privacidad/:id/en-proceso · POST /api/admin/privacidad/:id/responder
+// GET /api/admin/identidad · GET /api/admin/identidad/:id
+// POST /api/admin/identidad/:id/aprobar · POST /api/admin/identidad/:id/rechazar
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -19,8 +21,10 @@ import { pool } from '../config.js'
 import { auth, soloAdmin } from '../middleware/middleware.js'
 import { crearNotificacion } from '../lib/notificaciones.js'
 import { enviarPush } from '../lib/push.js'
-import { firmarVerificacion } from '../lib/urlsPrivadas.js'
+import { firmarVerificacion, firmarUrlPrivada } from '../lib/urlsPrivadas.js'
 import { completarReservasVencidas } from '../lib/completarReservas.js'
+import { generarCodigo, hashCodigo } from '../lib/codigos.js'
+import { enviarCorreo } from '../lib/correo.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -132,7 +136,7 @@ r.get('/estadisticas', async (_req, res, next) => {
 
     const [
       usuarios, anfitriones, hospedajes, reservas, reservasActivas,
-      usuariosConReserva, porEstado, pendientes, porCiudad, privacidadPendientes
+      usuariosConReserva, porEstado, pendientes, porCiudad, privacidadPendientes, identidadPendientes
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios'),
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE es_anfitrion'),
@@ -148,7 +152,8 @@ r.get('/estadisticas', async (_req, res, next) => {
           GROUP BY h.ciudad
           ORDER BY total DESC`
       ),
-      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_privacidad WHERE estado != 'resuelta'")
+      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_privacidad WHERE estado != 'resuelta'"),
+      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_identidad_password WHERE estado = 'pendiente'")
     ])
     res.json({
       totalUsuarios: usuarios.rows[0].total,
@@ -160,7 +165,8 @@ r.get('/estadisticas', async (_req, res, next) => {
       reservasPorEstado: porEstado.rows,
       solicitudesPendientes: pendientes.rows[0].total,
       reservasPorCiudad: porCiudad.rows,
-      solicitudesPrivacidadPendientes: privacidadPendientes.rows[0].total
+      solicitudesPrivacidadPendientes: privacidadPendientes.rows[0].total,
+      solicitudesIdentidadPendientes: identidadPendientes.rows[0].total
     })
   } catch (err) { next(err) }
 })
@@ -567,6 +573,107 @@ r.post('/privacidad/:id/responder', async (req, res, next) => {
     })
 
     res.json({ solicitud: rows[0] })
+  } catch (err) { next(err) }
+})
+
+// ---- Verificación de identidad para restablecer contraseña (respaldo sin correo) ----
+// El lado del usuario (subir la foto, sin sesión) está en routes/auth.js
+// (POST /auth/verificar-identidad). Acá el admin la revisa contra el nombre de la cuenta y,
+// si corresponde, genera un PIN — que es, literalmente, el mismo tipo de código que el flujo
+// por correo (misma tabla restablecimientos_password), así que el usuario lo usa en la
+// MISMA pantalla de "código de 6 dígitos" de la app, no en una pantalla aparte.
+
+r.get('/identidad', async (req, res, next) => {
+  try {
+    const { estado } = req.query
+    const condiciones = []
+    const params = []
+    if (estado) {
+      if (!['pendiente', 'aprobada', 'rechazada'].includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
+      params.push(estado)
+      condiciones.push(`s.estado = $${params.length}`)
+    }
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT s.*, u.nombre AS usuario_nombre
+         FROM solicitudes_identidad_password s
+         LEFT JOIN usuarios u ON u.id = s.usuario_id
+         ${where}
+        ORDER BY (s.estado = 'pendiente') DESC, s.creado_en DESC`,
+      params
+    )
+    res.json({
+      total: rows.length,
+      solicitudes: rows.map(s => ({ ...s, foto_cedula_url: firmarUrlPrivada(s.foto_cedula_url) }))
+    })
+  } catch (err) { next(err) }
+})
+
+r.get('/identidad/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.*, u.nombre AS usuario_nombre
+         FROM solicitudes_identidad_password s
+         LEFT JOIN usuarios u ON u.id = s.usuario_id
+        WHERE s.id = $1`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada.' })
+    res.json({ solicitud: { ...rows[0], foto_cedula_url: firmarUrlPrivada(rows[0].foto_cedula_url) } })
+  } catch (err) { next(err) }
+})
+
+r.post('/identidad/:id/aprobar', async (req, res, next) => {
+  try {
+    const { rows: solicitud } = await pool.query(
+      "SELECT usuario_id, email FROM solicitudes_identidad_password WHERE id = $1 AND estado = 'pendiente'",
+      [req.params.id]
+    )
+    if (!solicitud.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya fue revisada.' })
+    if (!solicitud[0].usuario_id) {
+      return res.status(400).json({ error: 'Esta solicitud no tiene una cuenta asociada — revisa el correo antes de aprobar.' })
+    }
+
+    const pin = generarCodigo()
+    // 24 horas, no 15 minutos como el código por correo: este PIN lo entrega el admin a
+    // mano (llamada, WhatsApp, etc.), así que necesita más margen que un código automático.
+    await pool.query(
+      `INSERT INTO restablecimientos_password (usuario_id, codigo_hash, expira_en)
+       VALUES ($1, $2, now() + interval '24 hours')`,
+      [solicitud[0].usuario_id, hashCodigo(pin)]
+    )
+    await pool.query(
+      `UPDATE solicitudes_identidad_password SET estado = 'aprobada', revisado_en = now() WHERE id = $1`,
+      [req.params.id]
+    )
+
+    // El PIN se devuelve UNA sola vez, en esta respuesta — no se guarda en texto plano en
+    // ningún lado (mismo principio que los códigos por correo: solo se guarda su hash) — el
+    // admin tiene que copiarlo ahora y pasárselo al usuario por el medio que tenga con él.
+    res.json({ ok: true, pin, vigenciaHoras: 24 })
+  } catch (err) { next(err) }
+})
+
+r.post('/identidad/:id/rechazar', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE solicitudes_identidad_password SET estado = 'rechazada', revisado_en = now()
+        WHERE id = $1 AND estado = 'pendiente' RETURNING email`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Solicitud no encontrada o ya fue revisada.' })
+
+    // Mejor esfuerzo: si el correo escrito de verdad recibe correo, esto le llega; si el
+    // problema era justo que su correo no funciona, no llega — no hay forma de resolver eso
+    // desde acá, pero no cuesta nada intentarlo.
+    enviarCorreo({
+      para: rows[0].email,
+      asunto: 'No pudimos verificar tu identidad en PetHouse',
+      texto: 'Revisamos la foto de tu cédula y no pudimos confirmar que corresponde a la cuenta. Si sigues necesitando restablecer tu contraseña, escríbenos desde la app (Soporte) o intenta de nuevo con una foto más clara.'
+    })
+
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

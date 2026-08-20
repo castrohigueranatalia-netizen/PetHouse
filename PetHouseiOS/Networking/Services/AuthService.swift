@@ -21,6 +21,10 @@ public protocol AuthServicing: Sendable {
     /// existentes de esa cuenta del lado del servidor — la propia sesión de este
     /// dispositivo, si la había, también queda cerrada y hay que iniciar sesión de nuevo.
     func restablecerPassword(email: String, codigo: String, passwordNueva: String) async throws
+    /// Respaldo de "olvidé mi contraseña" cuando el código por correo no llega: sube una
+    /// foto de la cédula SIN sesión, para que un admin la revise y genere un PIN que se usa
+    /// en la misma pantalla del código de 6 dígitos (ver restablecerPassword arriba).
+    func subirIdentidadRecuperacion(email: String, datos: Data, nombreArchivo: String, mimeType: String) async throws
 }
 
 public final class AuthService: AuthServicing, @unchecked Sendable {
@@ -74,6 +78,27 @@ public final class AuthService: AuthServicing, @unchecked Sendable {
         struct Body: Encodable { let email: String, codigo: String, passwordNueva: String }
         let data = try JSONEncoder().encode(Body(email: email, codigo: codigo, passwordNueva: passwordNueva))
         let request = APIRequest(method: "POST", path: "/auth/restablecer-password", body: data)
+        try await client.sendNoBody(request)
+    }
+
+    /// Multipart/form-data manual, igual que ImagenesService.subir — pero SIN
+    /// `requiresAuth` (el usuario, por definición, no tiene sesión en este flujo) y con el
+    /// correo en la query string (mismo motivo que `tipo=verificacion` en subidas: el
+    /// servidor necesita saberlo desde antes de que llegue el archivo en el multipart).
+    func subirIdentidadRecuperacion(email: String, datos: Data, nombreArchivo: String, mimeType: String) async throws {
+        let boundary = "PetHouse-\(UUID().uuidString)"
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"archivo\"; filename=\"\(nombreArchivo)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(datos)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let request = APIRequest(
+            method: "POST", path: "/auth/verificar-identidad",
+            queryItems: [URLQueryItem(name: "email", value: email)],
+            body: body, contentType: "multipart/form-data; boundary=\(boundary)"
+        )
         try await client.sendNoBody(request)
     }
 }
