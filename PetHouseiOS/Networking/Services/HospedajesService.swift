@@ -16,6 +16,10 @@ public struct BuscarHospedajesFiltros: Sendable {
     public var localidad: Localidad?
     public var tipo: TipoHospedaje?
     public var convivencia: Convivencia?
+    /// Filtro real por especie que el anfitrión declaró cuidar (ver
+    /// `preferencias_anfitrion.especies` en pethouse-api/src/routes/hospedajes.js) — no es
+    /// un campo del hospedaje en sí.
+    public var especie: EspecieCuidado?
     public var desde: String?   // YYYY-MM-DD
     public var hasta: String?   // YYYY-MM-DD
     public var lat: Double?
@@ -26,10 +30,12 @@ public struct BuscarHospedajesFiltros: Sendable {
 
     public init(
         localidad: Localidad? = nil, tipo: TipoHospedaje? = nil, convivencia: Convivencia? = nil,
+        especie: EspecieCuidado? = nil,
         desde: String? = nil, hasta: String? = nil, lat: Double? = nil, lng: Double? = nil,
         radio: Int? = nil, q: String? = nil, orden: String? = nil
     ) {
         self.localidad = localidad; self.tipo = tipo; self.convivencia = convivencia
+        self.especie = especie
         self.desde = desde; self.hasta = hasta; self.lat = lat; self.lng = lng
         self.radio = radio; self.q = q; self.orden = orden
     }
@@ -61,6 +67,7 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         if let v = filtros.localidad { items.append(.init(name: "localidad", value: v.rawValue)) }
         if let v = filtros.tipo { items.append(.init(name: "tipo", value: v.rawValue)) }
         if let v = filtros.convivencia { items.append(.init(name: "convivencia", value: v.rawValue)) }
+        if let v = filtros.especie { items.append(.init(name: "especie", value: v.rawValue)) }
         if let v = filtros.desde { items.append(.init(name: "desde", value: v)) }
         if let v = filtros.hasta { items.append(.init(name: "hasta", value: v)) }
         if let v = filtros.lat { items.append(.init(name: "lat", value: String(v))) }

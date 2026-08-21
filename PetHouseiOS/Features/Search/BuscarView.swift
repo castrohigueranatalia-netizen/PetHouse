@@ -17,12 +17,15 @@ struct BuscarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            barraBusqueda
+            encabezado
 
             content
         }
         .background(PHColor.canvas)
-        .navigationTitle("Buscar")
+        // Sin texto: el saludo de `encabezado` ya cumple el rol de título de la pantalla
+        // (ver mockup "idea 6" de la barra de búsqueda) — un "Buscar" repetido justo encima
+        // sería redundante.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -85,6 +88,55 @@ struct BuscarView: View {
         }
     }
 
+    /// Zona de cabecera completa: saludo + huella, barra de búsqueda, chips rápidos de
+    /// especie y contador de contexto, sobre un degradado sutil coral → blanco. Ver el
+    /// mockup "idea 6" de la barra de búsqueda (versión final acordada).
+    private var encabezado: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            saludo
+            barraBusqueda
+            chipsEspecie
+            contadorContexto
+        }
+        .background(
+            LinearGradient(
+                colors: [PHColor.primary.opacity(0.07), PHColor.primary.opacity(0)],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
+    }
+
+    /// "¡Hola, [nombre]! ¿Quién va a cuidar tu mascota hoy?" con una huella decorativa en
+    /// medallón — reemplaza el antiguo título plano "Buscar" por algo más cálido y propio
+    /// de la marca.
+    private var saludo: some View {
+        HStack(alignment: .top, spacing: PHSpacing.s12) {
+            ZStack {
+                Circle().fill(PHColor.primaryContainer)
+                Image(systemName: "pawprint.fill")
+                    .foregroundStyle(PHColor.primary)
+            }
+            .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(saludoTexto)
+                    .phText(PHFont.displaySM, color: PHColor.ink)
+                Text("¿Quién va a cuidar tu mascota hoy?")
+                    .phText(PHFont.bodySM, color: PHColor.muted)
+            }
+        }
+        .padding(.horizontal, PHSpacing.s20)
+        .padding(.top, PHSpacing.s16)
+        .padding(.bottom, PHSpacing.s16)
+    }
+
+    private var saludoTexto: String {
+        guard let primerNombre = session.usuario?.nombre.split(separator: " ").first else {
+            return "¡Hola!"
+        }
+        return "¡Hola, \(primerNombre)!"
+    }
+
     /// Barra principal: localidad + fechas + convivencia, en un solo control tocable que abre
     /// `BuscadorSheet` — mismo patrón que el buscador de Airbnb (un resumen colapsado que
     /// se expande a un formulario completo), en vez de 3 campos sueltos compitiendo por
@@ -108,10 +160,10 @@ struct BuscarView: View {
                     Spacer()
                 }
                 .padding(.horizontal, PHSpacing.s16)
-                .padding(.vertical, PHSpacing.s12)
-                .background(PHColor.surfaceSoft)
+                .padding(.vertical, PHSpacing.s16)
+                .background(PHColor.canvas)
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous))
-                .phShadow(PHShadow.level1)
+                .phShadow(PHShadow.level2)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
@@ -130,8 +182,43 @@ struct BuscarView: View {
                 mostrarFiltros = true
             }
         }
-        .padding(.horizontal, PHSpacing.s16)
-        .padding(.vertical, PHSpacing.s8)
+        .padding(.horizontal, PHSpacing.s20)
+    }
+
+    /// Chips rápidos de especie — filtro real (ver `BuscarViewModel.alternarEspecie`), no
+    /// decorativo: tocar uno vuelve a buscar contra el servidor filtrando por lo que el
+    /// anfitrión declaró cuidar. Se muestran los dos (a diferencia del mockup, que por ser
+    /// una imagen estática solo mostraba la opción ya elegida) para poder tocar el que no
+    /// está seleccionado y cambiar de especie.
+    private var chipsEspecie: some View {
+        HStack(spacing: PHSpacing.s8) {
+            ForEach(EspecieCuidado.allCases) { especie in
+                PHChip(especie.etiqueta, isSelected: viewModel.especie == especie) {
+                    viewModel.alternarEspecie(especie)
+                }
+            }
+        }
+        .padding(.horizontal, PHSpacing.s20)
+        .padding(.top, PHSpacing.s12)
+    }
+
+    /// "27 hospedajes en Bogotá" — contexto inmediato del tamaño del resultado, junto a la
+    /// barra de búsqueda en vez de solo al final del listado.
+    @ViewBuilder
+    private var contadorContexto: some View {
+        if !viewModel.isLoading {
+            Text(contadorTexto)
+                .phText(PHFont.captionSM, color: PHColor.muted)
+                .padding(.horizontal, PHSpacing.s20)
+                .padding(.top, PHSpacing.s12)
+                .padding(.bottom, PHSpacing.s8)
+        }
+    }
+
+    private var contadorTexto: String {
+        let cantidad = viewModel.totalCargados
+        let lugar = viewModel.localidad?.etiqueta ?? "Bogotá"
+        return "\(cantidad) hospedaje\(cantidad == 1 ? "" : "s") en \(lugar)"
     }
 
     @ViewBuilder

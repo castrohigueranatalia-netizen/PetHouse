@@ -1,6 +1,6 @@
 // ============================================================
 // PETHOUSE API · Módulo Hospedajes (PostGIS)
-// GET /api/hospedajes?localidad&tipo&convivencia&desde&hasta&lat&lng&radio&q&orden&pagina&porPagina
+// GET /api/hospedajes?localidad&tipo&convivencia&especie&desde&hasta&lat&lng&radio&q&orden&pagina&porPagina
 //   La app opera solo en Bogotá — todo listado/búsqueda se filtra a `ciudad = 'Bogotá'`
 //   siempre, y se segmenta por `localidad` en vez de una `ciudad` de texto libre.
 // GET /api/hospedajes/localidades  → conteo de hospedajes por cada una de las 20 localidades
@@ -30,7 +30,7 @@ const LOCALIDADES_BOGOTA = [
 // ---- Listado con filtros (equivale a buscar_hospedajes() + detalle) ----
 r.get('/', async (req, res, next) => {
   try {
-    const { localidad, tipo, convivencia, desde, hasta, lat, lng, radio, q, orden } = req.query
+    const { localidad, tipo, convivencia, especie, desde, hasta, lat, lng, radio, q, orden } = req.query
     // Antes esto era un `LIMIT 100` fijo sin forma de pedir más — el cliente hacía su
     // propia "paginación" revelando de a poco ese máximo de 100 ya descargado (ver
     // MVP_SCOPE.md #7). Ahora pagina de verdad contra la base.
@@ -46,6 +46,17 @@ r.get('/', async (req, res, next) => {
     if (tipo) { params.push(tipo); condiciones.push(`h.tipo = $${params.length}`) }
     if (convivencia) { params.push(convivencia); condiciones.push(`h.convivencia = $${params.length}`) }
     if (localidad) { params.push(localidad); condiciones.push(`h.localidad = $${params.length}`) }
+    // El anfitrión declara qué especies cuida en `preferencias_anfitrion.especies` (ver
+    // db/06-verificacion-anfitrion.sql) — no es un campo de `hospedajes`, así que se filtra
+    // por subconsulta contra el anfitrión dueño del hospedaje. Un anfitrión que todavía no
+    // llenó sus preferencias no matchea ningún filtro de especie (comportamiento correcto:
+    // no declaró qué acepta).
+    if (especie) {
+      params.push(especie)
+      condiciones.push(`EXISTS (
+        SELECT 1 FROM preferencias_anfitrion pa
+         WHERE pa.usuario_id = h.anfitrion_id AND $${params.length} = ANY(pa.especies))`)
+    }
     if (q) {
       params.push(q)
       condiciones.push(`to_tsvector('spanish', h.titulo || ' ' || h.descripcion || ' ' || h.ciudad) @@ plainto_tsquery('spanish', $${params.length})`)

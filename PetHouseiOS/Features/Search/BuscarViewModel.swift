@@ -37,6 +37,9 @@ public final class BuscarViewModel {
     public var localidad: Localidad?
     public var tipo: TipoHospedaje?
     public var convivencia: Convivencia?
+    /// Chip rápido "Perros"/"Gatos" bajo la barra de búsqueda (ver BuscarView) — filtro real
+    /// contra lo que el anfitrión declaró cuidar, no decorativo. `nil` = todas las especies.
+    public var especie: EspecieCuidado?
     public var orden: Orden = .relevancia
     public var cercaDeMi = false
 
@@ -105,6 +108,13 @@ public final class BuscarViewModel {
         localidad != nil || usarFechas || convivencia != nil
     }
 
+    /// Alterna el chip de especie: tocar el ya seleccionado lo quita (vuelve a "todas"),
+    /// tocar el otro lo reemplaza — nunca hay dos a la vez, igual que el mockup.
+    public func alternarEspecie(_ valor: EspecieCuidado) {
+        especie = (especie == valor) ? nil : valor
+        Task { await buscar() }
+    }
+
     public func buscar() async {
         isLoading = true
         error = nil
@@ -167,6 +177,7 @@ public final class BuscarViewModel {
             localidad: localidad,
             tipo: tipo,
             convivencia: convivencia,
+            especie: especie,
             desde: usarFechas ? PHDate.toAPIDateOnly(desde) : nil,
             hasta: usarFechas ? PHDate.toAPIDateOnly(hasta) : nil,
             lat: latActual,
@@ -182,6 +193,7 @@ public final class BuscarViewModel {
         localidad = nil
         tipo = nil
         convivencia = nil
+        especie = nil
         orden = .relevancia
         cercaDeMi = false
         usarFechas = false
