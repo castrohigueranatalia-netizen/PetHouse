@@ -85,7 +85,7 @@ public final class AuthService: AuthServicing, @unchecked Sendable {
     /// `requiresAuth` (el usuario, por definición, no tiene sesión en este flujo) y con el
     /// correo en la query string (mismo motivo que `tipo=verificacion` en subidas: el
     /// servidor necesita saberlo desde antes de que llegue el archivo en el multipart).
-    func subirIdentidadRecuperacion(email: String, datos: Data, nombreArchivo: String, mimeType: String) async throws {
+    public func subirIdentidadRecuperacion(email: String, datos: Data, nombreArchivo: String, mimeType: String) async throws {
         let boundary = "PetHouse-\(UUID().uuidString)"
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
