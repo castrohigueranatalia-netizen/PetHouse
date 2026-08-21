@@ -247,7 +247,7 @@ const CARGADORES_VISTA = {
   resumen: () => cargarEstadisticas(),
   usuarios: () => cargarUsuarios(),
   hospedajes: () => cargarHospedajes(),
-  reservas: () => cargarReservas(),
+  reservas: async () => { await poblarFiltroAnfitriones(); await cargarReservas() },
   cancelaciones: () => cargarCancelaciones(),
   verificacion: () => cargarSolicitudes(),
   identidad: () => cargarIdentidad(),
@@ -411,9 +411,27 @@ function filaReserva(r) {
 }
 const ENCABEZADO_RESERVAS = '<tr><th>Código</th><th>Huésped</th><th>Hospedaje</th><th>Anfitrión</th><th>Fechas</th><th>Valor</th><th>Estado</th></tr>'
 
+// Se carga una sola vez por visita a la pestaña (no en cada cambio de filtro) — un select
+// nuevo cada vez que se cambia OTRO filtro perdería la selección actual sin necesidad.
+async function poblarFiltroAnfitriones() {
+  const select = $('#filtroAnfitrionReservas')
+  if (select.dataset.cargado) return
+  const { usuarios } = await llamarApi('/admin/usuarios?esAnfitrion=true&porPagina=100')
+  select.innerHTML = '<option value="">Todos los anfitriones</option>' +
+    usuarios.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('')
+  select.dataset.cargado = '1'
+}
+
 async function cargarReservas() {
   const estado = $('#filtroEstadoReservas').value
-  const { reservas } = await llamarApi(`/admin/reservas?porPagina=100${estado ? `&estado=${estado}` : ''}`)
+  const anfitrionId = $('#filtroAnfitrionReservas').value
+  const mes = $('#filtroMesReservas').value
+  const params = new URLSearchParams({ porPagina: '100' })
+  if (estado) params.set('estado', estado)
+  if (anfitrionId) params.set('anfitrionId', anfitrionId)
+  if (mes) params.set('mes', mes)
+
+  const { reservas } = await llamarApi(`/admin/reservas?${params.toString()}`)
   const tabla = $('#tablaReservas')
   tabla.innerHTML = reservas.length
     ? ENCABEZADO_RESERVAS + reservas.map(filaReserva).join('')
@@ -421,6 +439,8 @@ async function cargarReservas() {
 }
 
 $('#filtroEstadoReservas').addEventListener('change', cargarReservas)
+$('#filtroAnfitrionReservas').addEventListener('change', cargarReservas)
+$('#filtroMesReservas').addEventListener('change', cargarReservas)
 
 // ---- Cancelaciones (reservas canceladas o rechazadas) ----
 

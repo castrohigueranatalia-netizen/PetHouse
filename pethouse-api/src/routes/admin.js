@@ -314,7 +314,7 @@ r.get('/reservas', async (req, res, next) => {
   try {
     await completarReservasVencidas()
 
-    const { estado } = req.query
+    const { estado, anfitrionId, mes } = req.query
     const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1)
     const porPagina = Math.min(100, Math.max(1, parseInt(req.query.porPagina, 10) || 30))
     const offset = (pagina - 1) * porPagina
@@ -331,6 +331,18 @@ r.get('/reservas', async (req, res, next) => {
       if (!ESTADOS_RESERVA_VALIDOS.includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
       params.push(estado)
       condiciones.push(`rs.estado = $${params.length}`)
+    }
+    if (anfitrionId) {
+      params.push(anfitrionId)
+      condiciones.push(`an.id = $${params.length}`)
+    }
+    if (mes) {
+      // "AAAA-MM" del <input type="month"> del panel — filtra por el mes en que EMPIEZA la
+      // estadía (rs.desde), no por cuándo se hizo la reserva: a un admin mirando la agenda
+      // de un anfitrión le interesa qué estadías caen en ese mes, no cuándo se reservaron.
+      if (!/^\d{4}-\d{2}$/.test(mes)) return res.status(400).json({ error: 'Mes inválido (formato AAAA-MM).' })
+      params.push(`${mes}-01`)
+      condiciones.push(`rs.desde >= $${params.length}::date AND rs.desde < ($${params.length}::date + interval '1 month')`)
     }
     const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
 

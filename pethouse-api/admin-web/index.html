@@ -218,6 +218,21 @@
     font-family: inherit;
   }
   .campo input[type=date]:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+  /* ---- Fila de filtros combinados (ej. Reservas: anfitrión + mes + estado) ---- */
+  .filaFiltros { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filaFiltros .buscador { margin-bottom: 0; width: auto; flex: 1 1 200px; }
+  .filaFiltros input[type=month] {
+    flex: 1 1 200px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .filaFiltros input[type=month]:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
   .campo input[type=text], .campo input[type=email], .campo textarea {
     width: 100%;
     padding: 10px 12px;
@@ -480,16 +495,22 @@
           <section id="vistaReservas" class="vista oculto">
             <section class="panel">
               <h2>Reservas</h2>
-              <p class="desc">Activas, cumplidas o canceladas, con su valor.</p>
-              <select id="filtroEstadoReservas" class="buscador">
-                <option value="">Todas</option>
-                <option value="activa">Activas (pendiente + confirmada)</option>
-                <option value="pendiente">Pendientes</option>
-                <option value="confirmada">Confirmadas</option>
-                <option value="completada">Completadas</option>
-                <option value="cancelada">Canceladas</option>
-                <option value="rechazada">Rechazadas</option>
-              </select>
+              <p class="desc">Activas, cumplidas o canceladas, con su valor. Filtra por anfitrión y/o por mes de la estadía.</p>
+              <div class="filaFiltros">
+                <select id="filtroAnfitrionReservas" class="buscador">
+                  <option value="">Todos los anfitriones</option>
+                </select>
+                <input type="month" id="filtroMesReservas" title="Mes de la estadía (desde)">
+                <select id="filtroEstadoReservas" class="buscador">
+                  <option value="">Todos los estados</option>
+                  <option value="activa">Activas (pendiente + confirmada)</option>
+                  <option value="pendiente">Pendientes</option>
+                  <option value="confirmada">Confirmadas</option>
+                  <option value="completada">Completadas</option>
+                  <option value="cancelada">Canceladas</option>
+                  <option value="rechazada">Rechazadas</option>
+                </select>
+              </div>
               <div class="tablaWrap"><table id="tablaReservas"></table></div>
             </section>
           </section>
