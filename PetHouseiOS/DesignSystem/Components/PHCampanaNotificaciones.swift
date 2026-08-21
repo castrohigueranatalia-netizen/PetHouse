@@ -33,7 +33,12 @@ public struct PHCampanaNotificaciones: View {
                             .padding(.horizontal, 4)
                             .frame(minWidth: 16, minHeight: 16)
                             .background(PHColor.error, in: Capsule())
-                            .offset(x: 4, y: -4)
+                            // Este botón siempre es el más a la derecha de la pantalla (las 4
+                            // pantallas donde aparece lo usan como último ítem del toolbar) —
+                            // con `x: 4` el contador sobresalía justo en el borde y se veía
+                            // cortado por el borde de la pantalla. Sin desplazamiento horizontal,
+                            // queda pegado a la esquina del círculo sin salirse de su marco.
+                            .offset(x: 0, y: -4)
                     }
                 }
         }
