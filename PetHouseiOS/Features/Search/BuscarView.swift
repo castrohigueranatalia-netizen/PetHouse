@@ -23,7 +23,7 @@ struct BuscarView: View {
         }
         .background(PHColor.canvas)
         .navigationTitle("Buscar")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 // El logo es el botón de "inicio": ya estando en Buscar, vuelve al listado
