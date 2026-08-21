@@ -22,7 +22,7 @@ struct VerificarIdentidadView: View {
                     if viewModel.enviado {
                         listo
                     } else {
-                        formulario
+                        formulario(viewModel)
                     }
                 }
                 .padding(PHSpacing.s24)
@@ -38,7 +38,12 @@ struct VerificarIdentidadView: View {
         }
     }
 
-    private var formulario: some View {
+    // `viewModel` como parámetro explícito, no capturado de `self` — mismo motivo que
+    // EditarPerfilViewModel.formulario(_:): dentro de una closure anidada dos veces (get/set
+    // del Binding manual), Swift infiere mal el tipo si `viewModel` viene de una propiedad
+    // `@State` de `self` en vez de un parámetro plano, y termina confundiendo el Binding
+    // manual con el subscript dynamicMember que SwiftUI sintetiza para `@Bindable`.
+    private func formulario(_ viewModel: VerificarIdentidadViewModel) -> some View {
         VStack(alignment: .leading, spacing: PHSpacing.s20) {
             VStack(alignment: .leading, spacing: PHSpacing.s8) {
                 Text("Sube una foto de tu cédula")
