@@ -269,8 +269,27 @@ async function mostrarVista(nombre) {
 function capitalizar(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
 
 document.querySelectorAll('.navItem').forEach(btn => {
-  btn.addEventListener('click', () => mostrarVista(btn.dataset.vista))
+  btn.addEventListener('click', () => {
+    mostrarVista(btn.dataset.vista)
+    cerrarMenu() // en pantallas angostas, elegir una sección cierra el cajón
+  })
 })
+
+// ---- Menú lateral como cajón en pantallas angostas (ver CSS @media max-width: 900px) ----
+const sidebar = $('#sidebar')
+const fondoSidebar = $('#fondoSidebar')
+
+function abrirMenu() {
+  sidebar.classList.add('abierto')
+  fondoSidebar.classList.add('visible')
+}
+function cerrarMenu() {
+  sidebar.classList.remove('abierto')
+  fondoSidebar.classList.remove('visible')
+}
+
+$('#btnMenu').addEventListener('click', abrirMenu)
+fondoSidebar.addEventListener('click', cerrarMenu)
 
 // ---- Usuarios ----
 
