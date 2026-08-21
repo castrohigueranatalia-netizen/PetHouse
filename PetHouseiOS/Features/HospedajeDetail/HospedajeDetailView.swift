@@ -50,6 +50,15 @@ struct HospedajeDetailView: View {
                             Text(hospedaje.titulo)
                                 .phText(PHFont.displaySM, color: PHColor.ink)
                             Spacer()
+                            ShareLink(item: textoCompartir(hospedaje)) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(PHColor.ink)
+                                    .frame(width: 40, height: 40)
+                                    .background(PHColor.surfaceSoft)
+                                    .clipShape(Circle())
+                            }
+                            .accessibilityLabel("Compartir hospedaje")
                             PHIconButton(
                                 systemImage: favoritosViewModel.esFavorito(hospedaje.id) ? "heart.fill" : "heart",
                                 accessibilityLabel: "Alternar favorito"
@@ -145,6 +154,15 @@ struct HospedajeDetailView: View {
         .tabViewStyle(.page)
         .frame(height: 240)
         .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+    }
+
+    /// Texto plano para `ShareLink` (Mensajes, WhatsApp, Facebook, lo que tenga instalado el
+    /// usuario) — sin enlace, porque todavía no hay una URL que abra este hospedaje puntual
+    /// (ni un sitio web público, ni universal links configurados en la app). Si más adelante
+    /// se agrega alguno de los dos, esto es lo único que habría que tocar.
+    private func textoCompartir(_ hospedaje: Hospedaje) -> String {
+        let ubicacion = [hospedaje.barrio, hospedaje.localidad ?? hospedaje.ciudad].compactMap { $0 }.joined(separator: ", ")
+        return "🐾 Mira este hospedaje en PetHouse: \(hospedaje.titulo)\n\(ubicacion) · \(hospedaje.tipo.etiqueta) · \(PHFormato.precio(hospedaje.precioNoche))/noche"
     }
 
     private func anfitrionSeccion(nombre: String, verificado: Bool) -> some View {
