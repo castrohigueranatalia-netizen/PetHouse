@@ -150,7 +150,22 @@ private struct DetalleHistorialReservaView: View {
                         }
                         if let total = reserva.total {
                             Divider()
-                            fila("Total", PHFormato.precio(total), destacar: true)
+                            fila(
+                                reserva.montoAnfitrion == nil ? "Total" : "Total (lo que paga el huésped)",
+                                PHFormato.precio(total),
+                                destacar: reserva.montoAnfitrion == nil
+                            )
+                        }
+                        if let comision = reserva.comisionMonto {
+                            fila("Comisión de PetHouse (\(porcentajeTexto))", "− \(PHFormato.precio(comision))")
+                        }
+                        if let ganancia = reserva.montoAnfitrion {
+                            Divider()
+                            fila("Tú ganas", PHFormato.precio(ganancia), destacar: true)
+                        }
+                        if reserva.comisionMonto != nil {
+                            Text("Todavía informativo: PetHouse no cobra comisión de verdad — el pago se sigue coordinando entre huésped y anfitrión, fuera de la app.")
+                                .phText(PHFont.micro, color: PHColor.muted)
                         }
                     }
                     .padding(PHSpacing.s16)
@@ -202,6 +217,14 @@ private struct DetalleHistorialReservaView: View {
         case .cancelada: PHBadge("Cancelada", style: .error)
         case .completada: PHBadge("Completada", style: .primary)
         }
+    }
+
+    private var porcentajeTexto: String {
+        guard let porcentaje = reserva.comisionPorcentaje else { return "" }
+        let redondeado = porcentaje.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", porcentaje)
+            : String(format: "%.1f", porcentaje)
+        return "\(redondeado)%"
     }
 
     private func fila(_ etiqueta: String, _ valor: String, destacar: Bool = false) -> some View {

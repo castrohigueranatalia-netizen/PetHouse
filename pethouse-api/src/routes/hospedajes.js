@@ -182,10 +182,12 @@ r.get('/mios/reservas', auth, soloAnfitrion, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
               u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
+              pg.comision_porcentaje, pg.comision_monto, pg.monto_anfitrion,
               ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs
          JOIN hospedajes h ON h.id = rs.hospedaje_id
          JOIN usuarios u ON u.id = rs.usuario_id
+         LEFT JOIN pagos pg ON pg.reserva_id = rs.id
         WHERE h.anfitrion_id = $1
         ORDER BY rs.creado_en DESC`,
       [req.usuario.id]
@@ -215,10 +217,12 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
               u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
+              pg.comision_porcentaje, pg.comision_monto, pg.monto_anfitrion,
               ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs
          JOIN hospedajes h ON h.id = rs.hospedaje_id
          JOIN usuarios u ON u.id = rs.usuario_id
+         LEFT JOIN pagos pg ON pg.reserva_id = rs.id
         WHERE rs.hospedaje_id = $1
         ORDER BY rs.desde DESC`,
       [req.params.id]

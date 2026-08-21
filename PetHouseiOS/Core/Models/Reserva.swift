@@ -51,6 +51,13 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public let precioNoche: Double?
     public let limpieza: Double?
     public let servicio: Double?
+    /// % de comisión de PetHouse que aplicaba cuando se creó esta reserva, y su desglose ya
+    /// calculado — vienen del pago asociado (ver db/27-comision.sql), solo presentes cuando
+    /// el endpoint hace JOIN con `pagos` (historial/reservas recibidas del anfitrión). Todavía
+    /// es informativo: no hay pasarela de pagos conectada, PetHouse no cobra nada de verdad.
+    public let comisionPorcentaje: Double?
+    public let comisionMonto: Double?
+    public let montoAnfitrion: Double?
     public let creadoEn: String?
 
     public let usuarioId: String?
@@ -82,6 +89,9 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         case id, codigo, estado, desde, hasta, noches, mascotas, total
         case precioNoche = "precio_noche"
         case limpieza, servicio
+        case comisionPorcentaje = "comision_porcentaje"
+        case comisionMonto = "comision_monto"
+        case montoAnfitrion = "monto_anfitrion"
         case creadoEn = "creado_en"
         case usuarioId = "usuario_id"
         case hospedajeId = "hospedaje_id"
@@ -100,7 +110,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public init(
         id: String, codigo: String, estado: EstadoReserva, desde: String?, hasta: String?,
         noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?, limpieza: Double?,
-        servicio: Double?, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
+        servicio: Double?, comisionPorcentaje: Double? = nil, comisionMonto: Double? = nil,
+        montoAnfitrion: Double? = nil, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
         anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
         usuarioRating: Double? = nil, usuarioNumResenas: Int? = nil,
         mascotasDetalle: [Mascota]? = nil,
@@ -117,6 +128,9 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.precioNoche = precioNoche
         self.limpieza = limpieza
         self.servicio = servicio
+        self.comisionPorcentaje = comisionPorcentaje
+        self.comisionMonto = comisionMonto
+        self.montoAnfitrion = montoAnfitrion
         self.creadoEn = creadoEn
         self.usuarioId = usuarioId
         self.hospedajeId = hospedajeId
@@ -145,6 +159,9 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         precioNoche = try c.decodeFlexibleDoubleIfPresent(forKey: .precioNoche)
         limpieza = try c.decodeFlexibleDoubleIfPresent(forKey: .limpieza)
         servicio = try c.decodeFlexibleDoubleIfPresent(forKey: .servicio)
+        comisionPorcentaje = try c.decodeFlexibleDoubleIfPresent(forKey: .comisionPorcentaje)
+        comisionMonto = try c.decodeFlexibleDoubleIfPresent(forKey: .comisionMonto)
+        montoAnfitrion = try c.decodeFlexibleDoubleIfPresent(forKey: .montoAnfitrion)
         creadoEn = try c.decodeIfPresent(String.self, forKey: .creadoEn)
         usuarioId = try c.decodeIfPresent(String.self, forKey: .usuarioId)
         hospedajeId = try c.decodeIfPresent(String.self, forKey: .hospedajeId)

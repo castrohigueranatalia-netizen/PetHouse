@@ -88,6 +88,11 @@ r.post('/', auth, async (req, res, next) => {
     const limpieza = Math.round(h.precio_noche * 0.6)
     const servicio = Math.round(h.precio_noche * noches * 0.1)
 
+    // % de comisión vigente AHORA MISMO — se guarda en el pago, no se vuelve a leer después,
+    // para que cambiarlo más adelante no altere lo ya calculado de reservas viejas.
+    const { rows: entidad } = await client.query('SELECT comision_porcentaje FROM entidad_legal WHERE id = 1')
+    const comisionPorcentaje = entidad[0]?.comision_porcentaje ?? 10
+
     // notificado_anfitrion = FALSE: el anfitrión todavía no vio que llegó esta solicitud —
     // ver GET /notificaciones/pendientes-anfitrion y POST /:id/notificado-anfitrion más
     // abajo, mismo patrón que `notificado` (aviso al huésped) pero en la otra dirección.
@@ -103,10 +108,11 @@ r.post('/', auth, async (req, res, next) => {
       [rows[0].id, mascota_ids]
     )
 
-    // Pago pendiente (fase 2: pasarela)
+    // Pago pendiente (fase 2: pasarela). `comision_porcentaje` queda fijo desde ya —
+    // `comision_monto`/`monto_anfitrion` se calculan solos (columnas generadas).
     await client.query(
-      'INSERT INTO pagos (reserva_id, monto, estado) VALUES ($1, $2, $3)',
-      [rows[0].id, rows[0].total, 'pendiente']
+      'INSERT INTO pagos (reserva_id, monto, estado, comision_porcentaje) VALUES ($1, $2, $3, $4)',
+      [rows[0].id, rows[0].total, 'pendiente', comisionPorcentaje]
     )
 
     // Historial de la campana (ver GET /api/notificaciones) — además del `notificado_anfitrion`

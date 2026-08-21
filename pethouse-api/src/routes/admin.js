@@ -13,6 +13,7 @@
 // GET /api/admin/identidad · GET /api/admin/identidad/:id
 // POST /api/admin/identidad/:id/aprobar · POST /api/admin/identidad/:id/rechazar
 // GET /api/admin/reportes/resumen · /reportes/reservas.csv · /reportes/usuarios.csv
+// GET /api/admin/reportes/por-anfitrion · /reportes/comisiones-por-anfitrion.csv
 //
 // Todo bajo `soloAdmin` (rol = 'admin'). La aprobación/rechazo de una solicitud es la
 // ÚNICA forma de activar usuarios.es_anfitrion — ver routes/anfitrion.js.
@@ -377,14 +378,25 @@ r.get('/legal', async (_req, res, next) => {
 
 r.put('/legal/entidad', async (req, res, next) => {
   try {
-    const { nombreLegal, nit, domicilio, correoContacto, telefonoContacto } = req.body || {}
+    const { nombreLegal, nit, domicilio, correoContacto, telefonoContacto, comisionPorcentaje } = req.body || {}
+
+    // Solo informativo por ahora (no hay pasarela conectada), pero igual debe ser un
+    // número sano — entre 0 y 100 — para no dejar guardar algo sin sentido por accidente.
+    let comision = 10
+    if (comisionPorcentaje !== undefined && comisionPorcentaje !== null && comisionPorcentaje !== '') {
+      comision = Number(comisionPorcentaje)
+      if (!Number.isFinite(comision) || comision < 0 || comision > 100) {
+        return res.status(400).json({ error: 'El % de comisión debe ser un número entre 0 y 100.' })
+      }
+    }
+
     const { rows } = await pool.query(
       `UPDATE entidad_legal
           SET nombre_legal = $1, nit = $2, domicilio = $3, correo_contacto = $4,
-              telefono_contacto = $5, actualizado_en = now()
+              telefono_contacto = $5, comision_porcentaje = $6, actualizado_en = now()
         WHERE id = 1
         RETURNING *`,
-      [nombreLegal || null, nit || null, domicilio || null, correoContacto || null, telefonoContacto || null]
+      [nombreLegal || null, nit || null, domicilio || null, correoContacto || null, telefonoContacto || null, comision]
     )
     res.json({ entidad: rows[0] })
   } catch (err) { next(err) }
@@ -709,9 +721,21 @@ r.get('/reportes/resumen', async (req, res, next) => {
     const condUsuarios = condicionRangoFecha('creado_en', desde, hasta, paramsUsuarios)
     const whereUsuarios = condUsuarios.length ? `WHERE ${condUsuarios.join(' AND ')}` : ''
 
-    const [totalReservas, valorTotal, usuariosNuevos, porEstado] = await Promise.all([
+    const paramsComision = []
+    const whereComision = `WHERE ${[...condicionRangoFecha('rs.creado_en', desde, hasta, paramsComision), `rs.estado IN ('confirmada', 'completada')`].join(' AND ')}`
+
+    const [totalReservas, valorTotal, comision, usuariosNuevos, porEstado] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int AS total FROM reservas ${whereReservas}`, paramsReservas),
       pool.query(`SELECT COALESCE(SUM(total), 0)::float AS total FROM reservas ${whereValor}`, paramsValor),
+      // Comisión/ganancia solo son informativas por ahora (no hay pasarela conectada) — ver
+      // db/27-comision.sql. Se leen de `pagos`, que guarda el % que aplicaba en cada momento.
+      pool.query(
+        `SELECT COALESCE(SUM(pg.comision_monto), 0)::float AS comision,
+                COALESCE(SUM(pg.monto_anfitrion), 0)::float AS ganancia_anfitriones
+           FROM reservas rs JOIN pagos pg ON pg.reserva_id = rs.id
+           ${whereComision}`,
+        paramsComision
+      ),
       pool.query(`SELECT COUNT(*)::int AS total FROM usuarios ${whereUsuarios}`, paramsUsuarios),
       pool.query(`SELECT estado, COUNT(*)::int AS total FROM reservas ${whereReservas} GROUP BY estado ORDER BY total DESC`, paramsReservas)
     ])
@@ -719,6 +743,8 @@ r.get('/reportes/resumen', async (req, res, next) => {
     res.json({
       totalReservas: totalReservas.rows[0].total,
       valorTotal: valorTotal.rows[0].total,
+      comisionTotal: comision.rows[0].comision,
+      gananciaAnfitrionesTotal: comision.rows[0].ganancia_anfitriones,
       usuariosNuevos: usuariosNuevos.rows[0].total,
       reservasPorEstado: porEstado.rows
     })
@@ -737,11 +763,13 @@ r.get('/reportes/reservas.csv', async (req, res, next) => {
       `SELECT rs.codigo, u.nombre AS huesped, h.titulo AS hospedaje, an.nombre AS anfitrion,
               h.localidad, h.ciudad, to_char(rs.desde, 'YYYY-MM-DD') AS desde,
               to_char(rs.hasta, 'YYYY-MM-DD') AS hasta, rs.noches, rs.total, rs.estado,
+              pg.comision_porcentaje, pg.comision_monto, pg.monto_anfitrion,
               to_char(rs.creado_en, 'YYYY-MM-DD HH24:MI') AS creado_en
          FROM reservas rs
          JOIN usuarios u ON u.id = rs.usuario_id
          JOIN hospedajes h ON h.id = rs.hospedaje_id
          JOIN usuarios an ON an.id = h.anfitrion_id
+         LEFT JOIN pagos pg ON pg.reserva_id = rs.id
          ${where}
         ORDER BY rs.creado_en DESC`,
       params
@@ -758,11 +786,76 @@ r.get('/reportes/reservas.csv', async (req, res, next) => {
       { campo: 'noches', etiqueta: 'Noches' },
       { campo: 'total', etiqueta: 'Valor' },
       { campo: 'estado', etiqueta: 'Estado' },
+      { campo: 'comision_porcentaje', etiqueta: '% comisión' },
+      { campo: 'comision_monto', etiqueta: 'Comisión PetHouse' },
+      { campo: 'monto_anfitrion', etiqueta: 'Gana el anfitrión' },
       { campo: 'creado_en', etiqueta: 'Fecha de reserva' }
     ], rows)
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', 'attachment; filename="reservas.csv"')
     res.send(csv)
+  } catch (err) { next(err) }
+})
+
+r.get('/reportes/comisiones-por-anfitrion.csv', async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { desde, hasta } = req.query
+    const params = []
+    const condiciones = [...condicionRangoFecha('rs.creado_en', desde, hasta, params), `rs.estado IN ('confirmada', 'completada')`]
+
+    const { rows } = await pool.query(
+      `SELECT an.nombre AS anfitrion, an.email AS correo,
+              COUNT(*)::int AS num_reservas,
+              SUM(rs.total)::float AS valor_total,
+              SUM(pg.comision_monto)::float AS comision_total,
+              SUM(pg.monto_anfitrion)::float AS ganancia_total
+         FROM reservas rs
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios an ON an.id = h.anfitrion_id
+         JOIN pagos pg ON pg.reserva_id = rs.id
+        WHERE ${condiciones.join(' AND ')}
+        GROUP BY an.id, an.nombre, an.email
+        ORDER BY ganancia_total DESC`,
+      params
+    )
+    const csv = aCSV([
+      { campo: 'anfitrion', etiqueta: 'Anfitrión' },
+      { campo: 'correo', etiqueta: 'Correo' },
+      { campo: 'num_reservas', etiqueta: 'Reservas' },
+      { campo: 'valor_total', etiqueta: 'Valor total' },
+      { campo: 'comision_total', etiqueta: 'Comisión PetHouse' },
+      { campo: 'ganancia_total', etiqueta: 'Gana el anfitrión' }
+    ], rows)
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', 'attachment; filename="comisiones-por-anfitrion.csv"')
+    res.send(csv)
+  } catch (err) { next(err) }
+})
+
+r.get('/reportes/por-anfitrion', async (req, res, next) => {
+  try {
+    await completarReservasVencidas()
+    const { desde, hasta } = req.query
+    const params = []
+    const condiciones = [...condicionRangoFecha('rs.creado_en', desde, hasta, params), `rs.estado IN ('confirmada', 'completada')`]
+
+    const { rows } = await pool.query(
+      `SELECT an.id AS anfitrion_id, an.nombre AS anfitrion_nombre,
+              COUNT(*)::int AS num_reservas,
+              SUM(rs.total)::float AS valor_total,
+              SUM(pg.comision_monto)::float AS comision_total,
+              SUM(pg.monto_anfitrion)::float AS ganancia_total
+         FROM reservas rs
+         JOIN hospedajes h ON h.id = rs.hospedaje_id
+         JOIN usuarios an ON an.id = h.anfitrion_id
+         JOIN pagos pg ON pg.reserva_id = rs.id
+        WHERE ${condiciones.join(' AND ')}
+        GROUP BY an.id, an.nombre
+        ORDER BY ganancia_total DESC`,
+      params
+    )
+    res.json({ anfitriones: rows })
   } catch (err) { next(err) }
 })
 

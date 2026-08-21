@@ -629,14 +629,33 @@ function rangoFechasQuery() {
 async function cargarReportes() {
   inicializarFechasReporte()
   const query = rangoFechasQuery()
-  const r = await llamarApi(`/admin/reportes/resumen${query ? `?${query}` : ''}`)
+  const [r, porAnfitrion] = await Promise.all([
+    llamarApi(`/admin/reportes/resumen${query ? `?${query}` : ''}`),
+    llamarApi(`/admin/reportes/por-anfitrion${query ? `?${query}` : ''}`)
+  ])
   const grid = $('#gridReportes')
   grid.innerHTML = ''
   grid.append(
     tarjetaStat(r.totalReservas, 'Reservas en el rango'),
     tarjetaStat(FORMATO_MONEDA.format(r.valorTotal), 'Valor (confirmadas + completadas)'),
+    tarjetaStat(FORMATO_MONEDA.format(r.comisionTotal), 'Comisión de PetHouse (informativo)'),
+    tarjetaStat(FORMATO_MONEDA.format(r.gananciaAnfitrionesTotal), 'Ganancia de los anfitriones (informativo)'),
     tarjetaStat(r.usuariosNuevos, 'Usuarios nuevos')
   )
+
+  const tabla = $('#tablaComisionAnfitrion')
+  tabla.innerHTML = porAnfitrion.anfitriones.length
+    ? '<tr><th>Anfitrión</th><th>Reservas</th><th>Valor total</th><th>Comisión PetHouse</th><th>Gana el anfitrión</th></tr>' +
+      porAnfitrion.anfitriones.map(a => `
+        <tr>
+          <td>${esc(a.anfitrion_nombre)}</td>
+          <td>${a.num_reservas}</td>
+          <td>${FORMATO_MONEDA.format(a.valor_total)}</td>
+          <td>${FORMATO_MONEDA.format(a.comision_total)}</td>
+          <td>${FORMATO_MONEDA.format(a.ganancia_total)}</td>
+        </tr>`
+      ).join('')
+    : '<tr><td class="vacio">No hay reservas confirmadas o completadas en este rango.</td></tr>'
 }
 
 $('#btnAplicarReporte').addEventListener('click', cargarReportes)
@@ -668,6 +687,7 @@ async function descargarCSV(ruta, nombreArchivo) {
 
 $('#btnDescargarReservas').addEventListener('click', () => descargarCSV('/admin/reportes/reservas.csv', 'reservas.csv'))
 $('#btnDescargarUsuarios').addEventListener('click', () => descargarCSV('/admin/reportes/usuarios.csv', 'usuarios-nuevos.csv'))
+$('#btnDescargarComisiones').addEventListener('click', () => descargarCSV('/admin/reportes/comisiones-por-anfitrion.csv', 'comisiones-por-anfitrion.csv'))
 
 // ---- Entidad legal + documentos legales ----
 
@@ -678,6 +698,7 @@ async function cargarLegal() {
   $('#legalDomicilio').value = entidad.domicilio || ''
   $('#legalCorreo').value = entidad.correo_contacto || ''
   $('#legalTelefono').value = entidad.telefono_contacto || ''
+  $('#legalComision').value = entidad.comision_porcentaje ?? 10
 
   const privacidad = documentos.find(d => d.tipo === 'privacidad')
   const terminos = documentos.find(d => d.tipo === 'terminos')
@@ -701,7 +722,8 @@ $('#formEntidad').addEventListener('submit', async (e) => {
         nit: $('#legalNit').value.trim(),
         domicilio: $('#legalDomicilio').value.trim(),
         correoContacto: $('#legalCorreo').value.trim(),
-        telefonoContacto: $('#legalTelefono').value.trim()
+        telefonoContacto: $('#legalTelefono').value.trim(),
+        comisionPorcentaje: $('#legalComision').value
       })
     })
     mostrarGuardado('#okEntidad')
