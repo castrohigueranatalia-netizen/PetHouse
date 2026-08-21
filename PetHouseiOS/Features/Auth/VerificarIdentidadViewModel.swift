@@ -16,6 +16,12 @@ import PhotosUI
 public final class VerificarIdentidadViewModel {
     public let email: String
 
+    // `@ObservationIgnored`: sin esto, el macro de `@Observable` a veces pierde de vista el
+    // `import PhotosUI` al expandirse sobre una propiedad de un tipo externo con `didSet`,
+    // y Xcode marca "Cannot find type 'PhotosPickerItem' in scope" aunque el import esté
+    // ahí arriba (visto en la práctica). No hace falta que SwiftUI observe este valor en sí
+    // — la UI reacciona a `fotoPreview`, que sí está bajo observación.
+    @ObservationIgnored
     public var fotoSeleccionada: PhotosPickerItem? {
         didSet { Task { await cargarFoto() } }
     }

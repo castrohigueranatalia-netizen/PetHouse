@@ -25,6 +25,12 @@ public final class EditarPerfilViewModel {
 
     public var nombre: String
     public var telefono: String
+    // `@ObservationIgnored`: sin esto, el macro de `@Observable` puede perder de vista el
+    // `import PhotosUI` al expandirse sobre una propiedad de un tipo externo con `didSet`
+    // ("Cannot find type 'PhotosPickerItem' in scope" aunque el import esté ahí arriba —
+    // visto en la práctica en VerificarIdentidadViewModel, mismo patrón). La UI no necesita
+    // observar este valor en sí, reacciona a `fotoPreview`, que sí está bajo observación.
+    @ObservationIgnored
     public var fotoSeleccionada: PhotosPickerItem? {
         didSet { Task { await procesarFotoSeleccionada() } }
     }
