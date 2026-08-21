@@ -8,6 +8,8 @@ import SwiftUI
 struct NuevaReservaView: View {
     @State private var viewModel: NuevaReservaViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(SessionStore.self) private var session
+    @State private var mascotaParaCompletar: Mascota?
 
     init(hospedaje: Hospedaje, mascotasDisponibles: [Mascota]) {
         _viewModel = State(initialValue: NuevaReservaViewModel(hospedaje: hospedaje, mascotasDisponibles: mascotasDisponibles))
@@ -29,6 +31,13 @@ struct NuevaReservaView: View {
                     PHTextButton("Cerrar") { dismiss() }
                 }
             }
+        }
+        // `mascotasDisponibles` es un snapshot tomado al abrir esta pantalla — al volver de
+        // completar una ficha, hay que refrescarlo a mano con lo último de la sesión.
+        .sheet(item: $mascotaParaCompletar, onDismiss: {
+            viewModel.actualizarMascotas(session.mascotas)
+        }) { mascota in
+            MascotaFormView(mascota: mascota, session: session)
         }
     }
 
@@ -113,29 +122,56 @@ struct NuevaReservaView: View {
         }
     }
 
+    @ViewBuilder
     private func filaMascota(_ mascota: Mascota) -> some View {
-        let seleccionada = viewModel.mascotaIdsSeleccionadas.contains(mascota.id)
-        return Button {
-            viewModel.alternar(mascota)
-        } label: {
-            HStack(spacing: PHSpacing.s12) {
-                Image(systemName: seleccionada ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(seleccionada ? PHColor.primary : PHColor.mutedSoft)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(mascota.nombre)
-                        .phText(PHFont.bodyMD.weight(.medium), color: PHColor.ink)
-                    if let raza = mascota.raza, !raza.isEmpty {
-                        Text(raza)
-                            .phText(PHFont.captionSM, color: PHColor.muted)
+        if mascota.fichaCompleta {
+            let seleccionada = viewModel.mascotaIdsSeleccionadas.contains(mascota.id)
+            Button {
+                viewModel.alternar(mascota)
+            } label: {
+                HStack(spacing: PHSpacing.s12) {
+                    Image(systemName: seleccionada ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(seleccionada ? PHColor.primary : PHColor.mutedSoft)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(mascota.nombre)
+                            .phText(PHFont.bodyMD.weight(.medium), color: PHColor.ink)
+                        if let raza = mascota.raza, !raza.isEmpty {
+                            Text(raza)
+                                .phText(PHFont.captionSM, color: PHColor.muted)
+                        }
                     }
+                    Spacer()
                 }
-                Spacer()
+                .padding(PHSpacing.s12)
+                .background(PHColor.surfaceSoft)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
             }
-            .padding(PHSpacing.s12)
-            .background(PHColor.surfaceSoft)
-            .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+            .buttonStyle(.plain)
+        } else {
+            // No se puede seleccionar — tocarla lleva directo a completar su ficha (raza,
+            // edad, tamaño, peso y una foto), no a "elegirla" a medio llenar.
+            Button {
+                mascotaParaCompletar = mascota
+            } label: {
+                HStack(spacing: PHSpacing.s12) {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundStyle(PHColor.warning)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(mascota.nombre)
+                            .phText(PHFont.bodyMD.weight(.medium), color: PHColor.muted)
+                        Text("Completa su ficha (con foto) para poder reservar")
+                            .phText(PHFont.captionSM, color: PHColor.warning)
+                    }
+                    Spacer()
+                    Text("Completar")
+                        .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
+                }
+                .padding(PHSpacing.s12)
+                .background(PHColor.surfaceSoft.opacity(0.6))
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 
     private func confirmacion(_ respuesta: CrearReservaResponse) -> some View {

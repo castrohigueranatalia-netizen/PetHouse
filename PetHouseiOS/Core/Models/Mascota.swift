@@ -121,6 +121,22 @@ public struct Mascota: Codable, Identifiable, Hashable {
         default: nil
         }
     }
+
+    /// `true` solo cuando el anfitrión tiene todo lo que necesita para decidir con
+    /// confianza si acepta cuidar a esta mascota — no basta con el nombre. Se usa para
+    /// bloquear la selección al reservar (ver NuevaReservaViewModel); el servidor valida
+    /// exactamente lo mismo en POST /api/reservas, por si se llama a la API directo.
+    public var fichaCompleta: Bool {
+        guard let raza, !raza.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        guard edad != nil else { return false }
+        guard let tamano, !tamano.isEmpty else { return false }
+        guard pesoKg != nil else { return false }
+        guard !fotos.isEmpty else { return false }
+        if necesitaMedicamentos {
+            guard let notas, !notas.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        }
+        return true
+    }
 }
 
 // MARK: - CRUD de mascotas

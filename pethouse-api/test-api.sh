@@ -48,9 +48,14 @@ check "paginación: 1 resultado, total completo" "$(echo "$R" | python3 -c "impo
 R=$(curl -s "$B/api/hospedajes/20000000-0000-0000-0000-000000000001")
 check "detalle hospedaje" "$(echo "$R" | grep -c 'anfitrion_nombre')"
 
-# 9. Crear reserva (nace 'pendiente' — el anfitrión debe aceptarla o rechazarla)
+# 8b. Completa la ficha de Rocky (edad/tamano/foto) — sin esto, POST /reservas la rechaza
+# (ver "10c" más abajo: una mascota con solo nombre+especie no puede reservar).
 HID="20000000-0000-0000-0000-000000000001"
 MID="10000000-0000-0000-0000-000000000001"
+curl -s -X PATCH "$B/api/mascotas/$MID" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+  -d '{"edad":4,"tamano":"grande","fotos":["/semilla/g1.jpg"]}' > /dev/null
+
+# 9. Crear reserva (nace 'pendiente' — el anfitrión debe aceptarla o rechazarla)
 R=$(curl -s -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-01-10\",\"hasta\":\"2027-01-13\",\"mascota_ids\":[\"$MID\"]}")
 check "crear reserva pendiente con total" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('reserva',{}); print(1 if 'codigo' in r and r.get('estado')=='pendiente' else 0)")"
 RID=$(echo "$R" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reserva',{}).get('id',''))")
@@ -63,6 +68,12 @@ check "doble reserva rechazada (409)" "$([ "$CODE" = "409" ] && echo true)"
 TOKEN_ANF=$(curl -s -X POST $B/api/auth/login -H "Content-Type: application/json" -d '{"email":"anfitrion@pethouse.co","password":"demo123"}' | python3 -c "import json,sys; print(json.load(sys.stdin).get('accessToken',''))")
 R=$(curl -s -X POST "$B/api/reservas/${RID:-sin-id}/aceptar" -H "Authorization: Bearer $TOKEN_ANF")
 check "anfitrión acepta solicitud" "$(echo "$R" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('reserva',{}); print(1 if r.get('estado')=='confirmada' and len(r.get('mascotas_detalle') or [])==1 else 0)")"
+
+# 10c. Ficha de mascota incompleta (solo nombre+especie, como al registrarse) → no deja reservar
+R=$(curl -s -X POST $B/api/mascotas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"nombre":"Toby","especie":"perro"}')
+MID_INCOMPLETA=$(echo "$R" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mascota',{}).get('id',''))")
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/reservas -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d "{\"hospedaje_id\":\"$HID\",\"desde\":\"2027-02-01\",\"hasta\":\"2027-02-03\",\"mascota_ids\":[\"$MID_INCOMPLETA\"]}")
+check "mascota con ficha incompleta no puede reservar → 400" "$([ "$CODE" = "400" ] && echo true)"
 
 # 11. Mis reservas
 R=$(curl -s $B/api/reservas/mias -H "Authorization: Bearer $TOKEN")

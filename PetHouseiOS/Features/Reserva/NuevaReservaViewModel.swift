@@ -24,7 +24,7 @@ import Foundation
 @Observable
 public final class NuevaReservaViewModel {
     public let hospedaje: Hospedaje
-    public let mascotasDisponibles: [Mascota]
+    public private(set) var mascotasDisponibles: [Mascota]
 
     public var desde: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
     public var hasta: Date = Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now
@@ -40,8 +40,20 @@ public final class NuevaReservaViewModel {
         self.hospedaje = hospedaje
         self.mascotasDisponibles = mascotasDisponibles
         self.service = service
-        if let primera = mascotasDisponibles.first {
+        // Solo se preselecciona sola si su ficha ya está completa — si no, que el usuario
+        // vea el aviso y decida (completarla ahí mismo, o elegir otra mascota).
+        if let primera = mascotasDisponibles.first(where: \.fichaCompleta) {
             mascotaIdsSeleccionadas = [primera.id]
+        }
+    }
+
+    /// Se llama al volver de completar la ficha de una mascota (ver NuevaReservaView) —
+    /// `mascotasDisponibles` es un snapshot tomado al abrir esta pantalla, no una referencia
+    /// viva a `SessionStore.mascotas`, así que hay que refrescarlo a mano.
+    public func actualizarMascotas(_ mascotas: [Mascota]) {
+        mascotasDisponibles = mascotas
+        mascotaIdsSeleccionadas = mascotaIdsSeleccionadas.filter { id in
+            mascotas.first(where: { $0.id == id })?.fichaCompleta == true
         }
     }
 
@@ -56,6 +68,7 @@ public final class NuevaReservaViewModel {
     }
 
     public func alternar(_ mascota: Mascota) {
+        guard mascota.fichaCompleta else { return }
         if mascotaIdsSeleccionadas.contains(mascota.id) {
             mascotaIdsSeleccionadas.remove(mascota.id)
         } else if mascotaIdsSeleccionadas.count < maxMascotas {
@@ -77,7 +90,14 @@ public final class NuevaReservaViewModel {
     }
 
     public var puedeReservar: Bool {
-        fechasValidas && !mascotaIdsSeleccionadas.isEmpty && mascotaIdsSeleccionadas.count <= maxMascotas && !isLoading
+        fechasValidas
+            && !mascotaIdsSeleccionadas.isEmpty
+            && mascotaIdsSeleccionadas.count <= maxMascotas
+            // Defensivo: `alternar(_:)` ya no deja seleccionar una mascota incompleta, pero
+            // si de algún modo quedó una seleccionada y luego se editó dejándola incompleta,
+            // esto la saca de la jugada sin depender de que la UI lo haya recalculado.
+            && mascotaIdsSeleccionadas.allSatisfy { id in mascotasDisponibles.first(where: { $0.id == id })?.fichaCompleta == true }
+            && !isLoading
     }
 
     public func confirmar() async {

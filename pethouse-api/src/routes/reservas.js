@@ -70,12 +70,29 @@ r.post('/', auth, async (req, res, next) => {
 
     // Valida que las mascotas seleccionadas sean del usuario autenticado
     const { rows: mascotasPropias } = await client.query(
-      'SELECT id FROM mascotas WHERE id = ANY($1::uuid[]) AND usuario_id = $2',
+      `SELECT id, nombre, raza, edad, tamano, peso_kg, fotos, necesita_medicamentos, notas
+         FROM mascotas WHERE id = ANY($1::uuid[]) AND usuario_id = $2`,
       [mascota_ids, req.usuario.id]
     )
     if (mascotasPropias.length !== mascota_ids.length) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Alguna mascota seleccionada no es válida.' })
+    }
+
+    // Ficha completa: no basta con el nombre — el anfitrión necesita raza, edad, tamaño,
+    // peso y al menos una foto para decidir con confianza si acepta la solicitud (y, si la
+    // mascota toma medicamentos, el detalle en notas). Mismo criterio que valida la app
+    // ANTES de dejar seleccionar una mascota (ver Mascota.fichaCompleta en iOS) — esto es
+    // la versión de servidor, para que no se pueda saltar llamando a la API directo.
+    const incompletas = mascotasPropias.filter(m =>
+      !m.raza || m.edad === null || !m.tamano || m.peso_kg === null || !(m.fotos || []).length ||
+      (m.necesita_medicamentos && !m.notas)
+    )
+    if (incompletas.length) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({
+        error: `Completa la ficha de ${incompletas.map(m => m.nombre).join(', ')} (raza, edad, tamaño, peso y una foto) antes de reservar.`
+      })
     }
 
     const mascotas = mascota_ids.length
