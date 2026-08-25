@@ -303,7 +303,7 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     }
 
     const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
-            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
+            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos, activo } = req.body || {}
 
     if (localidad !== undefined && !LOCALIDADES_BOGOTA.includes(localidad)) {
       return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
@@ -324,6 +324,10 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     if (servicios !== undefined) set('servicios', servicios || [])
     if (reglas !== undefined) set('reglas', reglas || [])
     if (fotos !== undefined) set('fotos', fotos || [])
+    // Pausar/reactivar (ver "Pausar hospedaje" en el cliente): un hospedaje pausado
+    // (activo = FALSE) no aparece en Buscar ni en el mapa, pero no se borra — el anfitrión
+    // conserva su historial de reservas y reseñas, y puede reactivarlo cuando quiera.
+    if (activo !== undefined) set('activo', activo)
     if (lat !== undefined && lng !== undefined) {
       valores.push(Number(lng), Number(lat))
       campos.push(`ubicacion = ST_SetSRID(ST_MakePoint($${valores.length - 1}, $${valores.length}), 4326)`)

@@ -71,6 +71,9 @@ struct MisHospedajesView: View {
                             // ícono de 40pt, mucho más fácil de ver y de tocar que el texto
                             // chico que tenía antes debajo de la tarjeta.
                             HStack {
+                                if hospedaje.activo == false {
+                                    PHBadge("Pausado", style: .warning)
+                                }
                                 Spacer()
                                 PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(hospedaje.titulo)") {
                                     hospedajeParaEditar = hospedaje
@@ -79,6 +82,7 @@ struct MisHospedajesView: View {
 
                             Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
+                                    .opacity(hospedaje.activo == false ? 0.5 : 1)
                             }
                             .buttonStyle(.plain)
 
@@ -89,6 +93,8 @@ struct MisHospedajesView: View {
                                     .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
                             }
                             .padding(.horizontal, PHSpacing.s4)
+
+                            botonPausar(hospedaje)
                         }
                     }
                 }
@@ -118,5 +124,27 @@ struct MisHospedajesView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Pausar deja de mostrar el hospedaje en Buscar y en el mapa, sin borrarlo ni perder su
+    /// historial de reservas y reseñas — para cuando el anfitrión no puede recibir huéspedes
+    /// por un tiempo (viaje, remodelación, etc.) pero no quiere publicar de cero después.
+    private func botonPausar(_ hospedaje: Hospedaje) -> some View {
+        let activo = hospedaje.activo ?? true
+        return Button {
+            Task { await viewModel.alternarActivo(hospedaje) }
+        } label: {
+            HStack(spacing: PHSpacing.s4) {
+                if viewModel.alternandoId == hospedaje.id {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: activo ? "pause.circle" : "play.circle")
+                }
+                Text(activo ? "Pausar hospedaje" : "Reactivar hospedaje")
+            }
+            .phText(PHFont.captionSM.weight(.semibold), color: activo ? PHColor.muted : PHColor.success)
+        }
+        .disabled(viewModel.alternandoId != nil)
+        .padding(.horizontal, PHSpacing.s4)
     }
 }

@@ -62,11 +62,17 @@ r.post('/', auth, async (req, res, next) => {
 
     // Bloquea la fila del hospedaje para evitar carreras de reserva
     const { rows: hs } = await client.query(
-      'SELECT id, titulo, anfitrion_id, precio_noche, max_mascotas, convivencia FROM hospedajes WHERE id = $1 FOR UPDATE',
+      'SELECT id, titulo, anfitrion_id, precio_noche, max_mascotas, convivencia, activo FROM hospedajes WHERE id = $1 FOR UPDATE',
       [hospedaje_id]
     )
     if (!hs.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Hospedaje no encontrado.' }) }
     const h = hs[0]
+    // El anfitrión lo pausó (ver PATCH /api/hospedajes/:id { activo }) — ya no aparece en
+    // Buscar, pero alguien pudo tenerlo abierto desde antes de que lo pausara.
+    if (!h.activo) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'Este hospedaje no está disponible para reservar en este momento.' })
+    }
 
     // Valida que las mascotas seleccionadas sean del usuario autenticado
     const { rows: mascotasPropias } = await client.query(

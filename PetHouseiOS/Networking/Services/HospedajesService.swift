@@ -50,6 +50,10 @@ public protocol HospedajesServicing: Sendable {
     /// Mismo body que `crear`, pero devuelve el `Hospedaje` completo (ver
     /// `EditarHospedajeResponse`).
     func editar(id: String, _ payload: CrearHospedajeRequest) async throws -> Hospedaje
+    /// PATCH /api/hospedajes/:id { activo } — pausar (`false`) o reactivar (`true`) un
+    /// hospedaje propio sin tocar el resto de sus datos. Pausado deja de salir en Buscar y
+    /// en el mapa, pero conserva su historial de reservas y reseñas.
+    func alternarActivo(id: String, activo: Bool) async throws -> Hospedaje
     /// GET /api/hospedajes/localidades — conteo de hospedajes activos por cada una de las
     /// 20 localidades (incluye las que tienen 0), usado por el mapa/lista segmentados.
     func localidades() async throws -> [LocalidadConteo]
@@ -105,6 +109,13 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
 
     public func editar(id: String, _ payload: CrearHospedajeRequest) async throws -> Hospedaje {
         let data = try JSONEncoder().encode(payload)
+        let request = APIRequest(method: "PATCH", path: "/hospedajes/\(id)", body: data, requiresAuth: true)
+        let response: EditarHospedajeResponse = try await client.send(request)
+        return response.hospedaje
+    }
+
+    public func alternarActivo(id: String, activo: Bool) async throws -> Hospedaje {
+        let data = try JSONEncoder().encode(AlternarActivoHospedajeRequest(activo: activo))
         let request = APIRequest(method: "PATCH", path: "/hospedajes/\(id)", body: data, requiresAuth: true)
         let response: EditarHospedajeResponse = try await client.send(request)
         return response.hospedaje

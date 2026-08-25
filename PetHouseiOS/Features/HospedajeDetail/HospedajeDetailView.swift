@@ -240,16 +240,22 @@ struct HospedajeDetailView: View {
     private func barraReserva(_ hospedaje: Hospedaje) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 0) {
-                Text(PHFormato.precio(hospedaje.precioNoche))
-                    .phText(PHFont.titleMD, color: PHColor.ink)
-                Text("por noche")
-                    .phText(PHFont.micro, color: PHColor.muted)
+                if hospedaje.activo == false {
+                    Text("No disponible por ahora")
+                        .phText(PHFont.bodySM.weight(.semibold), color: PHColor.muted)
+                } else {
+                    Text(PHFormato.precio(hospedaje.precioNoche))
+                        .phText(PHFont.titleMD, color: PHColor.ink)
+                    Text("por noche")
+                        .phText(PHFont.micro, color: PHColor.muted)
+                }
             }
             Spacer()
             PHPrimaryButton("Reservar", systemImage: "calendar.badge.plus") {
                 mostrarReserva = true
             }
             .frame(maxWidth: 180)
+            .disabled(hospedaje.activo == false)
         }
         .padding(PHSpacing.s16)
         .background(.ultraThinMaterial)

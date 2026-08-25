@@ -282,6 +282,15 @@ public struct CrearHospedajeRequest: Encodable {
     }
 }
 
+/// Body mínimo de `PATCH /api/hospedajes/:id` para pausar/reactivar (ver "Pausar
+/// hospedaje" en MisHospedajesView) — a propósito NO reusa `CrearHospedajeRequest` (que
+/// exige todos los campos del formulario completo) para no tener que rearmarlo entero solo
+/// para cambiar un booleano.
+public struct AlternarActivoHospedajeRequest: Encodable {
+    public let activo: Bool
+    public init(activo: Bool) { self.activo = activo }
+}
+
 /// Respuesta de `POST /api/hospedajes` — SÍ en snake_case (solo `precio_noche`), a
 /// diferencia del request. Ver el comentario de `CrearHospedajeRequest`.
 // `Decodable` (no `Codable`): tiene `init(from:)` manual para el precio y solo se decodifica
