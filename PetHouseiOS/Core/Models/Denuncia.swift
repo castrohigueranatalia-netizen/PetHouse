@@ -32,25 +32,30 @@ public enum MotivoDenuncia: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Solo describe DESDE DÓNDE se hizo la denuncia — las tres siempre apuntan a un usuario
-/// (`usuarioDenunciadoId`); `.mensaje` además trae `mensajeId`.
+/// Solo describe DESDE DÓNDE se hizo la denuncia — todas apuntan a un usuario
+/// (`usuarioDenunciadoId`); `.mensaje` además trae `mensajeId`, `.resena` trae `resenaId`.
 public enum TipoDenuncia: String, Codable {
     case anfitrion
     case usuario
     case mensaje
+    case resena
 }
 
 public struct CrearDenunciaRequest: Encodable {
-    public let usuarioDenunciadoId: String
+    /// `nil` solo quedaría inválido en el servidor — EXCEPTO para `.resena`, donde el
+    /// servidor lo resuelve solo a partir de `resenaId` (el cliente no conoce el id de
+    /// quien escribió una reseña, los listados de reseñas solo traen su nombre).
+    public let usuarioDenunciadoId: String?
     public let tipo: TipoDenuncia
     public let motivo: MotivoDenuncia
     public let comentario: String?
     public let mensajeId: String?
     public let hospedajeId: String?
+    public let resenaId: String?
 
     public init(
-        usuarioDenunciadoId: String, tipo: TipoDenuncia, motivo: MotivoDenuncia,
-        comentario: String? = nil, mensajeId: String? = nil, hospedajeId: String? = nil
+        usuarioDenunciadoId: String? = nil, tipo: TipoDenuncia, motivo: MotivoDenuncia,
+        comentario: String? = nil, mensajeId: String? = nil, hospedajeId: String? = nil, resenaId: String? = nil
     ) {
         self.usuarioDenunciadoId = usuarioDenunciadoId
         self.tipo = tipo
@@ -58,6 +63,7 @@ public struct CrearDenunciaRequest: Encodable {
         self.comentario = comentario
         self.mensajeId = mensajeId
         self.hospedajeId = hospedajeId
+        self.resenaId = resenaId
     }
 }
 

@@ -43,6 +43,7 @@ struct EvaluacionHuespedView: View {
     let numResenas: Int
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = EvaluacionHuespedViewModel()
+    @State private var resenaAReportar: Resena?
 
     var body: some View {
         NavigationStack {
@@ -68,6 +69,14 @@ struct EvaluacionHuespedView: View {
             }
         }
         .task { await viewModel.cargar(usuarioId: usuarioId) }
+        .sheet(item: $resenaAReportar) { resena in
+            ReportarSheet(
+                usuarioDenunciadoNombre: resena.autor ?? "esta reseña",
+                tipo: .resena,
+                resenaId: resena.id,
+                textoCitado: resena.texto
+            )
+        }
     }
 
     @ViewBuilder
@@ -95,6 +104,15 @@ struct EvaluacionHuespedView: View {
                     .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
                 Spacer()
                 PHStarRatingDisplay(rating: Double(resena.rating))
+                if resena.id != nil {
+                    Button {
+                        resenaAReportar = resena
+                    } label: {
+                        Image(systemName: "flag")
+                            .foregroundStyle(PHColor.muted)
+                    }
+                    .accessibilityLabel("Reportar esta reseña")
+                }
             }
             if let titulo = resena.titulo, !titulo.isEmpty {
                 Text(titulo).phText(PHFont.bodySM.weight(.semibold), color: PHColor.body)

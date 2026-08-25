@@ -16,6 +16,7 @@ struct HospedajeDetailView: View {
     @State private var indiceGaleria = 0
     @State private var fotoVisor: FotoVisorItem?
     @State private var mostrarReportarAnfitrion = false
+    @State private var resenaAReportar: Resena?
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -32,6 +33,15 @@ struct HospedajeDetailView: View {
                 viewModel = HospedajeDetailViewModel(hospedajeId: hospedajeId)
             }
             await viewModel?.cargar()
+        }
+        .sheet(item: $resenaAReportar) { resena in
+            ReportarSheet(
+                usuarioDenunciadoNombre: resena.autor ?? "esta reseña",
+                tipo: .resena,
+                resenaId: resena.id,
+                textoCitado: resena.texto,
+                hospedajeId: hospedajeId
+            )
         }
     }
 
@@ -205,6 +215,15 @@ struct HospedajeDetailView: View {
                     .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
                 Spacer()
                 PHStarRatingDisplay(rating: Double(resena.rating))
+                if resena.id != nil {
+                    Button {
+                        resenaAReportar = resena
+                    } label: {
+                        Image(systemName: "flag")
+                            .foregroundStyle(PHColor.muted)
+                    }
+                    .accessibilityLabel("Reportar esta reseña")
+                }
             }
             if let titulo = resena.titulo, !titulo.isEmpty {
                 Text(titulo).phText(PHFont.bodySM.weight(.semibold), color: PHColor.body)

@@ -2,9 +2,9 @@
 //  ReportarViewModel.swift
 //  Features/Denuncias
 //
-//  Un solo formulario reutilizable para las 3 formas de reportar que pide la app: un
+//  Un solo formulario reutilizable para las formas de reportar que pide la app: un
 //  anfitrión (desde su hospedaje), cualquier usuario (ej. un huésped desde una solicitud de
-//  reserva) o un mensaje puntual del chat — ver ReportarSheet.swift y
+//  reserva), un mensaje puntual del chat o una reseña — ver ReportarSheet.swift y
 //  pethouse-api/src/routes/denuncias.js.
 //
 
@@ -13,11 +13,17 @@ import Foundation
 @MainActor
 @Observable
 public final class ReportarViewModel {
-    public let usuarioDenunciadoId: String
+    /// `nil` solo es válido para `.resena` — el servidor lo resuelve a partir de
+    /// `resenaId` (ver CrearDenunciaRequest).
+    public let usuarioDenunciadoId: String?
     public let usuarioDenunciadoNombre: String
     public let tipo: TipoDenuncia
     public let mensajeId: String?
-    public let mensajeTexto: String?
+    public let resenaId: String?
+    /// Vista previa de lo que se está reportando (el texto del mensaje o de la reseña) —
+    /// solo para mostrarla citada en el formulario, el servidor guarda su propia copia
+    /// independiente al recibir la denuncia.
+    public let textoCitado: String?
     public let hospedajeId: String?
 
     public var motivo: MotivoDenuncia?
@@ -30,15 +36,16 @@ public final class ReportarViewModel {
     private let service: DenunciasServicing
 
     public init(
-        usuarioDenunciadoId: String, usuarioDenunciadoNombre: String, tipo: TipoDenuncia,
-        mensajeId: String? = nil, mensajeTexto: String? = nil, hospedajeId: String? = nil,
+        usuarioDenunciadoId: String? = nil, usuarioDenunciadoNombre: String, tipo: TipoDenuncia,
+        mensajeId: String? = nil, resenaId: String? = nil, textoCitado: String? = nil, hospedajeId: String? = nil,
         service: DenunciasServicing = DenunciasService()
     ) {
         self.usuarioDenunciadoId = usuarioDenunciadoId
         self.usuarioDenunciadoNombre = usuarioDenunciadoNombre
         self.tipo = tipo
         self.mensajeId = mensajeId
-        self.mensajeTexto = mensajeTexto
+        self.resenaId = resenaId
+        self.textoCitado = textoCitado
         self.hospedajeId = hospedajeId
         self.service = service
     }
@@ -60,7 +67,8 @@ public final class ReportarViewModel {
                 motivo: motivo,
                 comentario: comentario.isEmpty ? nil : comentario,
                 mensajeId: mensajeId,
-                hospedajeId: hospedajeId
+                hospedajeId: hospedajeId,
+                resenaId: resenaId
             ))
             enviado = true
         } catch let appError as AppError {

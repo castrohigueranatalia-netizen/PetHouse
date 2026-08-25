@@ -257,7 +257,7 @@ r.get('/:id', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
 
     const { rows: resenas } = await pool.query(
-      `SELECT rs.rating, rs.titulo, rs.texto, rs.creado_en, u.nombre AS autor
+      `SELECT rs.id, rs.rating, rs.titulo, rs.texto, rs.creado_en, u.nombre AS autor
          FROM resenas rs JOIN usuarios u ON u.id = rs.autor_id
         WHERE rs.hospedaje_id = $1 ORDER BY rs.creado_en DESC LIMIT 20`,
       [req.params.id]

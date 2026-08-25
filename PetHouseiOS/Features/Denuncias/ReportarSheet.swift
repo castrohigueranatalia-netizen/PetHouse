@@ -2,10 +2,11 @@
 //  ReportarSheet.swift
 //  Features/Denuncias
 //
-//  Formulario para reportar un anfitrión, cualquier usuario o un mensaje del chat — el mismo
-//  para los 3 casos (ver ReportarViewModel). Se abre desde HospedajeDetailView (anfitrión),
-//  ReservasRecibidasView (huésped de una solicitud) y ChatDetailView (la persona o un
-//  mensaje puntual).
+//  Formulario para reportar un anfitrión, cualquier usuario, un mensaje del chat o una
+//  reseña — el mismo para los 4 casos (ver ReportarViewModel). Se abre desde
+//  HospedajeDetailView (anfitrión o una reseña del hospedaje), ReservasRecibidasView
+//  (huésped de una solicitud), ChatDetailView (la persona o un mensaje puntual) y
+//  EvaluacionHuespedView (una reseña del huésped).
 //
 
 import SwiftUI
@@ -15,15 +16,16 @@ struct ReportarSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     init(
-        usuarioDenunciadoId: String, usuarioDenunciadoNombre: String, tipo: TipoDenuncia,
-        mensajeId: String? = nil, mensajeTexto: String? = nil, hospedajeId: String? = nil
+        usuarioDenunciadoId: String? = nil, usuarioDenunciadoNombre: String, tipo: TipoDenuncia,
+        mensajeId: String? = nil, resenaId: String? = nil, textoCitado: String? = nil, hospedajeId: String? = nil
     ) {
         _viewModel = State(initialValue: ReportarViewModel(
             usuarioDenunciadoId: usuarioDenunciadoId,
             usuarioDenunciadoNombre: usuarioDenunciadoNombre,
             tipo: tipo,
             mensajeId: mensajeId,
-            mensajeTexto: mensajeTexto,
+            resenaId: resenaId,
+            textoCitado: textoCitado,
             hospedajeId: hospedajeId
         ))
     }
@@ -50,11 +52,11 @@ struct ReportarSheet: View {
     private var formulario: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s20) {
-                if let mensajeTexto = viewModel.mensajeTexto {
+                if let textoCitado = viewModel.textoCitado {
                     VStack(alignment: .leading, spacing: PHSpacing.s4) {
-                        Text("Mensaje reportado")
+                        Text(viewModel.tipo == .resena ? "Reseña reportada" : "Mensaje reportado")
                             .phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
-                        Text(mensajeTexto)
+                        Text(textoCitado)
                             .phText(PHFont.bodySM, color: PHColor.body)
                             .padding(PHSpacing.s12)
                             .background(PHColor.surfaceSoft)

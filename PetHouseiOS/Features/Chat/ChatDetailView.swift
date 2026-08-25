@@ -81,7 +81,7 @@ struct ChatDetailView: View {
                 usuarioDenunciadoNombre: conversacion.otroNombre ?? "Usuario",
                 tipo: .mensaje,
                 mensajeId: mensaje.id,
-                mensajeTexto: mensaje.texto
+                textoCitado: mensaje.texto
             )
         }
     }

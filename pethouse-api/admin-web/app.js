@@ -227,8 +227,8 @@ async function rechazarIdentidad(id) {
   } catch (err) { alert(err.message) }
 }
 
-// ---- Denuncias (reportar anfitriones/usuarios/mensajes) ----
-const ETIQUETAS_TIPO_DENUNCIA = { anfitrion: 'Anfitrión', usuario: 'Usuario', mensaje: 'Mensaje de chat' }
+// ---- Denuncias (reportar anfitriones/usuarios/mensajes/reseñas) ----
+const ETIQUETAS_TIPO_DENUNCIA = { anfitrion: 'Anfitrión', usuario: 'Usuario', mensaje: 'Mensaje de chat', resena: 'Reseña' }
 const ETIQUETAS_MOTIVO_DENUNCIA = {
   spam: 'Spam o publicidad',
   acoso: 'Acoso o comportamiento agresivo',
@@ -261,6 +261,9 @@ async function cargarDenuncias() {
         <span class="pill ${PILL_DENUNCIA[d.estado] || ''}">${d.estado === 'pendiente' ? 'Pendiente' : d.estado === 'revisada' ? 'Revisada' : 'Descartada'}</span>
       </div>
       ${d.mensaje_texto ? `<div class="citado">"${esc(d.mensaje_texto)}"</div>` : ''}
+      ${d.resena_texto || d.resena_titulo
+        ? `<div class="citado">${'★'.repeat(d.resena_rating || 0)}${d.resena_titulo ? ` <b>${esc(d.resena_titulo)}</b>` : ''}${d.resena_texto ? ` — ${esc(d.resena_texto)}` : ''}</div>`
+        : ''}
       ${d.comentario ? `<div class="citado">${esc(d.comentario)}</div>` : ''}
       ${d.nota_admin ? `<div class="notaAdmin">Nota del admin: ${esc(d.nota_admin)}</div>` : ''}
       <div class="acciones">

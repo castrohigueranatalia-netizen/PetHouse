@@ -15,7 +15,7 @@ const r = Router()
 r.get('/:id/resenas', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT ru.rating, ru.titulo, ru.texto, ru.creado_en, u.nombre AS autor
+      `SELECT ru.id, ru.rating, ru.titulo, ru.texto, ru.creado_en, u.nombre AS autor
          FROM resenas_usuario ru JOIN usuarios u ON u.id = ru.autor_id
         WHERE ru.usuario_id = $1 ORDER BY ru.creado_en DESC LIMIT 20`,
       [req.params.id]
