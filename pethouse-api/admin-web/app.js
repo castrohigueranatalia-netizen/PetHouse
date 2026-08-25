@@ -118,12 +118,12 @@ async function cargarEstadisticas() {
       ).join('')
   }
 
-  const tablaCiudades = $('#tablaCiudades')
-  if (!e.reservasPorCiudad.length) {
-    tablaCiudades.innerHTML = '<tr><td class="vacio">Todavía no hay reservas.</td></tr>'
+  const tablaLocalidades = $('#tablaLocalidades')
+  if (!e.reservasPorLocalidad.length) {
+    tablaLocalidades.innerHTML = '<tr><td class="vacio">Todavía no hay reservas.</td></tr>'
   } else {
-    tablaCiudades.innerHTML = '<tr><th>Ciudad</th><th>Reservas</th></tr>' +
-      e.reservasPorCiudad.map(c => `<tr><td>${c.ciudad}</td><td>${c.total}</td></tr>`).join('')
+    tablaLocalidades.innerHTML = '<tr><th>Localidad</th><th>Reservas</th></tr>' +
+      e.reservasPorLocalidad.map(l => `<tr><td>${l.localidad}</td><td>${l.total}</td></tr>`).join('')
   }
 }
 

@@ -139,7 +139,7 @@ r.get('/estadisticas', async (_req, res, next) => {
 
     const [
       usuarios, anfitriones, hospedajes, reservas, reservasActivas,
-      usuariosConReserva, porEstado, pendientes, porCiudad, privacidadPendientes, identidadPendientes
+      usuariosConReserva, porEstado, pendientes, porCiudad, porLocalidad, privacidadPendientes, identidadPendientes
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios'),
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE es_anfitrion'),
@@ -155,6 +155,19 @@ r.get('/estadisticas', async (_req, res, next) => {
           GROUP BY h.ciudad
           ORDER BY total DESC`
       ),
+      // La app opera solo en Bogotá (ver pethouse-api/src/routes/hospedajes.js), así que
+      // "por ciudad" ya no dice mucho del negocio real — casi todo es Bogotá, salvo reservas
+      // viejas de hospedajes de otras ciudades que quedaron del seed original. `localidad`
+      // (las 20 del Distrito, ver db/08-localidades-bogota.sql) es el desglose que sí
+      // importa hoy. Solo hospedajes de Bogotá tienen `localidad` (NULL en los de otras
+      // ciudades), así que se filtra para no mezclar un "sin localidad" sin sentido.
+      pool.query(
+        `SELECT h.localidad, COUNT(*)::int AS total
+           FROM reservas r JOIN hospedajes h ON h.id = r.hospedaje_id
+          WHERE h.localidad IS NOT NULL
+          GROUP BY h.localidad
+          ORDER BY total DESC`
+      ),
       pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_privacidad WHERE estado != 'resuelta'"),
       pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_identidad_password WHERE estado = 'pendiente'")
     ])
@@ -168,6 +181,7 @@ r.get('/estadisticas', async (_req, res, next) => {
       reservasPorEstado: porEstado.rows,
       solicitudesPendientes: pendientes.rows[0].total,
       reservasPorCiudad: porCiudad.rows,
+      reservasPorLocalidad: porLocalidad.rows,
       solicitudesPrivacidadPendientes: privacidadPendientes.rows[0].total,
       solicitudesIdentidadPendientes: identidadPendientes.rows[0].total
     })
