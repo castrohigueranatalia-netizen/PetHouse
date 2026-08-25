@@ -94,6 +94,14 @@ struct MisHospedajesView: View {
                             }
                             .padding(.horizontal, PHSpacing.s4)
 
+                            NavigationLink {
+                                CalendarioHospedajeView(hospedaje: hospedaje)
+                            } label: {
+                                Label("Ver calendario", systemImage: "calendar.badge.clock")
+                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
+                            }
+                            .padding(.horizontal, PHSpacing.s4)
+
                             botonPausar(hospedaje)
                         }
                     }
