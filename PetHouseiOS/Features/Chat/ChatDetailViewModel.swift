@@ -19,14 +19,19 @@ public final class ChatDetailViewModel {
     public private(set) var error: AppError?
     public var texto = ""
     public private(set) var enviando = false
+    /// `true` mientras se comprime/sube la foto elegida — separado de `enviando` (que es
+    /// solo el POST del mensaje en sí) para poder mostrar "Subiendo foto…" distinto.
+    public private(set) var subiendoFoto = false
 
     private let service: ChatServicing
+    private let imagenesService: ImagenesServicing
     private var pollingTask: Task<Void, Never>?
     private let intervaloPolling: UInt64 = 5_000_000_000 // 5s
 
-    public init(conversacion: Conversacion, service: ChatServicing = ChatService()) {
+    public init(conversacion: Conversacion, service: ChatServicing = ChatService(), imagenesService: ImagenesServicing = ImagenesService()) {
         self.conversacion = conversacion
         self.service = service
+        self.imagenesService = imagenesService
     }
 
     public func iniciar() async {
@@ -77,7 +82,31 @@ public final class ChatDetailViewModel {
         enviando = true
         defer { enviando = false }
         do {
-            let mensaje = try await service.enviar(conversacionId: conversacion.id, texto: contenido)
+            let mensaje = try await service.enviar(conversacionId: conversacion.id, texto: contenido, fotoUrl: nil)
+            mensajes.append(mensaje)
+            texto = ""
+        } catch let appError as AppError {
+            error = appError
+        } catch {
+            self.error = .desconocido(error.localizedDescription)
+        }
+    }
+
+    /// Comprime y sube la foto elegida en el `PhotosPicker`, y la manda como mensaje —
+    /// con el texto que hubiera escrito en ese momento como pie de foto, si había alguno.
+    public func enviarFoto(_ datos: Data) async {
+        guard !subiendoFoto, !enviando else { return }
+        subiendoFoto = true
+        defer { subiendoFoto = false }
+        do {
+            let comprimida = ImagenComprimida.comprimir(datos)
+            let url = try await imagenesService.subir(datos: comprimida, nombreArchivo: "foto.jpg", mimeType: "image/jpeg")
+            let contenido = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+            let mensaje = try await service.enviar(
+                conversacionId: conversacion.id,
+                texto: contenido.isEmpty ? nil : contenido,
+                fotoUrl: url
+            )
             mensajes.append(mensaje)
             texto = ""
         } catch let appError as AppError {

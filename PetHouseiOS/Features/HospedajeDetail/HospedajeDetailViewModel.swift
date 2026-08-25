@@ -37,4 +37,11 @@ public final class HospedajeDetailViewModel {
             self.error = .desconocido(error.localizedDescription)
         }
     }
+
+    /// Reemplaza una reseña local tras publicar/editar la respuesta del anfitrión — así se
+    /// ve de inmediato sin volver a pedir el hospedaje completo.
+    public func actualizarResenaLocal(_ resena: Resena) {
+        guard let indice = resenas.firstIndex(where: { $0.id == resena.id }) else { return }
+        resenas[indice] = resena
+    }
 }

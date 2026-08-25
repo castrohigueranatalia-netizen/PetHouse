@@ -12,6 +12,8 @@ import Foundation
 
 public protocol ResenasServicing: Sendable {
     func crear(hospedajeId: String, reservaId: String, rating: Int, titulo: String?, texto: String?) async throws -> Resena
+    /// El anfitrión dueño del hospedaje responde públicamente a una reseña.
+    func responder(hospedajeId: String, resenaId: String, respuesta: String) async throws -> Resena
 }
 
 public final class ResenasService: ResenasServicing, @unchecked Sendable {
@@ -26,6 +28,13 @@ public final class ResenasService: ResenasServicing, @unchecked Sendable {
         let data = try JSONEncoder().encode(payload)
         let request = APIRequest(method: "POST", path: "/hospedajes/\(hospedajeId)/resenas", body: data, requiresAuth: true)
         let response: CrearResenaResponse = try await client.send(request)
+        return response.resena
+    }
+
+    public func responder(hospedajeId: String, resenaId: String, respuesta: String) async throws -> Resena {
+        let data = try JSONEncoder().encode(ResponderResenaRequest(respuesta: respuesta))
+        let request = APIRequest(method: "POST", path: "/hospedajes/\(hospedajeId)/resenas/\(resenaId)/responder", body: data, requiresAuth: true)
+        let response: ResponderResenaResponse = try await client.send(request)
         return response.resena
     }
 }

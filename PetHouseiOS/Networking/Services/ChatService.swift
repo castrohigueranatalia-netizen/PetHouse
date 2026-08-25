@@ -14,7 +14,9 @@ public protocol ChatServicing: Sendable {
     func conversaciones() async throws -> [Conversacion]
     func obtenerOCrear(anfitrionId: String, hospedajeId: String?) async throws -> Conversacion
     func mensajes(conversacionId: String) async throws -> [Mensaje]
-    func enviar(conversacionId: String, texto: String) async throws -> Mensaje
+    /// `texto`/`fotoUrl`: al menos uno de los dos (el servidor lo exige). `fotoUrl` ya viene
+    /// subida (ver `ImagenesService`) — este método solo crea el mensaje que la referencia.
+    func enviar(conversacionId: String, texto: String?, fotoUrl: String?) async throws -> Mensaje
     func marcarLeidas(conversacionId: String) async throws -> Int
 }
 
@@ -45,8 +47,8 @@ public final class ChatService: ChatServicing, @unchecked Sendable {
         return response.mensajes
     }
 
-    public func enviar(conversacionId: String, texto: String) async throws -> Mensaje {
-        let data = try JSONEncoder().encode(EnviarMensajeRequest(texto: texto))
+    public func enviar(conversacionId: String, texto: String?, fotoUrl: String?) async throws -> Mensaje {
+        let data = try JSONEncoder().encode(EnviarMensajeRequest(texto: texto, fotoUrl: fotoUrl))
         let request = APIRequest(method: "POST", path: "/conversaciones/\(conversacionId)/mensajes", body: data, requiresAuth: true)
         let response: EnviarMensajeResponse = try await client.send(request)
         return response.mensaje

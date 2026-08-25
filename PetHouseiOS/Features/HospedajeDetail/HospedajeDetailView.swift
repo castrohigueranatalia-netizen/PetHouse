@@ -17,6 +17,7 @@ struct HospedajeDetailView: View {
     @State private var fotoVisor: FotoVisorItem?
     @State private var mostrarReportarAnfitrion = false
     @State private var resenaAReportar: Resena?
+    @State private var resenaAResponder: Resena?
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -129,7 +130,7 @@ struct HospedajeDetailView: View {
                         } else {
                             VStack(alignment: .leading, spacing: PHSpacing.s12) {
                                 ForEach(viewModel.resenas, id: \.identity) { resena in
-                                    resenaFila(resena)
+                                    resenaFila(resena, hospedaje: hospedaje)
                                 }
                             }
                         }
@@ -146,6 +147,17 @@ struct HospedajeDetailView: View {
             }
             .fullScreenCover(item: $fotoVisor) { item in
                 PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
+            }
+            .sheet(item: $resenaAResponder) { resena in
+                if let resenaId = resena.id {
+                    ResponderResenaSheet(
+                        hospedajeId: hospedaje.id,
+                        resenaId: resenaId,
+                        respuestaExistente: resena.respuestaAnfitrion
+                    ) { actualizada in
+                        viewModel.actualizarResenaLocal(actualizada)
+                    }
+                }
             }
         }
     }
@@ -208,8 +220,9 @@ struct HospedajeDetailView: View {
         }
     }
 
-    private func resenaFila(_ resena: Resena) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func resenaFila(_ resena: Resena, hospedaje: Hospedaje) -> some View {
+        let esMiHospedaje = hospedaje.anfitrionId != nil && hospedaje.anfitrionId == session.usuario?.id
+        return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(resena.autor ?? "Usuario de PetHouse")
                     .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
@@ -230,6 +243,25 @@ struct HospedajeDetailView: View {
             }
             if let texto = resena.texto, !texto.isEmpty {
                 Text(texto).phText(PHFont.bodySM, color: PHColor.muted)
+            }
+
+            if let respuesta = resena.respuestaAnfitrion, !respuesta.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Respuesta del anfitrión")
+                        .phText(PHFont.micro.weight(.semibold), color: PHColor.muted)
+                    Text(respuesta)
+                        .phText(PHFont.bodySM, color: PHColor.body)
+                }
+                .padding(PHSpacing.s8)
+                .background(PHColor.surfaceStrong)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
+                .padding(.top, PHSpacing.s4)
+
+                if esMiHospedaje {
+                    PHTextButton("Editar respuesta") { resenaAResponder = resena }
+                }
+            } else if esMiHospedaje && resena.id != nil {
+                PHTextButton("Responder") { resenaAResponder = resena }
             }
         }
         .padding(PHSpacing.s12)

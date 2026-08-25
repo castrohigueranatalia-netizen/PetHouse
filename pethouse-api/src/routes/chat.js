@@ -18,7 +18,10 @@ r.get('/', auth, async (req, res, next) => {
               u.nombre AS otro_nombre,
               (SELECT COUNT(*) FROM mensajes m
                 WHERE m.conversacion_id = c.id AND m.remitente_id <> $1 AND m.leido = FALSE) AS no_leidos,
-              (SELECT texto FROM mensajes m WHERE m.conversacion_id = c.id
+              -- Un mensaje puede ser solo una foto, sin texto (ver 32-fotos-chat.sql) — el
+              -- resumen de la conversación necesita algo que mostrar igual.
+              (SELECT COALESCE(texto, CASE WHEN foto_url IS NOT NULL THEN '📷 Foto' END) FROM mensajes m
+                WHERE m.conversacion_id = c.id
                 ORDER BY m.creado_en DESC LIMIT 1) AS ultimo_mensaje,
               (SELECT creado_en FROM mensajes m WHERE m.conversacion_id = c.id
                 ORDER BY m.creado_en DESC LIMIT 1) AS ultimo_en
@@ -66,7 +69,7 @@ r.get('/:id/mensajes', auth, async (req, res, next) => {
     if (!c.length) return res.status(403).json({ error: 'No perteneces a esta conversación.' })
 
     const { rows } = await pool.query(
-      `SELECT id, remitente_id, texto, leido, creado_en
+      `SELECT id, remitente_id, texto, foto_url, leido, creado_en
          FROM mensajes WHERE conversacion_id = $1
         ORDER BY creado_en ASC LIMIT 200`,
       [req.params.id]
@@ -75,11 +78,12 @@ r.get('/:id/mensajes', auth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-// ---- Enviar mensaje ----
+// ---- Enviar mensaje (texto, una foto, o los dos — al menos uno de los dos) ----
 r.post('/:id/mensajes', auth, async (req, res, next) => {
   try {
-    const { texto } = req.body || {}
-    if (!texto || !String(texto).trim()) return res.status(400).json({ error: 'El mensaje no puede estar vacío.' })
+    const texto = req.body?.texto ? String(req.body.texto).trim() : null
+    const fotoUrl = req.body?.fotoUrl ? String(req.body.fotoUrl).trim() : null
+    if (!texto && !fotoUrl) return res.status(400).json({ error: 'El mensaje no puede estar vacío.' })
 
     const { rows: c } = await pool.query(
       'SELECT id FROM conversaciones WHERE id = $1 AND (usuario_id = $2 OR anfitrion_id = $2)',
@@ -88,9 +92,9 @@ r.post('/:id/mensajes', auth, async (req, res, next) => {
     if (!c.length) return res.status(403).json({ error: 'No perteneces a esta conversación.' })
 
     const { rows } = await pool.query(
-      `INSERT INTO mensajes (conversacion_id, remitente_id, texto)
-       VALUES ($1, $2, $3) RETURNING id, remitente_id, texto, leido, creado_en`,
-      [req.params.id, req.usuario.id, String(texto).trim()]
+      `INSERT INTO mensajes (conversacion_id, remitente_id, texto, foto_url)
+       VALUES ($1, $2, $3, $4) RETURNING id, remitente_id, texto, foto_url, leido, creado_en`,
+      [req.params.id, req.usuario.id, texto, fotoUrl]
     )
     res.status(201).json({ mensaje: rows[0] })
   } catch (err) { next(err) }
