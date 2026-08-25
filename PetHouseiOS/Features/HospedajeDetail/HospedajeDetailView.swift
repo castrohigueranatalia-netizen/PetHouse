@@ -15,6 +15,7 @@ struct HospedajeDetailView: View {
     /// completa (ver `PHVisorFotos`) empezando en esta misma página.
     @State private var indiceGaleria = 0
     @State private var fotoVisor: FotoVisorItem?
+    @State private var mostrarReportarAnfitrion = false
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -74,8 +75,18 @@ struct HospedajeDetailView: View {
                         PHBadge(hospedaje.tipo.etiqueta, style: .primary)
                     }
 
-                    if let anfitrion = hospedaje.anfitrionNombre {
-                        anfitrionSeccion(nombre: anfitrion, verificado: hospedaje.anfitrionVerificado ?? false)
+                    if let anfitrion = hospedaje.anfitrionNombre, let anfitrionId = hospedaje.anfitrionId {
+                        anfitrionSeccion(nombre: anfitrion, verificado: hospedaje.anfitrionVerificado ?? false) {
+                            mostrarReportarAnfitrion = true
+                        }
+                        .sheet(isPresented: $mostrarReportarAnfitrion) {
+                            ReportarSheet(
+                                usuarioDenunciadoId: anfitrionId,
+                                usuarioDenunciadoNombre: anfitrion,
+                                tipo: .anfitrion,
+                                hospedajeId: hospedaje.id
+                            )
+                        }
                     }
 
                     if let descripcion = hospedaje.descripcion, !descripcion.isEmpty {
@@ -165,7 +176,7 @@ struct HospedajeDetailView: View {
         return "🐾 Mira este hospedaje en PetHouse: \(hospedaje.titulo)\n\(ubicacion) · \(hospedaje.tipo.etiqueta) · \(PHFormato.precio(hospedaje.precioNoche))/noche"
     }
 
-    private func anfitrionSeccion(nombre: String, verificado: Bool) -> some View {
+    private func anfitrionSeccion(nombre: String, verificado: Bool, alReportar: @escaping () -> Void) -> some View {
         HStack(spacing: PHSpacing.s12) {
             PHAvatar(name: nombre, size: 44)
             VStack(alignment: .leading, spacing: 2) {
@@ -176,6 +187,7 @@ struct HospedajeDetailView: View {
                 }
             }
             Spacer()
+            PHIconButton(systemImage: "flag", accessibilityLabel: "Reportar a \(nombre)", action: alReportar)
         }
     }
 

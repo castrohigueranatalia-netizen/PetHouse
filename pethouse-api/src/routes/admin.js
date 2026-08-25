@@ -3,6 +3,9 @@
 // GET /api/admin/solicitudes · POST /api/admin/solicitudes/:id/aprobar · /rechazar
 // GET /api/admin/estadisticas
 // GET /api/admin/usuarios · /usuarios/:id
+// POST /api/admin/usuarios/:id/bloquear · /usuarios/:id/desbloquear
+// GET /api/admin/denuncias · /denuncias/:id
+// POST /api/admin/denuncias/:id/revisar · /denuncias/:id/descartar
 // GET /api/admin/hospedajes
 // GET /api/admin/reservas
 // GET /api/admin/legal · PUT /api/admin/legal/entidad · PUT /api/admin/legal/:tipo
@@ -28,6 +31,7 @@ import { completarReservasVencidas } from '../lib/completarReservas.js'
 import { generarCodigo, hashCodigo } from '../lib/codigos.js'
 import { enviarCorreo } from '../lib/correo.js'
 import { aCSV } from '../lib/csv.js'
+import { revocarTodasLasSesiones } from '../lib/tokens.js'
 
 const r = Router()
 r.use(auth, soloAdmin)
@@ -139,7 +143,8 @@ r.get('/estadisticas', async (_req, res, next) => {
 
     const [
       usuarios, anfitriones, hospedajes, reservas, reservasActivas,
-      usuariosConReserva, porEstado, pendientes, porCiudad, porLocalidad, privacidadPendientes, identidadPendientes
+      usuariosConReserva, porEstado, pendientes, porCiudad, porLocalidad, privacidadPendientes, identidadPendientes,
+      denunciasPendientes
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios'),
       pool.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE es_anfitrion'),
@@ -169,7 +174,8 @@ r.get('/estadisticas', async (_req, res, next) => {
           ORDER BY total DESC`
       ),
       pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_privacidad WHERE estado != 'resuelta'"),
-      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_identidad_password WHERE estado = 'pendiente'")
+      pool.query("SELECT COUNT(*)::int AS total FROM solicitudes_identidad_password WHERE estado = 'pendiente'"),
+      pool.query("SELECT COUNT(*)::int AS total FROM denuncias WHERE estado = 'pendiente'")
     ])
     res.json({
       totalUsuarios: usuarios.rows[0].total,
@@ -183,7 +189,8 @@ r.get('/estadisticas', async (_req, res, next) => {
       reservasPorCiudad: porCiudad.rows,
       reservasPorLocalidad: porLocalidad.rows,
       solicitudesPrivacidadPendientes: privacidadPendientes.rows[0].total,
-      solicitudesIdentidadPendientes: identidadPendientes.rows[0].total
+      solicitudesIdentidadPendientes: identidadPendientes.rows[0].total,
+      denunciasPendientes: denunciasPendientes.rows[0].total
     })
   } catch (err) { next(err) }
 })
@@ -216,6 +223,7 @@ r.get('/usuarios', async (req, res, next) => {
       // Postgres en la misma consulta) — no es un loop de queries desde Node, así que no
       // hay problema real de N+1 aunque se vea "una consulta por fila".
       `SELECT u.id, u.nombre, u.email, u.telefono, u.rol, u.es_anfitrion, u.verificado, u.creado_en,
+              u.bloqueado, u.bloqueado_motivo,
               COUNT(*) OVER() AS total_filtrado,
               (SELECT COUNT(*)::int FROM mascotas m WHERE m.usuario_id = u.id) AS num_mascotas,
               (SELECT COUNT(*)::int FROM reservas rs WHERE rs.usuario_id = u.id) AS num_reservas,
@@ -239,7 +247,8 @@ r.get('/usuarios', async (req, res, next) => {
 r.get('/usuarios/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, nombre, email, telefono, rol, es_anfitrion, verificado, foto_url, creado_en
+      `SELECT id, nombre, email, telefono, rol, es_anfitrion, verificado, foto_url, creado_en,
+              bloqueado, bloqueado_motivo, bloqueado_en
          FROM usuarios WHERE id = $1`,
       [req.params.id]
     )
@@ -279,6 +288,40 @@ r.get('/usuarios/:id', async (req, res, next) => {
       hospedajes: hospedajes.rows,
       reservas: reservas.rows
     })
+  } catch (err) { next(err) }
+})
+
+// ---- Bloquear / desbloquear una cuenta ----
+// Efecto inmediato (ver middleware/middleware.js `auth`): no puede volver a iniciar sesión,
+// pierde de una las sesiones que ya tenía abiertas (se revocan sus refresh tokens acá mismo,
+// así que ni renovando un access token vencido puede seguir), y si es anfitrión sus
+// hospedajes dejan de salir en Buscar (ver routes/hospedajes.js, `u.bloqueado = FALSE`).
+r.post('/usuarios/:id/bloquear', async (req, res, next) => {
+  try {
+    const { motivo } = req.body || {}
+    if (req.params.id === req.usuario.id) return res.status(400).json({ error: 'No puedes bloquearte a ti mismo.' })
+
+    const { rows } = await pool.query(
+      `UPDATE usuarios SET bloqueado = TRUE, bloqueado_motivo = $1, bloqueado_en = now()
+        WHERE id = $2 RETURNING id, nombre`,
+      [motivo || null, req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Usuario no encontrado.' })
+
+    await revocarTodasLasSesiones(req.params.id)
+    res.json({ ok: true, usuario: rows[0] })
+  } catch (err) { next(err) }
+})
+
+r.post('/usuarios/:id/desbloquear', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE usuarios SET bloqueado = FALSE, bloqueado_motivo = NULL, bloqueado_en = NULL
+        WHERE id = $1 RETURNING id, nombre`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Usuario no encontrado.' })
+    res.json({ ok: true, usuario: rows[0] })
   } catch (err) { next(err) }
 })
 
@@ -908,6 +951,85 @@ r.get('/reportes/usuarios.csv', async (req, res, next) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', 'attachment; filename="usuarios.csv"')
     res.send(csv)
+  } catch (err) { next(err) }
+})
+
+// ---- Denuncias (reportar anfitriones/usuarios/mensajes) ----
+// El lado del usuario (crear una denuncia) está en routes/denuncias.js — ver
+// db/30-denuncias.sql para el modelo completo y por qué se llama "denuncias" y no
+// "reportes" (eso ya significa los informes de comisión arriba en este mismo archivo).
+
+r.get('/denuncias', async (req, res, next) => {
+  try {
+    const { estado } = req.query
+    const condiciones = []
+    const params = []
+    if (estado) {
+      if (!['pendiente', 'revisada', 'descartada'].includes(estado)) return res.status(400).json({ error: 'Estado inválido.' })
+      params.push(estado)
+      condiciones.push(`d.estado = $${params.length}`)
+    }
+    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT d.*,
+              den.nombre AS denunciante_nombre, den.email AS denunciante_email,
+              rep.nombre AS denunciado_nombre, rep.email AS denunciado_email, rep.bloqueado AS denunciado_bloqueado,
+              h.titulo AS hospedaje_titulo
+         FROM denuncias d
+         JOIN usuarios den ON den.id = d.denunciante_id
+         JOIN usuarios rep ON rep.id = d.usuario_denunciado_id
+         LEFT JOIN hospedajes h ON h.id = d.hospedaje_id
+         ${where}
+        ORDER BY (d.estado = 'pendiente') DESC, d.creado_en DESC`,
+      params
+    )
+    res.json({ total: rows.length, denuncias: rows })
+  } catch (err) { next(err) }
+})
+
+r.get('/denuncias/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.*,
+              den.nombre AS denunciante_nombre, den.email AS denunciante_email,
+              rep.nombre AS denunciado_nombre, rep.email AS denunciado_email, rep.bloqueado AS denunciado_bloqueado,
+              h.titulo AS hospedaje_titulo
+         FROM denuncias d
+         JOIN usuarios den ON den.id = d.denunciante_id
+         JOIN usuarios rep ON rep.id = d.usuario_denunciado_id
+         LEFT JOIN hospedajes h ON h.id = d.hospedaje_id
+        WHERE d.id = $1`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Denuncia no encontrada.' })
+    res.json({ denuncia: rows[0] })
+  } catch (err) { next(err) }
+})
+
+r.post('/denuncias/:id/revisar', async (req, res, next) => {
+  try {
+    const { notaAdmin } = req.body || {}
+    const { rows } = await pool.query(
+      `UPDATE denuncias SET estado = 'revisada', nota_admin = $1, resuelto_en = now()
+        WHERE id = $2 AND estado = 'pendiente' RETURNING id`,
+      [notaAdmin || null, req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Denuncia no encontrada o ya fue resuelta.' })
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
+
+r.post('/denuncias/:id/descartar', async (req, res, next) => {
+  try {
+    const { notaAdmin } = req.body || {}
+    const { rows } = await pool.query(
+      `UPDATE denuncias SET estado = 'descartada', nota_admin = $1, resuelto_en = now()
+        WHERE id = $2 AND estado = 'pendiente' RETURNING id`,
+      [notaAdmin || null, req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ error: 'Denuncia no encontrada o ya fue resuelta.' })
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

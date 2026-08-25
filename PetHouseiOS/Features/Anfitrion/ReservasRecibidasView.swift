@@ -119,6 +119,8 @@ struct ReservasRecibidasView: View {
     @State private var reservaParaEvaluar: Reserva?
     /// Reserva `completada` que el anfitrión está calificando — ver `NuevaResenaHuespedView`.
     @State private var reservaParaCalificar: Reserva?
+    /// Reserva cuyo huésped se está reportando — ver `ReportarSheet`.
+    @State private var reservaParaReportar: Reserva?
 
     var body: some View {
         content
@@ -143,6 +145,14 @@ struct ReservasRecibidasView: View {
             }
             .sheet(item: $reservaParaCalificar) { reserva in
                 NuevaResenaHuespedView(reserva: reserva)
+            }
+            .sheet(item: $reservaParaReportar) { reserva in
+                ReportarSheet(
+                    usuarioDenunciadoId: reserva.usuarioId ?? "",
+                    usuarioDenunciadoNombre: reserva.usuarioNombre ?? "Huésped",
+                    tipo: .usuario,
+                    hospedajeId: hospedaje.id
+                )
             }
     }
 
@@ -182,6 +192,9 @@ struct ReservasRecibidasView: View {
                         .phText(PHFont.micro, color: PHColor.mutedSoft)
                 }
                 Spacer()
+                PHIconButton(systemImage: "flag", accessibilityLabel: "Reportar a \(reserva.usuarioNombre ?? "este huésped")") {
+                    reservaParaReportar = reserva
+                }
                 estadoBadge(reserva.estado)
             }
 

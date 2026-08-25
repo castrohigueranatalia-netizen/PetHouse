@@ -105,7 +105,8 @@ async function cargarEstadisticas() {
     tarjetaStat(e.reservasActivas, 'Reservas activas ahora'),
     tarjetaStat(e.solicitudesPendientes, 'Solicitudes por revisar'),
     tarjetaStat(e.solicitudesPrivacidadPendientes, 'Solicitudes de privacidad sin resolver'),
-    tarjetaStat(e.solicitudesIdentidadPendientes, 'Verificaciones de identidad pendientes')
+    tarjetaStat(e.solicitudesIdentidadPendientes, 'Verificaciones de identidad pendientes'),
+    tarjetaStat(e.denunciasPendientes, 'Denuncias sin revisar')
   )
 
   const tablaEstados = $('#tablaEstados')
@@ -226,6 +227,98 @@ async function rechazarIdentidad(id) {
   } catch (err) { alert(err.message) }
 }
 
+// ---- Denuncias (reportar anfitriones/usuarios/mensajes) ----
+const ETIQUETAS_TIPO_DENUNCIA = { anfitrion: 'Anfitrión', usuario: 'Usuario', mensaje: 'Mensaje de chat' }
+const ETIQUETAS_MOTIVO_DENUNCIA = {
+  spam: 'Spam o publicidad',
+  acoso: 'Acoso o comportamiento agresivo',
+  contenido_inapropiado: 'Contenido inapropiado',
+  informacion_falsa: 'Información falsa',
+  fraude: 'Fraude o estafa',
+  otro: 'Otro motivo'
+}
+const PILL_DENUNCIA = { pendiente: 'pendiente', revisada: 'confirmada', descartada: 'cancelada' }
+
+async function cargarDenuncias() {
+  const estado = $('#filtroEstadoDenuncias').value
+  const { denuncias } = await llamarApi(`/admin/denuncias${estado ? `?estado=${estado}` : ''}`)
+  const contenedor = $('#listaDenuncias')
+  if (!denuncias.length) {
+    contenedor.innerHTML = '<div class="vacio">No hay denuncias que coincidan.</div>'
+    return
+  }
+  contenedor.innerHTML = ''
+  for (const d of denuncias) {
+    const fila = document.createElement('div')
+    fila.className = 'denuncia'
+    fila.innerHTML = `
+      <div class="cabecera">
+        <div class="info">
+          <b>${esc(d.denunciante_nombre)} denunció a ${esc(d.denunciado_nombre)}</b>
+          <span>${ETIQUETAS_TIPO_DENUNCIA[d.tipo] || esc(d.tipo)} · ${ETIQUETAS_MOTIVO_DENUNCIA[d.motivo] || esc(d.motivo)} · ${formatoFecha(d.creado_en)}${d.hospedaje_titulo ? ` · ${esc(d.hospedaje_titulo)}` : ''}</span>
+          <span>${esc(d.denunciante_email)} → ${esc(d.denunciado_email)}${d.denunciado_bloqueado ? ' · <b style="color:var(--error)">Cuenta bloqueada</b>' : ''}</span>
+        </div>
+        <span class="pill ${PILL_DENUNCIA[d.estado] || ''}">${d.estado === 'pendiente' ? 'Pendiente' : d.estado === 'revisada' ? 'Revisada' : 'Descartada'}</span>
+      </div>
+      ${d.mensaje_texto ? `<div class="citado">"${esc(d.mensaje_texto)}"</div>` : ''}
+      ${d.comentario ? `<div class="citado">${esc(d.comentario)}</div>` : ''}
+      ${d.nota_admin ? `<div class="notaAdmin">Nota del admin: ${esc(d.nota_admin)}</div>` : ''}
+      <div class="acciones">
+        ${d.estado === 'pendiente' ? `<button class="btnAprobar">Marcar revisada</button><button class="btnRechazar">Descartar</button>` : ''}
+        ${d.denunciado_bloqueado
+          ? `<button class="btnDesbloquear">Desbloquear ${esc(d.denunciado_nombre)}</button>`
+          : `<button class="btnBloquear">Bloquear ${esc(d.denunciado_nombre)}</button>`}
+      </div>`
+    if (d.estado === 'pendiente') {
+      fila.querySelector('.btnAprobar').addEventListener('click', () => revisarDenuncia(d.id))
+      fila.querySelector('.btnRechazar').addEventListener('click', () => descartarDenuncia(d.id))
+    }
+    if (d.denunciado_bloqueado) {
+      fila.querySelector('.btnDesbloquear').addEventListener('click', () => desbloquearUsuario(d.usuario_denunciado_id, cargarDenuncias))
+    } else {
+      fila.querySelector('.btnBloquear').addEventListener('click', () => bloquearUsuario(d.usuario_denunciado_id, cargarDenuncias))
+    }
+    contenedor.append(fila)
+  }
+}
+
+$('#filtroEstadoDenuncias').addEventListener('change', cargarDenuncias)
+
+async function revisarDenuncia(id) {
+  const notaAdmin = prompt('¿Alguna nota sobre lo que revisaste? (opcional)') || ''
+  try {
+    await llamarApi(`/admin/denuncias/${id}/revisar`, { method: 'POST', body: JSON.stringify({ notaAdmin }) })
+    await cargarDenuncias()
+  } catch (err) { alert(err.message) }
+}
+
+async function descartarDenuncia(id) {
+  if (!confirm('¿Descartar esta denuncia?')) return
+  const notaAdmin = prompt('¿Alguna nota sobre por qué la descartas? (opcional)') || ''
+  try {
+    await llamarApi(`/admin/denuncias/${id}/descartar`, { method: 'POST', body: JSON.stringify({ notaAdmin }) })
+    await cargarDenuncias()
+  } catch (err) { alert(err.message) }
+}
+
+// ---- Bloquear / desbloquear una cuenta (desde Denuncias o desde la ficha de Usuarios) ----
+async function bloquearUsuario(usuarioId, alTerminar) {
+  const motivo = prompt('¿Por qué vas a bloquear esta cuenta? (queda guardado)')
+  if (motivo === null) return
+  try {
+    await llamarApi(`/admin/usuarios/${usuarioId}/bloquear`, { method: 'POST', body: JSON.stringify({ motivo }) })
+    await alTerminar()
+  } catch (err) { alert(err.message) }
+}
+
+async function desbloquearUsuario(usuarioId, alTerminar) {
+  if (!confirm('¿Desbloquear esta cuenta? Podrá volver a iniciar sesión.')) return
+  try {
+    await llamarApi(`/admin/usuarios/${usuarioId}/desbloquear`, { method: 'POST' })
+    await alTerminar()
+  } catch (err) { alert(err.message) }
+}
+
 // ---- Utilidad: texto de usuario/base de datos SIEMPRE escapado antes de meterlo en
 // innerHTML — un nombre o correo con caracteres como "<" no debe interpretarse como HTML.
 function esc(valor) {
@@ -253,6 +346,7 @@ const CARGADORES_VISTA = {
   identidad: () => cargarIdentidad(),
   soporte: () => cargarSoporte(),
   privacidad: () => cargarPrivacidad(),
+  denuncias: () => cargarDenuncias(),
   reportes: () => cargarReportes(),
   legal: () => cargarLegal()
 }
@@ -334,12 +428,18 @@ async function mostrarDetalleUsuario(id) {
     const d = await llamarApi(`/admin/usuarios/${id}`)
     const u = d.usuario
     let html = `
-      <div class="fichaTitulo">${esc(u.nombre)}</div>
+      <div class="fichaTitulo">${esc(u.nombre)}${u.bloqueado ? ' <span class="pill rechazada">Bloqueado</span>' : ''}</div>
       <div class="fichaSub">${esc(u.email)} · ${u.es_anfitrion ? 'Anfitrión' : 'Cliente'} · desde ${formatoFecha(u.creado_en)}</div>
       <div class="fichaSeccion">
         <h3>Datos</h3>
         <div class="fichaFila"><span>Teléfono</span><span>${esc(u.telefono) || '—'}</span></div>
         <div class="fichaFila"><span>Rol</span><span>${esc(u.rol)}</span></div>
+        ${u.bloqueado && u.bloqueado_motivo ? `<div class="fichaFila"><span>Motivo del bloqueo</span><span>${esc(u.bloqueado_motivo)}</span></div>` : ''}
+      </div>
+      <div class="fichaSeccion">
+        ${u.bloqueado
+          ? `<button class="btnDesbloquear" id="btnAlternarBloqueo">Desbloquear cuenta</button>`
+          : `<button class="btnBloquear" id="btnAlternarBloqueo">Bloquear cuenta</button>`}
       </div>`
 
     if (d.mascotas.length) {
@@ -363,6 +463,12 @@ async function mostrarDetalleUsuario(id) {
         `</div>`
     }
     contenido.innerHTML = html
+    const btnBloqueo = $('#btnAlternarBloqueo')
+    if (u.bloqueado) {
+      btnBloqueo.addEventListener('click', () => desbloquearUsuario(u.id, () => mostrarDetalleUsuario(u.id)))
+    } else {
+      btnBloqueo.addEventListener('click', () => bloquearUsuario(u.id, () => mostrarDetalleUsuario(u.id)))
+    }
   } catch (err) {
     contenido.innerHTML = `<div class="errorLogin">${esc(err.message)}</div>`
   }

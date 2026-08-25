@@ -84,6 +84,12 @@ r.post('/login', limitadorAuth, async (req, res, next) => {
     const ok = await bcrypt.compare(String(password), rows[0].password_hash).catch(() => false)
     if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta.' })
 
+    // Después de validar la contraseña, no antes — así no le revela a alguien que no la
+    // sabe si la cuenta está bloqueada o simplemente no existe/tiene otra contraseña.
+    if (rows[0].bloqueado) {
+      return res.status(403).json({ error: 'Tu cuenta fue bloqueada. Si crees que es un error, contáctanos desde Soporte.' })
+    }
+
     const { password_hash, ...usuario } = rows[0]
     const tokens = await emitirTokens(usuario, req.headers['user-agent'])
     res.json({ usuario, ...tokens })

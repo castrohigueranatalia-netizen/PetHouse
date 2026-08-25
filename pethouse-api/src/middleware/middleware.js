@@ -13,10 +13,16 @@ export async function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     const { rows } = await pool.query(
-      'SELECT id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion, bloqueado FROM usuarios WHERE id = $1',
       [payload.uid]
     )
     if (!rows.length) return res.status(401).json({ error: 'Sesión inválida.' })
+    // Se revisa en CADA petición autenticada, no solo al loguearse: si un admin bloquea a
+    // alguien mientras ya tiene una sesión abierta, el access token que le queda (hasta 15
+    // min, ver JWT_SECRET/expira) igual deja de servir de inmediato — no hay que esperar a
+    // que expire solo. `POST /admin/usuarios/:id/bloquear` además revoca sus refresh tokens
+    // (tabla `sesiones`), así que tampoco puede renovar uno nuevo.
+    if (rows[0].bloqueado) return res.status(401).json({ error: 'Tu cuenta fue bloqueada.' })
     req.usuario = rows[0]
     next()
   } catch {

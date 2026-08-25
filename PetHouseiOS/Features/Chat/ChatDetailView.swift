@@ -10,6 +10,8 @@ struct ChatDetailView: View {
     @State private var viewModel: ChatDetailViewModel
     @Environment(SessionStore.self) private var session
     @FocusState private var campoActivo: Bool
+    @State private var mostrarReportarPersona = false
+    @State private var mensajeAReportar: Mensaje?
 
     init(conversacion: Conversacion) {
         self.conversacion = conversacion
@@ -47,6 +49,15 @@ struct ChatDetailView: View {
         }
         .navigationTitle(conversacion.otroNombre ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if conversacion.otroId != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "flag", accessibilityLabel: "Reportar a \(conversacion.otroNombre ?? "esta persona")") {
+                        mostrarReportarPersona = true
+                    }
+                }
+            }
+        }
         .task {
             await viewModel.iniciar()
             // `iniciar()` ya marcó esta conversación como leída — descuenta del badge de la
@@ -55,6 +66,24 @@ struct ChatDetailView: View {
             session.marcarConversacionLeida(conversacion)
         }
         .onDisappear { viewModel.detener() }
+        .sheet(isPresented: $mostrarReportarPersona) {
+            if let otroId = conversacion.otroId {
+                ReportarSheet(
+                    usuarioDenunciadoId: otroId,
+                    usuarioDenunciadoNombre: conversacion.otroNombre ?? "Usuario",
+                    tipo: .usuario
+                )
+            }
+        }
+        .sheet(item: $mensajeAReportar) { mensaje in
+            ReportarSheet(
+                usuarioDenunciadoId: mensaje.remitenteId,
+                usuarioDenunciadoNombre: conversacion.otroNombre ?? "Usuario",
+                tipo: .mensaje,
+                mensajeId: mensaje.id,
+                mensajeTexto: mensaje.texto
+            )
+        }
     }
 
     private func burbuja(_ mensaje: Mensaje) -> some View {
@@ -67,6 +96,14 @@ struct ChatDetailView: View {
                 .padding(.vertical, PHSpacing.s8)
                 .background(esMio ? PHColor.primary : PHColor.surfaceSoft)
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                // Solo mensajes ajenos: no tiene sentido reportarse un mensaje propio.
+                .contextMenu {
+                    if !esMio {
+                        Button(role: .destructive) { mensajeAReportar = mensaje } label: {
+                            Label("Reportar mensaje", systemImage: "flag")
+                        }
+                    }
+                }
             if !esMio { Spacer(minLength: 40) }
         }
         .accessibilityElement(children: .combine)

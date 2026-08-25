@@ -39,8 +39,10 @@ r.get('/', async (req, res, next) => {
     const offset = (pagina - 1) * porPagina
 
     // La app es solo de Bogotá (ver encabezado del archivo): esta condición no depende de
-    // ningún query param, siempre está.
-    const condiciones = ['h.activo = TRUE', "h.ciudad = 'Bogotá'"]
+    // ningún query param, siempre está. `u.bloqueado = FALSE` tampoco: un anfitrión
+    // bloqueado por un admin (ver POST /admin/usuarios/:id/bloquear) deja de aparecer en
+    // Buscar de inmediato, aunque sus hospedajes sigan `activo = TRUE`.
+    const condiciones = ['h.activo = TRUE', "h.ciudad = 'Bogotá'", 'u.bloqueado = FALSE']
     const params = []
 
     if (tipo) { params.push(tipo); condiciones.push(`h.tipo = $${params.length}`) }

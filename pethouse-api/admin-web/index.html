@@ -324,6 +324,15 @@
   .solicitudIdentidad .info span { color: var(--muted); font-size: .82rem; }
   .avisoSinCuenta { color: var(--error); font-size: .8rem; font-weight: 600; }
 
+  .denuncia { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--surface-2); }
+  .denuncia:last-child { border-bottom: none; }
+  .denuncia .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .denuncia .info span { color: var(--muted); font-size: .82rem; }
+  .denuncia .citado { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: .85rem; font-style: italic; }
+  .denuncia .notaAdmin { font-size: .82rem; color: var(--muted); }
+  .btnBloquear { background: var(--error-bg); color: var(--error); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+  .btnDesbloquear { background: var(--surface-2); color: var(--muted); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+
   .vacio { color: var(--faint); font-size: .88rem; padding: 8px 0; }
   .cargando { color: var(--muted); font-size: .88rem; padding: 20px 0; text-align: center; }
 
@@ -447,6 +456,7 @@
         <button class="navItem" data-vista="identidad">Recuperar contraseña</button>
         <button class="navItem" data-vista="soporte">Soporte</button>
         <button class="navItem" data-vista="privacidad">Solicitudes de privacidad</button>
+        <button class="navItem" data-vista="denuncias">Denuncias</button>
         <button class="navItem" data-vista="reportes">Reportes</button>
         <button class="navItem" data-vista="legal">Entidad legal</button>
       </nav>
@@ -589,6 +599,25 @@
                 <option value="resuelta">Resueltas</option>
               </select>
               <div class="tablaWrap"><table id="tablaPrivacidad"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Denuncias ---- -->
+          <section id="vistaDenuncias" class="vista oculto">
+            <section class="panel">
+              <h2>Denuncias</h2>
+              <p class="desc">
+                Reportes que un usuario hace desde la app: de un anfitrión, de cualquier usuario, o de un mensaje
+                puntual del chat. Al revisar una que sea grave puedes bloquear la cuenta denunciada directamente
+                desde aquí — no puede volver a iniciar sesión ni, si es anfitrión, seguir apareciendo en Buscar.
+              </p>
+              <select id="filtroEstadoDenuncias" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="revisada">Revisadas</option>
+                <option value="descartada">Descartadas</option>
+              </select>
+              <div id="listaDenuncias"></div>
             </section>
           </section>
 

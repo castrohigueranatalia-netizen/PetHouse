@@ -24,6 +24,7 @@ import notificacionesRoutes from './routes/notificaciones.js'
 import legalRoutes from './routes/legal.js'
 import soporteRoutes from './routes/soporte.js'
 import privacidadRoutes from './routes/privacidad.js'
+import denunciasRoutes from './routes/denuncias.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
 import { limitadorIA } from './middleware/rateLimit.js'
 import { ALLOWED_ORIGINS } from './config.js'
@@ -102,6 +103,7 @@ app.use('/api/notificaciones', notificacionesRoutes)
 app.use('/api/legal', legalRoutes)
 app.use('/api/soporte', soporteRoutes)
 app.use('/api/privacidad', privacidadRoutes)
+app.use('/api/denuncias', denunciasRoutes)
 
 app.use(noEncontrado)
 app.use(manejadorErrores)
