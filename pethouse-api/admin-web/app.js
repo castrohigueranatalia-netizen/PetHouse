@@ -480,7 +480,10 @@ $('#modalUsuario').addEventListener('click', (e) => { if (e.target.id === 'modal
 // ---- Hospedajes ----
 
 async function cargarHospedajes() {
-  const { hospedajes } = await llamarApi('/admin/hospedajes?porPagina=100')
+  const localidad = $('#filtroLocalidadHospedajes').value
+  const params = new URLSearchParams({ porPagina: '100' })
+  if (localidad) params.set('localidad', localidad)
+  const { hospedajes } = await llamarApi(`/admin/hospedajes?${params}`)
   const tabla = $('#tablaHospedajes')
   if (!hospedajes.length) {
     tabla.innerHTML = '<tr><td class="vacio">Todavía no hay hospedajes publicados.</td></tr>'
@@ -498,6 +501,8 @@ async function cargarHospedajes() {
       </tr>`
     ).join('')
 }
+
+$('#filtroLocalidadHospedajes').addEventListener('change', cargarHospedajes)
 
 // ---- Reservas ----
 
