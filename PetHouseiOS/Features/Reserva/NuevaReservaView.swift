@@ -39,6 +39,7 @@ struct NuevaReservaView: View {
         }) { mascota in
             MascotaFormView(mascota: mascota, session: session)
         }
+        .task { await viewModel.cargarDisponibilidad() }
     }
 
     private var formulario: some View {
@@ -47,17 +48,10 @@ struct NuevaReservaView: View {
                 Text(viewModel.hospedaje.titulo)
                     .phText(PHFont.titleMD, color: PHColor.ink)
 
-                DatePicker(
-                    "Llegada",
-                    selection: $viewModel.desde,
-                    in: Date.now...,
-                    displayedComponents: .date
-                )
-                DatePicker(
-                    "Salida",
-                    selection: $viewModel.hasta,
-                    in: viewModel.desde...,
-                    displayedComponents: .date
+                PHSelectorRangoFechas(
+                    desde: $viewModel.desde,
+                    hasta: $viewModel.hasta,
+                    diaOcupado: { viewModel.diaOcupado($0) }
                 )
 
                 if !viewModel.fechasValidas {

@@ -5,6 +5,7 @@
 //   siempre, y se segmenta por `localidad` en vez de una `ciudad` de texto libre.
 // GET /api/hospedajes/localidades  → conteo de hospedajes por cada una de las 20 localidades
 // GET /api/hospedajes/cerca?lat&lng&radio
+// GET /api/hospedajes/:id/disponibilidad  → rangos de fecha ya ocupados (pública)
 // GET /api/hospedajes/:id
 // POST /api/hospedajes   (anfitrión) · PATCH /api/hospedajes/:id (anfitrión dueño)
 // ============================================================
@@ -241,6 +242,23 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
       [req.params.id]
     )
     res.json({ reservas: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Fechas ya ocupadas de un hospedaje (pública, sin datos del huésped) ----
+// El huésped la usa para ver, ANTES de elegir fechas, cuáles ya están tomadas — evita que
+// arme una solicitud para fechas que de todos modos van a rechazarse al confirmar. A
+// diferencia de GET /:id/reservas (solo el anfitrión, trae nombre/rating del huésped), esta
+// es pública y solo expone rangos de fecha, nada de quién reservó.
+r.get('/:id/disponibilidad', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT desde, hasta, estado FROM reservas
+        WHERE hospedaje_id = $1 AND estado IN ('confirmada', 'pendiente')
+        ORDER BY desde ASC`,
+      [req.params.id]
+    )
+    res.json({ ocupado: rows })
   } catch (err) { next(err) }
 })
 

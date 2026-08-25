@@ -57,6 +57,11 @@ public protocol HospedajesServicing: Sendable {
     /// GET /api/hospedajes/localidades — conteo de hospedajes activos por cada una de las
     /// 20 localidades (incluye las que tienen 0), usado por el mapa/lista segmentados.
     func localidades() async throws -> [LocalidadConteo]
+    /// GET /api/hospedajes/:id/disponibilidad — rangos de fecha ya ocupados, pública (sin
+    /// datos del huésped). Usado por PHSelectorRangoFechas para sombrear días ocupados
+    /// ANTES de que el huésped arme una solicitud, en vez de que se entere recién al
+    /// confirmar.
+    func disponibilidad(hospedajeId: String) async throws -> [RangoOcupado]
 }
 
 public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
@@ -125,5 +130,11 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         let request = APIRequest(method: "GET", path: "/hospedajes/localidades")
         let response: LocalidadesResponse = try await client.send(request)
         return response.localidades
+    }
+
+    public func disponibilidad(hospedajeId: String) async throws -> [RangoOcupado] {
+        let request = APIRequest(method: "GET", path: "/hospedajes/\(hospedajeId)/disponibilidad")
+        let response: DisponibilidadResponse = try await client.send(request)
+        return response.ocupado
     }
 }

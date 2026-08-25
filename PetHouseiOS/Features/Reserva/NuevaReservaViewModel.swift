@@ -34,17 +34,49 @@ public final class NuevaReservaViewModel {
     public private(set) var error: AppError?
     public private(set) var reservaConfirmada: CrearReservaResponse?
 
-    private let service: ReservasServicing
+    /// Días ya ocupados de este hospedaje (`YYYY-MM-DD`) — ver `PHSelectorRangoFechas`, que
+    /// sombrea estos días y no deja elegirlos. Si la carga falla, simplemente queda vacío:
+    /// no bloquea reservar, el servidor de todos modos rechaza un conflicto real al
+    /// confirmar (ver POST /api/reservas).
+    public private(set) var diasOcupados: Set<String> = []
 
-    public init(hospedaje: Hospedaje, mascotasDisponibles: [Mascota], service: ReservasServicing = ReservasService()) {
+    private let service: ReservasServicing
+    private let hospedajesService: HospedajesServicing
+
+    public init(
+        hospedaje: Hospedaje, mascotasDisponibles: [Mascota],
+        service: ReservasServicing = ReservasService(), hospedajesService: HospedajesServicing = HospedajesService()
+    ) {
         self.hospedaje = hospedaje
         self.mascotasDisponibles = mascotasDisponibles
         self.service = service
+        self.hospedajesService = hospedajesService
         // Solo se preselecciona sola si su ficha ya está completa — si no, que el usuario
         // vea el aviso y decida (completarla ahí mismo, o elegir otra mascota).
         if let primera = mascotasDisponibles.first(where: \.fichaCompleta) {
             mascotaIdsSeleccionadas = [primera.id]
         }
+    }
+
+    public func cargarDisponibilidad() async {
+        guard let rangos = try? await hospedajesService.disponibilidad(hospedajeId: hospedaje.id) else { return }
+        var dias: Set<String> = []
+        let calendario = Calendar.current
+        for rango in rangos {
+            guard let inicio = PHDate.apiDateOnly.date(from: rango.desde),
+                  let fin = PHDate.apiDateOnly.date(from: rango.hasta) else { continue }
+            var cursor = inicio
+            while cursor < fin {
+                dias.insert(PHDate.toAPIDateOnly(cursor))
+                guard let siguiente = calendario.date(byAdding: .day, value: 1, to: cursor) else { break }
+                cursor = siguiente
+            }
+        }
+        diasOcupados = dias
+    }
+
+    public func diaOcupado(_ dia: Date) -> Bool {
+        diasOcupados.contains(PHDate.toAPIDateOnly(dia))
     }
 
     /// Se llama al volver de completar la ficha de una mascota (ver NuevaReservaView) —

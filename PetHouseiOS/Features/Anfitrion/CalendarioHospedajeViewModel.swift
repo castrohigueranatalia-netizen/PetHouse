@@ -58,18 +58,7 @@ public final class CalendarioHospedajeViewModel {
     /// Los 42 casilleros de la grilla (6 semanas x 7 días, empezando en lunes) — `nil` para
     /// los días de relleno antes del 1 y después del último día del mes.
     public var diasDeLaGrilla: [Date?] {
-        guard let rangoDias = calendario.range(of: .day, in: .month, for: mesMostrado) else { return [] }
-        let primerDiaSemana = calendario.component(.weekday, from: mesMostrado) // 1=domingo…7=sábado
-        // Semana empieza en lunes: domingo(1) queda al final (offset 6), lunes(2) al principio (offset 0).
-        let relleno = (primerDiaSemana + 5) % 7
-        var dias: [Date?] = Array(repeating: nil, count: relleno)
-        for numeroDia in rangoDias {
-            if let fecha = calendario.date(byAdding: .day, value: numeroDia - 1, to: mesMostrado) {
-                dias.append(fecha)
-            }
-        }
-        while dias.count % 7 != 0 { dias.append(nil) }
-        return dias
+        CalendarioMes.diasDeLaGrilla(paraMes: mesMostrado, calendario: calendario)
     }
 
     /// Comparación por texto (`YYYY-MM-DD`), no por `Date` — evita cualquier lío de huso
