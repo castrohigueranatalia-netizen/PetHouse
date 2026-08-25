@@ -111,6 +111,11 @@ struct MisHospedajesView: View {
                 .padding(.vertical, PHSpacing.s12)
                 .background(PHColor.primaryContainer)
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                // Sin esto, con `.buttonStyle(.plain)` solo el ícono y el texto (el
+                // contenido intrínseco del Label) son tocables — el resto del rectángulo
+                // rosado, que es puro `.frame(maxWidth: .infinity)` + fondo, no reacciona
+                // al toque. Este modificador extiende el área tocable a todo el rectángulo.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
