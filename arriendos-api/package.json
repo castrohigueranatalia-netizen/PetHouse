@@ -1,0 +1,22 @@
+{
+  "name": "arriendos-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Arriendos Cartagena · API REST (Node.js + Express + PostgreSQL) para el control de reservas de los 7 apartamentos, con sincronización de calendario vía iCal (Booking/Airbnb).",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "node-ical": "^0.20.1",
+    "pg": "^8.13.0"
+  }
+}

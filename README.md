@@ -3,6 +3,12 @@
 **`index.html`** es la plataforma completa en **un solo archivo** de HTML con CSS y JavaScript
 vanilla embebidos y **todas las imágenes incrustadas en base64** (funciona sin internet y sin servidor).
 
+## 🏠 Arriendos Cartagena (control de reservas de apartamentos)
+
+Proyecto aparte dentro de este mismo repo, sin relación con Pethouse: reemplaza
+el Excel de reservas de un arrendador de 7 apartamentos, con sincronización
+de calendario con Booking/Airbnb vía iCal. Ver **[`arriendos-api/README.md`](arriendos-api/README.md)**.
+
 ## 🏗️ Arquitectura de Software y Base de Datos (PostgreSQL/PostGIS)
 
 El proyecto incluye la ingeniería completa para pasar del prototipo a producción:

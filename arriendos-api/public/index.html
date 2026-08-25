@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arriendos Cartagena</title>
+<style>
+  :root {
+    --tinta: #1f2937; --gris: #6b7280; --gris-claro: #e5e7eb; --fondo: #f6f7f9;
+    --coral: #fb3f57; --borde: #d9dde3;
+    --booking: #003580; --airbnb: #ff5a5f; --whatsapp: #1fa855; --directo: #6b7280; --otro: #8b5cf6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--fondo); color: var(--tinta); }
+  input, select, textarea, button { font: inherit; }
+  button { cursor: pointer; }
+  .oculto { display: none !important; }
+
+  /* ---------- Login ---------- */
+  #vista-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .tarjeta-login { background: #fff; border-radius: 16px; padding: 32px; width: 100%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  .tarjeta-login h1 { font-size: 22px; margin: 0 0 4px; }
+  .tarjeta-login p.sub { color: var(--gris); margin: 0 0 20px; font-size: 14px; }
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; font-size: 13px; color: var(--gris); margin-bottom: 4px; }
+  .campo input, .campo select, .campo textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
+  }
+  .btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--borde); background: #fff; font-weight: 600; }
+  .btn-primario { background: var(--coral); border-color: var(--coral); color: #fff; }
+  .btn-primario:hover { filter: brightness(0.95); }
+  .btn-block { width: 100%; }
+  .btn-peligro { color: #b91c1c; border-color: #fca5a5; }
+  .btn-chico { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
+  .error-msg { color: #b91c1c; font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  /* ---------- App ---------- */
+  #vista-app { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  header.top h1 { font-size: 20px; margin: 0; }
+  header.top .usuario { color: var(--gris); font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  nav.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--borde); }
+  nav.tabs button { background: none; border: none; padding: 10px 14px; font-weight: 600; color: var(--gris); border-bottom: 2px solid transparent; }
+  nav.tabs button.activo { color: var(--coral); border-color: var(--coral); }
+
+  .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borde); }
+  .barra-filtros .mes-nav { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .barra-filtros .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 6px; width: 28px; height: 28px; }
+  .barra-filtros select { padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+  .barra-filtros .spacer { flex: 1; }
+
+  /* Calendario tipo cuadrícula (filas = apartamentos, columnas = días) */
+  .calendario-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; margin-bottom: 20px; }
+  table.calendario { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 12px; }
+  table.calendario th, table.calendario td { border: 1px solid #eef0f2; text-align: center; padding: 0; }
+  table.calendario th { background: #fafbfc; color: var(--gris); font-weight: 600; padding: 6px 2px; position: sticky; top: 0; }
+  table.calendario td.nombre-apto, table.calendario th.nombre-apto {
+    text-align: left; padding: 6px 10px; white-space: nowrap; position: sticky; left: 0; background: #fff; font-weight: 600; z-index: 1;
+  }
+  table.calendario th.nombre-apto { background: #fafbfc; z-index: 2; }
+  table.calendario td.dia { width: 26px; height: 30px; cursor: pointer; }
+  table.calendario td.dia:hover { outline: 2px solid var(--coral); outline-offset: -2px; }
+  table.calendario td.dia.hoy { box-shadow: inset 0 0 0 2px #111827; }
+  .bloque { display: block; width: 100%; height: 100%; }
+  .f-booking { background: var(--booking); }
+  .f-airbnb { background: var(--airbnb); }
+  .f-whatsapp { background: var(--whatsapp); }
+  .f-directo { background: var(--directo); }
+  .f-otro { background: var(--otro); }
+  .f-pendiente { background: repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #fde68a 4px, #fde68a 8px); }
+
+  .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--gris); padding: 8px 12px; }
+  .leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+  .leyenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* Tabla de reservas */
+  .tabla-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; }
+  table.reservas { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.reservas th, table.reservas td { padding: 9px 10px; border-bottom: 1px solid #eef0f2; text-align: left; white-space: nowrap; }
+  table.reservas th { color: var(--gris); font-weight: 600; background: #fafbfc; }
+  table.reservas tr.cancelada td { opacity: .45; text-decoration: line-through; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
+  .badge-estado { background: #10b981; }
+  .badge-estado.pendiente { background: #f59e0b; }
+  .badge-estado.cancelada { background: #9ca3af; }
+
+  /* Apartamentos */
+  .grid-apartamentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .card-apto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
+  .card-apto h3 { margin: 0 0 10px; font-size: 16px; }
+  .card-apto .fila { margin-bottom: 10px; }
+  .card-apto .fila label { display: block; font-size: 12px; color: var(--gris); margin-bottom: 3px; }
+  .card-apto input { width: 100%; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
+  .fila-2 { display: flex; gap: 8px; }
+  .fila-2 > div { flex: 1; }
+  .estado-sync { font-size: 12px; color: var(--gris); margin-top: 6px; }
+  .estado-sync.err { color: #b91c1c; }
+  .copiar-row { display: flex; gap: 6px; }
+  .copiar-row input { flex: 1; background: #f9fafb; color: var(--gris); }
+
+  /* Modal */
+  .modal-fondo { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
+  .modal h2 { margin: 0 0 16px; font-size: 18px; }
+  .modal .acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .modal .acciones .izq { margin-right: auto; }
+
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100; }
+  #toast.mostrar { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="vista-login">
+  <form class="tarjeta-login" id="form-login">
+    <h1>🏠 Arriendos Cartagena</h1>
+    <p class="sub">Control de reservas de los apartamentos</p>
+    <div class="campo">
+      <label>Correo</label>
+      <input type="email" id="login-email" required autocomplete="username">
+    </div>
+    <div class="campo">
+      <label>Contraseña</label>
+      <input type="password" id="login-password" required autocomplete="current-password">
+    </div>
+    <button class="btn btn-primario btn-block" type="submit">Entrar</button>
+    <div class="error-msg" id="login-error"></div>
+  </form>
+</div>
+
+<!-- ==================== APP ==================== -->
+<div id="vista-app" class="oculto">
+  <header class="top">
+    <h1>🏠 Arriendos Cartagena</h1>
+    <div class="usuario">
+      <span id="nombre-usuario"></span>
+      <button class="btn btn-chico" id="btn-cambiar-password">Cambiar contraseña</button>
+      <button class="btn btn-chico" id="btn-salir">Salir</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="reservas" class="activo">Reservas</button>
+    <button data-tab="apartamentos">Apartamentos</button>
+  </nav>
+
+  <!-- ---- Tab Reservas ---- -->
+  <section id="tab-reservas">
+    <div class="barra-filtros">
+      <div class="mes-nav">
+        <button id="mes-prev">‹</button>
+        <span id="mes-label">-</span>
+        <button id="mes-next">›</button>
+      </div>
+      <select id="filtro-apartamento"></select>
+      <select id="filtro-fuente">
+        <option value="">Todas las fuentes</option>
+        <option value="booking">Booking</option>
+        <option value="airbnb">Airbnb</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="directo">Directo</option>
+        <option value="otro">Otro</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-primario" id="btn-nueva-reserva">+ Nueva reserva</button>
+    </div>
+
+    <div class="calendario-wrap">
+      <table class="calendario" id="tabla-calendario"></table>
+      <div class="leyenda">
+        <span><i class="f-booking"></i> Booking</span>
+        <span><i class="f-airbnb"></i> Airbnb</span>
+        <span><i class="f-whatsapp"></i> WhatsApp</span>
+        <span><i class="f-directo"></i> Directo</span>
+        <span><i class="f-otro"></i> Otro</span>
+        <span><i class="f-pendiente"></i> Pendiente</span>
+      </div>
+    </div>
+
+    <div class="tabla-wrap">
+      <table class="reservas">
+        <thead>
+          <tr>
+            <th>Apartamento</th><th>Huésped</th><th>Teléfono</th><th>Entrada</th><th>Salida</th>
+            <th>Noches</th><th>Huésp.</th><th>Precio</th><th>Fuente</th><th>Estado</th><th>Notas</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo-reservas"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---- Tab Apartamentos ---- -->
+  <section id="tab-apartamentos" class="oculto">
+    <div class="grid-apartamentos" id="grid-apartamentos"></div>
+  </section>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// ARRIENDOS CARTAGENA · Frontend (vanilla JS, sin dependencias)
+// ============================================================
+const FUENTES = ['booking','airbnb','whatsapp','directo','otro'];
+const NOMBRE_FUENTE = { booking:'Booking', airbnb:'Airbnb', whatsapp:'WhatsApp', directo:'Directo', otro:'Otro' };
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+const estado = {
+  token: localStorage.getItem('arriendos_token') || null,
+  usuario: JSON.parse(localStorage.getItem('arriendos_usuario') || 'null'),
+  apartamentos: [],
+  reservas: [],
+  mes: new Date(),
+  filtroApartamento: '',
+  filtroFuente: ''
+};
+estado.mes.setDate(1);
+
+// ---------------- API ----------------
+async function api(ruta, opciones = {}) {
+  const res = await fetch('/api' + ruta, {
+    ...opciones,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(estado.token ? { Authorization: 'Bearer ' + estado.token } : {}),
+      ...(opciones.headers || {})
+    },
+    body: opciones.body ? JSON.stringify(opciones.body) : undefined
+  });
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(datos.error || 'Error inesperado.');
+  return datos;
+}
+
+function toast(mensaje) {
+  const el = document.getElementById('toast');
+  el.textContent = mensaje;
+  el.classList.add('mostrar');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('mostrar'), 3200);
+}
+
+// Escapa texto antes de insertarlo en HTML: el nombre/teléfono/notas de un
+// huésped puede venir de un tercero (formulario o, al sincronizar, del
+// resumen del evento iCal de Booking/Airbnb), así que nunca se inserta crudo.
+const ESCAPES_HTML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function esc(texto) { return String(texto ?? '').replace(/[&<>"']/g, (c) => ESCAPES_HTML[c]); }
+
+function fechaISO(f) { return new Date(f).toISOString().slice(0, 10); }
+function fechaBonita(f) {
+  const d = new Date(f);
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+}
+function pesos(v) { return v == null ? '—' : '$' + Number(v).toLocaleString('es-CO'); }
+
+// ---------------- Login ----------------
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errBox = document.getElementById('login-error');
+  errBox.textContent = '';
+  try {
+    const { usuario, token } = await api('/auth/login', { method: 'POST', body: { email, password } });
+    estado.token = token; estado.usuario = usuario;
+    localStorage.setItem('arriendos_token', token);
+    localStorage.setItem('arriendos_usuario', JSON.stringify(usuario));
+    await iniciarApp();
+  } catch (err) {
+    errBox.textContent = err.message;
+  }
+});
+
+document.getElementById('btn-salir').addEventListener('click', () => {
+  localStorage.removeItem('arriendos_token');
+  localStorage.removeItem('arriendos_usuario');
+  location.reload();
+});
+
+document.getElementById('btn-cambiar-password').addEventListener('click', () => {
+  abrirModal(`
+    <h2>Cambiar contraseña</h2>
+    <form id="form-password">
+      <div class="campo"><label>Contraseña actual</label><input type="password" id="pw-actual" required></div>
+      <div class="campo"><label>Contraseña nueva (mín. 6 caracteres)</label><input type="password" id="pw-nueva" required minlength="6"></div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Guardar</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('form-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/auth/cambiar-password', { method: 'POST', body: {
+        actual: document.getElementById('pw-actual').value,
+        nueva: document.getElementById('pw-nueva').value
+      }});
+      toast('Contraseña actualizada.');
+      cerrarModal();
+    } catch (err) { toast(err.message); }
+  });
+});
+
+// ---------------- Tabs ----------------
+document.querySelectorAll('nav.tabs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
+    document.getElementById('tab-apartamentos').classList.toggle('oculto', btn.dataset.tab !== 'apartamentos');
+    if (btn.dataset.tab === 'apartamentos') renderApartamentos();
+  });
+});
+
+// ---------------- Modal genérico ----------------
+function abrirModal(html) {
+  cerrarModal();
+  const fondo = document.createElement('div');
+  fondo.className = 'modal-fondo';
+  fondo.id = 'modal-fondo';
+  fondo.innerHTML = `<div class="modal">${html}</div>`;
+  fondo.addEventListener('click', (e) => { if (e.target === fondo) cerrarModal(); });
+  document.body.appendChild(fondo);
+}
+function cerrarModal() { document.getElementById('modal-fondo')?.remove(); }
+
+// ---------------- Carga de datos ----------------
+async function cargarApartamentos() {
+  const { apartamentos } = await api('/apartamentos');
+  estado.apartamentos = apartamentos;
+
+  const sel = document.getElementById('filtro-apartamento');
+  sel.innerHTML = '<option value="">Todos los apartamentos</option>' +
+    apartamentos.map((a) => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('');
+  sel.value = estado.filtroApartamento;
+}
+
+async function cargarReservas() {
+  const desde = fechaISO(estado.mes);
+  const hastaDate = new Date(Date.UTC(estado.mes.getUTCFullYear ? estado.mes.getUTCFullYear() : estado.mes.getFullYear(), estado.mes.getMonth() + 1, 1));
+  const params = new URLSearchParams({ desde, hasta: fechaISO(hastaDate) });
+  if (estado.filtroApartamento) params.set('apartamento_id', estado.filtroApartamento);
+  if (estado.filtroFuente) params.set('fuente', estado.filtroFuente);
+  const { reservas } = await api('/reservas?' + params.toString());
+  estado.reservas = reservas;
+}
+
+async function refrescarReservas() {
+  await cargarReservas();
+  renderCalendario();
+  renderTablaReservas();
+}
+
+// ---------------- Render: filtros de mes ----------------
+document.getElementById('mes-prev').addEventListener('click', () => cambiarMes(-1));
+document.getElementById('mes-next').addEventListener('click', () => cambiarMes(1));
+async function cambiarMes(delta) {
+  estado.mes = new Date(estado.mes.getFullYear(), estado.mes.getMonth() + delta, 1);
+  await refrescarReservas();
+}
+document.getElementById('filtro-apartamento').addEventListener('change', async (e) => {
+  estado.filtroApartamento = e.target.value;
+  await refrescarReservas();
+});
+document.getElementById('filtro-fuente').addEventListener('change', async (e) => {
+  estado.filtroFuente = e.target.value;
+  await refrescarReservas();
+});
+
+// ---------------- Render: calendario ----------------
+function renderCalendario() {
+  document.getElementById('mes-label').textContent = `${MESES[estado.mes.getMonth()]} ${estado.mes.getFullYear()}`;
+
+  const diasEnMes = new Date(estado.mes.getFullYear(), estado.mes.getMonth() + 1, 0).getDate();
+  const apartamentos = estado.filtroApartamento
+    ? estado.apartamentos.filter((a) => a.id === estado.filtroApartamento)
+    : estado.apartamentos;
+
+  const hoyISO = fechaISO(new Date());
+
+  let thead = '<thead><tr><th class="nombre-apto">Apartamento</th>';
+  for (let d = 1; d <= diasEnMes; d++) thead += `<th>${d}</th>`;
+  thead += '</tr></thead>';
+
+  let tbody = '<tbody>';
+  for (const apto of apartamentos) {
+    tbody += `<tr><td class="nombre-apto">${esc(apto.nombre)}</td>`;
+    for (let d = 1; d <= diasEnMes; d++) {
+      const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
+      const res = estado.reservas.find((r) => r.apartamento_id === apto.id && r.estado !== 'cancelada' && diaISO >= fechaISO(r.checkin) && diaISO < fechaISO(r.checkout));
+      const claseHoy = diaISO === hoyISO ? ' hoy' : '';
+      if (res) {
+        const clase = res.estado === 'pendiente' ? 'f-pendiente' : 'f-' + res.fuente;
+        const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}`);
+        tbody += `<td class="dia${claseHoy}" title="${titulo}" data-reserva="${res.id}"><span class="bloque ${clase}"></span></td>`;
+      } else {
+        tbody += `<td class="dia${claseHoy}" data-apartamento="${apto.id}" data-dia="${diaISO}"></td>`;
+      }
+    }
+    tbody += '</tr>';
+  }
+  tbody += '</tbody>';
+
+  const tabla = document.getElementById('tabla-calendario');
+  tabla.innerHTML = thead + tbody;
+  tabla.querySelectorAll('td.dia[data-reserva]').forEach((td) => {
+    td.addEventListener('click', () => abrirFormularioReserva(estado.reservas.find((r) => r.id === td.dataset.reserva)));
+  });
+  tabla.querySelectorAll('td.dia[data-apartamento]').forEach((td) => {
+    td.addEventListener('click', () => abrirFormularioReserva(null, { apartamento_id: td.dataset.apartamento, checkin: td.dataset.dia }));
+  });
+}
+
+// ---------------- Render: tabla de reservas ----------------
+function renderTablaReservas() {
+  const cuerpo = document.getElementById('cuerpo-reservas');
+  const filas = [...estado.reservas].sort((a, b) => a.checkin.localeCompare(b.checkin));
+  if (!filas.length) {
+    cuerpo.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--gris);padding:20px;">No hay reservas para este filtro.</td></tr>';
+    return;
+  }
+  cuerpo.innerHTML = filas.map((r) => `
+    <tr class="${r.estado === 'cancelada' ? 'cancelada' : ''}">
+      <td>${esc(r.apartamento_nombre)}</td>
+      <td>${esc(r.huesped_nombre) || '—'}</td>
+      <td>${esc(r.huesped_telefono) || '—'}</td>
+      <td>${fechaBonita(r.checkin)}</td>
+      <td>${fechaBonita(r.checkout)}</td>
+      <td>${r.noches}</td>
+      <td>${r.num_huespedes}</td>
+      <td>${pesos(r.precio_total)}</td>
+      <td><span class="badge f-${r.fuente}">${NOMBRE_FUENTE[r.fuente]}</span></td>
+      <td><span class="badge badge-estado ${r.estado}">${r.estado}</span></td>
+      <td>${esc(r.notas) || '—'}</td>
+      <td>
+        <button class="btn btn-chico" data-accion="editar" data-id="${r.id}">Editar</button>
+        ${r.estado !== 'cancelada' ? `<button class="btn btn-chico" data-accion="cancelar" data-id="${r.id}">Cancelar</button>` : ''}
+        <button class="btn btn-chico btn-peligro" data-accion="eliminar" data-id="${r.id}">Eliminar</button>
+      </td>
+    </tr>
+  `).join('');
+
+  cuerpo.querySelectorAll('button[data-accion]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const reserva = estado.reservas.find((r) => r.id === btn.dataset.id);
+      if (btn.dataset.accion === 'editar') return abrirFormularioReserva(reserva);
+      if (btn.dataset.accion === 'cancelar') {
+        if (!confirm('¿Cancelar esta reserva? Las fechas quedarán libres de nuevo.')) return;
+        try { await api(`/reservas/${reserva.id}/cancelar`, { method: 'POST' }); toast('Reserva cancelada.'); await refrescarReservas(); }
+        catch (err) { toast(err.message); }
+      }
+      if (btn.dataset.accion === 'eliminar') {
+        if (!confirm('¿Eliminar definitivamente este registro? Esta acción no se puede deshacer.')) return;
+        try { await api(`/reservas/${reserva.id}`, { method: 'DELETE' }); toast('Reserva eliminada.'); await refrescarReservas(); }
+        catch (err) { toast(err.message); }
+      }
+    });
+  });
+}
+
+// ---------------- Formulario nueva/editar reserva ----------------
+document.getElementById('btn-nueva-reserva').addEventListener('click', () => abrirFormularioReserva(null));
+
+function abrirFormularioReserva(reserva, prellenado = {}) {
+  const esEdicion = !!reserva;
+  const v = reserva || prellenado;
+  const opcionesApto = estado.apartamentos.map((a) =>
+    `<option value="${a.id}" ${v.apartamento_id === a.id ? 'selected' : ''}>${esc(a.nombre)}</option>`).join('');
+  const opcionesFuente = FUENTES.map((f) =>
+    `<option value="${f}" ${v.fuente === f ? 'selected' : ''}>${NOMBRE_FUENTE[f]}</option>`).join('');
+
+  abrirModal(`
+    <h2>${esEdicion ? 'Editar reserva' : 'Nueva reserva'}</h2>
+    <form id="form-reserva">
+      <div class="campo"><label>Apartamento</label><select id="rv-apartamento" required>${opcionesApto}</select></div>
+      <div class="fila-2">
+        <div class="campo"><label>Entrada</label><input type="date" id="rv-checkin" value="${v.checkin ? fechaISO(v.checkin) : ''}" required></div>
+        <div class="campo"><label>Salida</label><input type="date" id="rv-checkout" value="${v.checkout ? fechaISO(v.checkout) : ''}" required></div>
+      </div>
+      <div class="campo"><label>Nombre del huésped</label><input id="rv-nombre" value="${esc(v.huesped_nombre)}"></div>
+      <div class="fila-2">
+        <div class="campo"><label>Teléfono</label><input id="rv-telefono" value="${esc(v.huesped_telefono)}"></div>
+        <div class="campo"><label># Huéspedes</label><input type="number" min="1" id="rv-huespedes" value="${v.num_huespedes || 1}"></div>
+      </div>
+      <div class="fila-2">
+        <div class="campo"><label>Precio total</label><input type="number" min="0" id="rv-precio" value="${v.precio_total || ''}"></div>
+        <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
+      </div>
+      <div class="campo"><label>Notas</label><textarea id="rv-notas" rows="2">${esc(v.notas)}</textarea></div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">${esEdicion ? 'Guardar cambios' : 'Crear reserva'}</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-reserva').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cuerpo = {
+      apartamento_id: document.getElementById('rv-apartamento').value,
+      checkin: document.getElementById('rv-checkin').value,
+      checkout: document.getElementById('rv-checkout').value,
+      huesped_nombre: document.getElementById('rv-nombre').value || null,
+      huesped_telefono: document.getElementById('rv-telefono').value || null,
+      num_huespedes: Number(document.getElementById('rv-huespedes').value) || 1,
+      precio_total: document.getElementById('rv-precio').value ? Number(document.getElementById('rv-precio').value) : null,
+      fuente: document.getElementById('rv-fuente').value,
+      notas: document.getElementById('rv-notas').value || null
+    };
+    try {
+      if (esEdicion) await api(`/reservas/${reserva.id}`, { method: 'PUT', body: cuerpo });
+      else await api('/reservas', { method: 'POST', body: cuerpo });
+      toast(esEdicion ? 'Reserva actualizada.' : 'Reserva creada.');
+      cerrarModal();
+      await refrescarReservas();
+    } catch (err) { toast(err.message); }
+  });
+}
+
+// ---------------- Render: apartamentos ----------------
+function renderApartamentos() {
+  const grid = document.getElementById('grid-apartamentos');
+  grid.innerHTML = estado.apartamentos.map((a) => `
+    <div class="card-apto" data-id="${a.id}">
+      <h3>${esc(a.nombre)}</h3>
+      <div class="fila-2">
+        <div class="fila"><label>Capacidad</label><input data-campo="capacidad" type="number" min="1" value="${a.capacidad}"></div>
+        <div class="fila"><label>Precio noche base</label><input data-campo="precio_noche_base" type="number" min="0" value="${a.precio_noche_base || ''}"></div>
+      </div>
+      <div class="fila">
+        <label>Link para IMPORTAR de Booking/Airbnb (pega aquí el "Exportar calendario" del extranet)</label>
+        <input data-campo="ical_url_importar" placeholder="https://admin.booking.com/hotel/hoteladmin/ical..." value="${esc(a.ical_url_importar)}">
+      </div>
+      <div class="estado-sync ${a.ical_ultimo_error ? 'err' : ''}">
+        ${a.ical_ultima_sync ? 'Última sincronización: ' + esc(new Date(a.ical_ultima_sync).toLocaleString('es-CO')) : 'Aún no se ha sincronizado.'}
+        ${a.ical_ultimo_error ? '<br>⚠ ' + esc(a.ical_ultimo_error) : ''}
+      </div>
+      <div class="fila" style="margin-top:10px;">
+        <label>Link para EXPORTAR hacia Booking/Airbnb (pégalo allá en "Importar calendario")</label>
+        <div class="copiar-row">
+          <input readonly value="${esc(a.ical_url_exportar)}">
+          <button type="button" class="btn btn-chico" data-accion="copiar" data-url="${esc(a.ical_url_exportar)}">Copiar</button>
+        </div>
+      </div>
+      <div class="acciones" style="margin-top:14px;">
+        <button class="btn btn-chico" data-accion="sincronizar">Sincronizar ahora</button>
+        <button class="btn btn-chico btn-primario" data-accion="guardar">Guardar</button>
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.card-apto').forEach((card) => {
+    const id = card.dataset.id;
+    card.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
+      const cuerpo = {
+        capacidad: Number(card.querySelector('[data-campo="capacidad"]').value) || 1,
+        precio_noche_base: card.querySelector('[data-campo="precio_noche_base"]').value ? Number(card.querySelector('[data-campo="precio_noche_base"]').value) : null,
+        ical_url_importar: card.querySelector('[data-campo="ical_url_importar"]').value.trim()
+      };
+      try {
+        await api(`/apartamentos/${id}`, { method: 'PUT', body: cuerpo });
+        toast('Apartamento actualizado.');
+        await cargarApartamentos();
+        renderApartamentos();
+      } catch (err) { toast(err.message); }
+    });
+
+    card.querySelector('[data-accion="sincronizar"]').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = 'Sincronizando…';
+      try {
+        const r = await api(`/apartamentos/${id}/sincronizar`, { method: 'POST' });
+        if (!r.ok) toast('No se pudo sincronizar: ' + r.error);
+        else toast(`Listo: ${r.importadas} nuevas, ${r.canceladas} canceladas${r.conflictos?.length ? ', ' + r.conflictos.length + ' con conflicto' : ''}.`);
+        await cargarApartamentos();
+        await refrescarReservas();
+        renderApartamentos();
+      } catch (err) { toast(err.message); }
+      finally { btn.disabled = false; btn.textContent = 'Sincronizar ahora'; }
+    });
+
+    card.querySelector('[data-accion="copiar"]').addEventListener('click', async (e) => {
+      try { await navigator.clipboard.writeText(e.currentTarget.dataset.url); toast('Link copiado.'); }
+      catch { toast('No se pudo copiar automáticamente; selecciona y copia el texto manualmente.'); }
+    });
+  });
+}
+
+// ---------------- Arranque ----------------
+async function iniciarApp() {
+  document.getElementById('vista-login').classList.add('oculto');
+  document.getElementById('vista-app').classList.remove('oculto');
+  document.getElementById('nombre-usuario').textContent = estado.usuario?.nombre || estado.usuario?.email || '';
+  try {
+    await cargarApartamentos();
+    await refrescarReservas();
+  } catch (err) {
+    if (err.message.includes('sesión')) {
+      localStorage.removeItem('arriendos_token'); localStorage.removeItem('arriendos_usuario');
+      location.reload();
+    } else toast(err.message);
+  }
+}
+
+if (estado.token && estado.usuario) iniciarApp();
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# ============================================================
+# ARRIENDOS CARTAGENA · Base de datos local con Docker
+# ------------------------------------------------------------
+# Uso:
+#   docker compose up -d        → levanta la base
+#   docker compose down         → la detiene (conserva los datos)
+#
+# En el PRIMER arranque ejecuta automáticamente, en orden:
+#   01-esquema.sql  → estructura completa
+#   02-seed.sql     → usuario inicial + los 7 apartamentos
+#
+# Conexión (puerto 5433 para no chocar con otra Postgres local):
+#   Host: localhost  ·  Puerto: 5433
+#   Usuario: arriendos  ·  Contraseña: arriendos  ·  Base: arriendos
+#
+# Ejemplo (psql):
+#   psql "postgres://arriendos:arriendos@localhost:5433/arriendos" -c "SELECT count(*) FROM apartamentos;"
+# ============================================================
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: arriendos-db
+    environment:
+      POSTGRES_USER: arriendos
+      POSTGRES_PASSWORD: arriendos
+      POSTGRES_DB: arriendos
+    ports:
+      - "5433:5432"
+    volumes:
+      - arriendos_pgdata:/var/lib/postgresql/data
+      # Los .sql de esta carpeta se ejecutan solos en el primer arranque
+      - ./01-esquema.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro
+      - ./02-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arriendos -d arriendos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  arriendos_pgdata:
