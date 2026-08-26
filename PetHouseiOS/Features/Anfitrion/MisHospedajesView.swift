@@ -116,6 +116,11 @@ struct MisHospedajesView: View {
     /// recibidas" de cada tarjeta, que es solo de ese hospedaje y solo pensada para
     /// aceptar/rechazar solicitudes pendientes.
     private var botonHistorial: some View {
+        // SIN `.buttonStyle(.plain)` a propósito: en un `NavigationLink` (a diferencia de un
+        // `Button` normal, ver "Ver reservas recibidas" más abajo, que sí lo lleva y sí
+        // reacciona) ese modificador puede interferir con que el toque dispare la
+        // navegación — se vio en la práctica que con él el botón dejaba de reaccionar del
+        // todo, no solo un problema de área tocable.
         NavigationLink {
             HistorialReservasView()
         } label: {
@@ -125,13 +130,8 @@ struct MisHospedajesView: View {
                 .padding(.vertical, PHSpacing.s12)
                 .background(PHColor.primaryContainer)
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
-                // Sin esto, con `.buttonStyle(.plain)` solo el ícono y el texto (el
-                // contenido intrínseco del Label) son tocables — el resto del rectángulo
-                // rosado, que es puro `.frame(maxWidth: .infinity)` + fondo, no reacciona
-                // al toque. Este modificador extiende el área tocable a todo el rectángulo.
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
     /// Pausar deja de mostrar el hospedaje en Buscar y en el mapa, sin borrarlo ni perder su
