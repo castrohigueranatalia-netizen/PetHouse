@@ -16,12 +16,22 @@
 
 import SwiftUI
 
+/// UN SOLO `.navigationDestination` para los dos destinos posibles desde una notificación,
+/// no dos modificadores separados — con dos `.navigationDestination(item:)` distintos en la
+/// misma vista, SwiftUI en esta versión solo dispara el primero de forma confiable (mismo
+/// bug ya visto en LoginView/PerfilView/MisHospedajesView): tocar una notificación de
+/// "reserva resuelta" (declarada primero) navegaba, pero una de "solicitud nueva" (la
+/// segunda) se quedaba sin abrir nada.
+private enum DestinoNotificacion: Hashable {
+    case reserva(Reserva)
+    case hospedaje(Hospedaje)
+}
+
 struct NotificacionesView: View {
     @State private var viewModel = NotificacionesViewModel()
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
-    @State private var reservaParaAbrir: Reserva?
-    @State private var hospedajeParaAbrir: Hospedaje?
+    @State private var destino: DestinoNotificacion?
 
     var body: some View {
         NavigationStack {
@@ -40,11 +50,13 @@ struct NotificacionesView: View {
                     session.actualizarNotificacionesNoLeidas(0)
                 }
                 .refreshable { await viewModel.cargar() }
-                .navigationDestination(item: $reservaParaAbrir) { reserva in
-                    ReservaDetailView(reserva: reserva)
-                }
-                .navigationDestination(item: $hospedajeParaAbrir) { hospedaje in
-                    ReservasRecibidasView(hospedaje: hospedaje)
+                .navigationDestination(item: $destino) { destino in
+                    switch destino {
+                    case .reserva(let reserva):
+                        ReservaDetailView(reserva: reserva)
+                    case .hospedaje(let hospedaje):
+                        ReservasRecibidasView(hospedaje: hospedaje)
+                    }
                 }
         }
     }
@@ -123,18 +135,18 @@ struct NotificacionesView: View {
         switch notificacion.tipo {
         case .reservaResuelta:
             guard let reservaId = notificacion.reservaId else { return }
-            reservaParaAbrir = Reserva(
+            destino = .reserva(Reserva(
                 id: reservaId, codigo: "", estado: .confirmada, desde: nil, hasta: nil,
                 noches: nil, mascotas: nil, total: nil, precioNoche: nil, limpieza: nil,
                 servicio: nil, creadoEn: nil, usuarioId: nil, hospedajeId: notificacion.hospedajeId,
                 anfitrionId: nil, hospedajeTitulo: nil,
                 ciudad: nil, barrio: nil, tipo: nil, fotos: nil
-            )
+            ))
         case .solicitudNueva:
             guard let hospedajeId = notificacion.hospedajeId else { return }
-            hospedajeParaAbrir = Hospedaje(
+            destino = .hospedaje(Hospedaje(
                 id: hospedajeId, titulo: "Hospedaje", tipo: .guarderia, ciudad: "Bogotá", precioNoche: 0
-            )
+            ))
         case .verificacionResuelta, .soporteRespondido, .privacidadRespondida:
             // Sin navegación directa desde la campana todavía — el usuario entra a ver la
             // respuesta desde Perfil › Soporte / Privacidad (ver SoporteListView,

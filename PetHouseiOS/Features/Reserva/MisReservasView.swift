@@ -6,6 +6,17 @@
 import SwiftUI
 import SwiftData
 
+/// UN SOLO `.navigationDestination` para los dos destinos posibles desde esta pantalla —
+/// ver `destino` abajo. Con dos `.navigationDestination(item:)` distintos en la misma vista,
+/// SwiftUI en esta versión solo dispara el primero de forma confiable (mismo bug ya visto
+/// en LoginView/NotificacionesView/MisHospedajesView): tocar una reserva propia (declarado
+/// primero) navegaba, pero "Ver reserva" desde el aviso de solicitud nueva (el segundo,
+/// disparado por `session.reservaRecibidaParaAbrir`) se quedaba sin abrir nada.
+private enum DestinoMisReservas: Hashable {
+    case detalle(Reserva)
+    case reservasRecibidas(Reserva)
+}
+
 struct MisReservasView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = MisReservasViewModel()
@@ -13,6 +24,31 @@ struct MisReservasView: View {
     @State private var reservaParaResena: Reserva?
     @State private var reservaSeleccionada: Reserva?
     @State private var mostrarNotificaciones = false
+
+    /// Combina la selección local (`reservaSeleccionada`) y la señal externa
+    /// (`session.reservaRecibidaParaAbrir`) en un solo binding — así el único
+    /// `.navigationDestination(item:)` de abajo sirve para las dos, y `set` sigue
+    /// "consumiendo" la señal externa (la apaga) igual que antes.
+    private var destino: Binding<DestinoMisReservas?> {
+        Binding(
+            get: {
+                if let reservaSeleccionada { return .detalle(reservaSeleccionada) }
+                if let reserva = session.reservaRecibidaParaAbrir { return .reservasRecibidas(reserva) }
+                return nil
+            },
+            set: { nuevo in
+                switch nuevo {
+                case .none:
+                    reservaSeleccionada = nil
+                    session.reservaRecibidaParaAbrir = nil
+                case .detalle(let reserva):
+                    reservaSeleccionada = reserva
+                case .reservasRecibidas(let reserva):
+                    session.reservaRecibidaParaAbrir = reserva
+                }
+            }
+        )
+    }
 
     var body: some View {
         content
@@ -38,18 +74,13 @@ struct MisReservasView: View {
             .sheet(item: $reservaParaResena) { reserva in
                 NuevaResenaView(reservaId: reserva.id, hospedajeTitulo: reserva.hospedajeTitulo)
             }
-            .navigationDestination(item: $reservaSeleccionada) { reserva in
-                ReservaDetailView(reserva: reserva)
-            }
-            // Consume la señal de "Ver reserva" del aviso de solicitud nueva (ver
-            // SessionStore.reservaRecibidaParaAbrir y MainTabView, que ya saltó a esta
-            // pestaña) empujando "Reservas recibidas" del hospedaje correspondiente — mismo
-            // mecanismo de "señal + consumo" que `abrirVerificacionAlEntrar` en PerfilView.
-            .navigationDestination(item: Binding(
-                get: { session.reservaRecibidaParaAbrir },
-                set: { session.reservaRecibidaParaAbrir = $0 }
-            )) { reserva in
-                ReservasRecibidasView(hospedaje: hospedajePlaceholder(reserva))
+            .navigationDestination(item: destino) { destino in
+                switch destino {
+                case .detalle(let reserva):
+                    ReservaDetailView(reserva: reserva)
+                case .reservasRecibidas(let reserva):
+                    ReservasRecibidasView(hospedaje: hospedajePlaceholder(reserva))
+                }
             }
     }
 

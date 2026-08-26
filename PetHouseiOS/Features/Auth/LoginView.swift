@@ -5,11 +5,21 @@
 
 import SwiftUI
 
+/// UN SOLO `.navigationDestination` para las dos pantallas a las que se puede ir desde
+/// Login, no dos modificadores separados — con dos `.navigationDestination(isPresented:)`
+/// distintos en la misma vista, SwiftUI en esta versión solo dispara el primero de forma
+/// confiable (mismo bug ya visto y documentado en PerfilView/MisHospedajesView): "Regístrate"
+/// funcionaba porque se declaraba primero, pero "¿Olvidaste tu contraseña?" (el segundo)
+/// se quedaba sin abrir nada al tocarlo.
+private enum DestinoLogin: Hashable {
+    case registro
+    case olvidePassword
+}
+
 struct LoginView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel: LoginViewModel?
-    @State private var mostrarRegistro = false
-    @State private var mostrarOlvidePassword = false
+    @State private var destino: DestinoLogin?
     @FocusState private var campoActivo: Campo?
 
     private enum Campo { case email, password }
@@ -77,7 +87,7 @@ struct LoginView: View {
                         .disabled(!viewModel.puedeEnviar)
 
                         PHTextButton("¿Olvidaste tu contraseña?") {
-                            mostrarOlvidePassword = true
+                            destino = .olvidePassword
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -85,7 +95,7 @@ struct LoginView: View {
                     HStack {
                         Text("¿No tienes cuenta?")
                             .phText(PHFont.bodySM, color: PHColor.muted)
-                        PHTextButton("Regístrate") { mostrarRegistro = true }
+                        PHTextButton("Regístrate") { destino = .registro }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, PHSpacing.s8)
@@ -95,11 +105,11 @@ struct LoginView: View {
         }
         .background(PHColor.canvas)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $mostrarRegistro) {
-            RegistroView()
-        }
-        .navigationDestination(isPresented: $mostrarOlvidePassword) {
-            OlvidePasswordView()
+        .navigationDestination(item: $destino) { destino in
+            switch destino {
+            case .registro: RegistroView()
+            case .olvidePassword: OlvidePasswordView()
+            }
         }
         .onAppear {
             if viewModel == nil { viewModel = LoginViewModel(session: session) }
