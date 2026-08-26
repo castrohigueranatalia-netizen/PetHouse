@@ -22,6 +22,7 @@ struct MisHospedajesView: View {
     @State private var mostrarPublicar = false
     @State private var hospedajeParaEditar: Hospedaje?
     @State private var destino: DestinoMisHospedajes?
+    @State private var toquesHistorialDebug = 0
 
     var body: some View {
         content
@@ -133,9 +134,12 @@ struct MisHospedajesView: View {
     /// aceptar/rechazar solicitudes pendientes.
     private var botonHistorial: some View {
         Button {
+            toquesHistorialDebug += 1
             destino = .historial
         } label: {
-            Label("Historial de reservas", systemImage: "clock.arrow.circlepath")
+            // El "(N)" es temporal, solo para diagnosticar por qué este botón no navega —
+            // se quita apenas se confirme si el toque llega o no al botón.
+            Label("Historial de reservas (\(toquesHistorialDebug))", systemImage: "clock.arrow.circlepath")
                 .frame(maxWidth: .infinity)
                 .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.primary)
                 .padding(.vertical, PHSpacing.s12)
