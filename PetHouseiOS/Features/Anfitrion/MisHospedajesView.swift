@@ -11,6 +11,7 @@ struct MisHospedajesView: View {
     @State private var mostrarPublicar = false
     @State private var hospedajeSeleccionado: Hospedaje?
     @State private var hospedajeParaEditar: Hospedaje?
+    @State private var mostrarHistorial = false
 
     var body: some View {
         content
@@ -42,6 +43,9 @@ struct MisHospedajesView: View {
             }
             .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
                 HospedajeDetailView(hospedajeId: hospedaje.id)
+            }
+            .navigationDestination(isPresented: $mostrarHistorial) {
+                HistorialReservasView()
             }
     }
 
@@ -115,14 +119,17 @@ struct MisHospedajesView: View {
     /// TODOS los hospedajes (ver HistorialReservasView), a diferencia de "Ver reservas
     /// recibidas" de cada tarjeta, que es solo de ese hospedaje y solo pensada para
     /// aceptar/rechazar solicitudes pendientes.
+    ///
+    /// Un `Button` que fija `mostrarHistorial = true` (navegación disparada por
+    /// `.navigationDestination(isPresented:)` en `body`), NO un `NavigationLink` — con el
+    /// mismo relleno/fondo/esquinas redondeadas, un `NavigationLink` dejaba de reaccionar al
+    /// toque por completo (se probó quitando `.buttonStyle(.plain)` y agregando
+    /// `.contentShape`, ninguno de los dos lo arregló); un `Button` normal con este mismo
+    /// estilo sí funciona en esta pantalla (ver la tarjeta de arriba, que usa el mismo
+    /// patrón para abrir el detalle del hospedaje).
     private var botonHistorial: some View {
-        // SIN `.buttonStyle(.plain)` a propósito: en un `NavigationLink` (a diferencia de un
-        // `Button` normal, ver "Ver reservas recibidas" más abajo, que sí lo lleva y sí
-        // reacciona) ese modificador puede interferir con que el toque dispare la
-        // navegación — se vio en la práctica que con él el botón dejaba de reaccionar del
-        // todo, no solo un problema de área tocable.
-        NavigationLink {
-            HistorialReservasView()
+        Button {
+            mostrarHistorial = true
         } label: {
             Label("Historial de reservas", systemImage: "clock.arrow.circlepath")
                 .frame(maxWidth: .infinity)
@@ -132,6 +139,7 @@ struct MisHospedajesView: View {
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
                 .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
     /// Pausar deja de mostrar el hospedaje en Buscar y en el mapa, sin borrarlo ni perder su
