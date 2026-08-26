@@ -5,13 +5,23 @@
 
 import SwiftUI
 
+/// A dónde puede navegar esta pantalla al tocar algo — UN SOLO `.navigationDestination`
+/// para las dos, en vez de uno por destino: con dos `.navigationDestination` distintos
+/// encadenados en la misma vista, SwiftUI en esta versión solo dispara el primero de forma
+/// confiable (se vio en la práctica: el segundo "temblaba" al tocar el botón, señal de que
+/// SÍ registraba el toque, pero nunca empujaba la pantalla). Unificarlos en un solo enum
+/// con un solo modificador lo resuelve de raíz.
+private enum DestinoMisHospedajes: Hashable {
+    case detalle(Hospedaje)
+    case historial
+}
+
 struct MisHospedajesView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = MisHospedajesViewModel()
     @State private var mostrarPublicar = false
-    @State private var hospedajeSeleccionado: Hospedaje?
     @State private var hospedajeParaEditar: Hospedaje?
-    @State private var mostrarHistorial = false
+    @State private var destino: DestinoMisHospedajes?
 
     var body: some View {
         content
@@ -41,11 +51,13 @@ struct MisHospedajesView: View {
                     viewModel.guardarLocal(guardado)
                 }
             }
-            .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
-                HospedajeDetailView(hospedajeId: hospedaje.id)
-            }
-            .navigationDestination(isPresented: $mostrarHistorial) {
-                HistorialReservasView()
+            .navigationDestination(item: $destino) { destino in
+                switch destino {
+                case .detalle(let hospedaje):
+                    HospedajeDetailView(hospedajeId: hospedaje.id)
+                case .historial:
+                    HistorialReservasView()
+                }
             }
     }
 
@@ -84,7 +96,7 @@ struct MisHospedajesView: View {
                                 }
                             }
 
-                            Button { hospedajeSeleccionado = hospedaje } label: {
+                            Button { destino = .detalle(hospedaje) } label: {
                                 PHHospedajeCard(hospedaje)
                                     .opacity(hospedaje.activo == false ? 0.5 : 1)
                             }
@@ -119,17 +131,9 @@ struct MisHospedajesView: View {
     /// TODOS los hospedajes (ver HistorialReservasView), a diferencia de "Ver reservas
     /// recibidas" de cada tarjeta, que es solo de ese hospedaje y solo pensada para
     /// aceptar/rechazar solicitudes pendientes.
-    ///
-    /// Un `Button` que fija `mostrarHistorial = true` (navegación disparada por
-    /// `.navigationDestination(isPresented:)` en `body`), NO un `NavigationLink` — con el
-    /// mismo relleno/fondo/esquinas redondeadas, un `NavigationLink` dejaba de reaccionar al
-    /// toque por completo (se probó quitando `.buttonStyle(.plain)` y agregando
-    /// `.contentShape`, ninguno de los dos lo arregló); un `Button` normal con este mismo
-    /// estilo sí funciona en esta pantalla (ver la tarjeta de arriba, que usa el mismo
-    /// patrón para abrir el detalle del hospedaje).
     private var botonHistorial: some View {
         Button {
-            mostrarHistorial = true
+            destino = .historial
         } label: {
             Label("Historial de reservas", systemImage: "clock.arrow.circlepath")
                 .frame(maxWidth: .infinity)
