@@ -129,8 +129,13 @@ r.get('/', async (req, res, next) => {
       total = Number(rows[0].total_filtrado)
     } else {
       const paramsSinPaginacion = params.slice(0, params.length - 2)
+      // Mismo FROM que la consulta principal (con el JOIN a `usuarios u`) — `condiciones`
+      // siempre incluye `u.bloqueado = FALSE` (ver el array base más arriba), así que sin
+      // este JOIN acá Postgres no encuentra de dónde sale "u" y esto fallaba SIEMPRE que
+      // la búsqueda diera 0 resultados, sin importar el filtro.
       const { rows: conteo } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM hospedajes h WHERE ${condiciones.join(' AND ')}`,
+        `SELECT COUNT(*)::int AS total FROM hospedajes h JOIN usuarios u ON u.id = h.anfitrion_id
+          WHERE ${condiciones.join(' AND ')}`,
         paramsSinPaginacion
       )
       total = conteo[0].total
