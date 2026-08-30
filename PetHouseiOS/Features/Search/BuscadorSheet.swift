@@ -20,6 +20,10 @@ struct BuscadorSheet: View {
     @Bindable var viewModel: BuscarViewModel
     let alBuscar: () -> Void
     @Environment(\.dismiss) private var dismiss
+    /// Estado local, no del ViewModel — solo decide qué modo del selector mostrar mientras
+    /// esta hoja está abierta. `.onAppear` lo inicializa según `desde`/`hasta` actuales, para
+    /// que reabrir la hoja no "olvide" que se estaba buscando un solo día.
+    @State private var mismoDia = false
 
     var body: some View {
         NavigationStack {
@@ -49,14 +53,30 @@ struct BuscadorSheet: View {
                     }
                     .buttonStyle(.plain)
                     if viewModel.usarFechas {
-                        DatePicker("Llegada", selection: $viewModel.desde, in: Date.now..., displayedComponents: .date)
-                        DatePicker("Salida", selection: $viewModel.hasta, in: viewModel.desde..., displayedComponents: .date)
-                        if Calendar.current.isDate(viewModel.desde, inSameDayAs: viewModel.hasta) {
-                            // Llegada = Salida: está buscando UN SOLO DÍA (ver
-                            // db/35-reserva-mismo-dia.sql) — el servidor ya solo devuelve
-                            // hospedajes que ofrezcan esa modalidad, esto es solo para que
-                            // no le extrañe ver menos resultados que buscando por noches.
-                            Text("Con la misma fecha de llegada y salida, solo se muestran hospedajes que ofrecen reservas de un solo día.")
+                        Picker("Tipo de búsqueda", selection: $mismoDia) {
+                            Text("Por noches").tag(false)
+                            Text("Mismo día").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: mismoDia) { _, nuevo in
+                            if nuevo { viewModel.hasta = viewModel.desde }
+                            else if viewModel.hasta <= viewModel.desde {
+                                viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
+                            }
+                        }
+
+                        // Un solo calendario para llegada y salida — tocar un día fija la
+                        // llegada y pasa de una a pedir la salida, sin tener que abrir un
+                        // segundo selector aparte (mismo componente que ya usa Reservar).
+                        PHSelectorRangoFechas(
+                            desde: $viewModel.desde, hasta: $viewModel.hasta,
+                            soloUnDia: mismoDia, diaOcupado: { _ in false }
+                        )
+
+                        if mismoDia {
+                            // Ver db/35-reserva-mismo-dia.sql — el servidor ya solo devuelve
+                            // hospedajes que ofrezcan esa modalidad.
+                            Text("Con \"Mismo día\", solo se muestran hospedajes que ofrecen reservas de un solo día.")
                                 .phText(PHFont.captionSM, color: PHColor.muted)
                         }
                     }
@@ -98,6 +118,9 @@ struct BuscadorSheet: View {
                 .padding(PHSpacing.s16)
                 .background(.bar)
             }
+        }
+        .onAppear {
+            mismoDia = Calendar.current.isDate(viewModel.desde, inSameDayAs: viewModel.hasta)
         }
     }
 }
