@@ -76,8 +76,8 @@ public enum PHDate {
     }
 
     /// Formatea un `TIMESTAMPTZ` completo (`creado_en`) a texto legible en español, ej.
-    /// "9 ago 2026" — usado por el historial de reservas del anfitrión (ver
-    /// HistorialReservasView), donde importa CUÁNDO se hizo la reserva, no la estadía.
+    /// "9 ago 2026" — usado donde importa CUÁNDO se creó algo (ticket de soporte, solicitud
+    /// de privacidad), no una fecha de estadía.
     public static func displayFromTimestamp(_ raw: String) -> String {
         guard let date = parseTimestamp(raw) else { return raw }
         return display.string(from: date)

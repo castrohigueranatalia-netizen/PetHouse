@@ -5,24 +5,12 @@
 
 import SwiftUI
 
-/// A dónde puede navegar esta pantalla al tocar algo — UN SOLO `.navigationDestination`
-/// para las dos, en vez de uno por destino: con dos `.navigationDestination` distintos
-/// encadenados en la misma vista, SwiftUI en esta versión solo dispara el primero de forma
-/// confiable (se vio en la práctica: el segundo "temblaba" al tocar el botón, señal de que
-/// SÍ registraba el toque, pero nunca empujaba la pantalla). Unificarlos en un solo enum
-/// con un solo modificador lo resuelve de raíz.
-private enum DestinoMisHospedajes: Hashable {
-    case detalle(Hospedaje)
-    case historial
-}
-
 struct MisHospedajesView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = MisHospedajesViewModel()
     @State private var mostrarPublicar = false
     @State private var hospedajeParaEditar: Hospedaje?
-    @State private var destino: DestinoMisHospedajes?
-    @State private var toquesHistorialDebug = 0
+    @State private var hospedajeSeleccionado: Hospedaje?
 
     var body: some View {
         content
@@ -52,13 +40,8 @@ struct MisHospedajesView: View {
                     viewModel.guardarLocal(guardado)
                 }
             }
-            .navigationDestination(item: $destino) { destino in
-                switch destino {
-                case .detalle(let hospedaje):
-                    HospedajeDetailView(hospedajeId: hospedaje.id)
-                case .historial:
-                    HistorialReservasView()
-                }
+            .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
+                HospedajeDetailView(hospedajeId: hospedaje.id)
             }
     }
 
@@ -80,8 +63,6 @@ struct MisHospedajesView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: PHSpacing.s16) {
-                    botonHistorial
-
                     ForEach(viewModel.hospedajes) { hospedaje in
                         VStack(alignment: .leading, spacing: PHSpacing.s8) {
                             // El botón de editar va ARRIBA de la imagen, a la derecha — un
@@ -97,7 +78,7 @@ struct MisHospedajesView: View {
                                 }
                             }
 
-                            Button { destino = .detalle(hospedaje) } label: {
+                            Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
                                     .opacity(hospedaje.activo == false ? 0.5 : 1)
                             }
@@ -126,28 +107,6 @@ struct MisHospedajesView: View {
                 .padding(PHSpacing.s16)
             }
         }
-    }
-
-    /// Botón mediano al principio de la lista — lleva al historial de TODAS las reservas de
-    /// TODOS los hospedajes (ver HistorialReservasView), a diferencia de "Ver reservas
-    /// recibidas" de cada tarjeta, que es solo de ese hospedaje y solo pensada para
-    /// aceptar/rechazar solicitudes pendientes.
-    private var botonHistorial: some View {
-        Button {
-            toquesHistorialDebug += 1
-            destino = .historial
-        } label: {
-            // El "(N)" es temporal, solo para diagnosticar por qué este botón no navega —
-            // se quita apenas se confirme si el toque llega o no al botón.
-            Label("Historial de reservas (\(toquesHistorialDebug))", systemImage: "clock.arrow.circlepath")
-                .frame(maxWidth: .infinity)
-                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.primary)
-                .padding(.vertical, PHSpacing.s12)
-                .background(PHColor.primaryContainer)
-                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     /// Pausar deja de mostrar el hospedaje en Buscar y en el mapa, sin borrarlo ni perder su
