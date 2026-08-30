@@ -81,7 +81,16 @@ public struct PHSelectorRangoFechas: View {
                 Image(systemName: "arrow.right").foregroundStyle(PHColor.mutedSoft)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Salida").phText(PHFont.captionSM, color: PHColor.muted)
-                    Text(PHDate.display.string(from: hasta)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    if seleccionandoSalida {
+                        // Todavía no se tocó un segundo día — `hasta` ya tiene un valor
+                        // interno (el día siguiente, tentativo, ver `tocar(_:)`), pero
+                        // mostrarlo acá como si fuera la salida real confunde: parece que ya
+                        // quedó elegida sin haberla tocado. Mejor un placeholder hasta que
+                        // de verdad se confirme.
+                        Text("Elige una fecha").phText(PHFont.bodyMD.weight(.semibold), color: PHColor.mutedSoft)
+                    } else {
+                        Text(PHDate.display.string(from: hasta)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    }
                 }
             }
             Spacer()
@@ -127,8 +136,11 @@ public struct PHSelectorRangoFechas: View {
     private func casillaDia(_ dia: Date) -> some View {
         let ocupado = diaOcupado(dia) || dia < calendario.startOfDay(for: .now)
         let esInicio = calendario.isDate(dia, inSameDayAs: desde)
-        let esFin = calendario.isDate(dia, inSameDayAs: hasta)
-        let enRango = dia > desde && dia < hasta
+        // Mientras `seleccionandoSalida` es `true`, `hasta` es solo un valor tentativo (ver
+        // el comentario de `resumenFechas`) — no se resalta como si fuera una salida ya
+        // elegida, para no dar a entender que el rango ya quedó completo con un solo toque.
+        let esFin = !seleccionandoSalida && calendario.isDate(dia, inSameDayAs: hasta)
+        let enRango = !seleccionandoSalida && dia > desde && dia < hasta
         let numero = calendario.component(.day, from: dia)
 
         return Button {
