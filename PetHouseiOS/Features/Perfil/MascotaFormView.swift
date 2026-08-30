@@ -40,6 +40,13 @@ struct MascotaFormView: View {
     private func formulario(_ viewModel: MascotaFormViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PHSpacing.s16) {
+                // Solo para una mascota ya existente (una nueva empieza vacía a propósito,
+                // no tiene sentido avisar apenas se abre) — va desapareciendo sola a medida
+                // que se completan los campos (ver MascotaFormViewModel.camposFaltantes).
+                if mascota != nil, !viewModel.camposFaltantes.isEmpty {
+                    avisoFichaIncompleta
+                }
+
                 PHAdjuntarFotos(
                     titulo: "Fotos de tu mascota (opcional)",
                     subtitulo: "El anfitrión las ve en la ficha al recibir tu solicitud de reserva.",
@@ -117,6 +124,22 @@ struct MascotaFormView: View {
             }
             .padding(PHSpacing.s16)
         }
+    }
+
+    private var avisoFichaIncompleta: some View {
+        HStack(alignment: .top, spacing: PHSpacing.s8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(PHColor.warning)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ficha incompleta")
+                    .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
+                Text("Falta \(viewModel.camposFaltantes.joined(separator: ", ")) para que \(mascota?.nombre ?? "esta mascota") pueda reservar.")
+                    .phText(PHFont.captionSM, color: PHColor.body)
+            }
+        }
+        .padding(PHSpacing.s12)
+        .background(PHColor.warningContainer)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
     }
 
     private func tamanoLegible(_ tamano: String) -> String {

@@ -58,6 +58,24 @@ public final class MascotaFormViewModel {
         !nombre.trimmingCharacters(in: .whitespaces).isEmpty && !isLoading
     }
 
+    /// Qué le falta a la ficha para poder reservar (ver `Mascota.camposFaltantes`) — misma
+    /// lista, pero calculada en vivo contra lo que hay escrito ahora mismo en el
+    /// formulario, no contra `mascotaExistente` (que se queda con los datos de cuando se
+    /// abrió la pantalla). Así el aviso de arriba (ver MascotaFormView) va desapareciendo a
+    /// medida que se completa, en vez de quedarse fijo con lo que faltaba al entrar.
+    public var camposFaltantes: [String] {
+        var faltantes: [String] = []
+        if raza.trimmingCharacters(in: .whitespaces).isEmpty { faltantes.append("raza") }
+        if Int(edad) == nil { faltantes.append("edad") }
+        if tamano?.isEmpty ?? true { faltantes.append("tamaño") }
+        if Double(pesoKg.replacingOccurrences(of: ",", with: ".")) == nil { faltantes.append("peso") }
+        if fotos.isEmpty { faltantes.append("una foto") }
+        if necesitaMedicamentos && notas.trimmingCharacters(in: .whitespaces).isEmpty {
+            faltantes.append("qué medicamento necesita y cuándo")
+        }
+        return faltantes
+    }
+
     /// Pasado a `PHAdjuntarFotos` — sube el archivo y devuelve la URL, o `nil` si falla (la
     /// vista ya muestra su propio mensaje de error en ese caso). Mismo patrón que
     /// `VerificacionAnfitrionViewModel.subirFoto`.
