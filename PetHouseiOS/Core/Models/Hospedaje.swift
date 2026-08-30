@@ -69,6 +69,11 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     /// listado (ver pethouse-api/src/routes/hospedajes.js), pero pueden seguir en la base.
     public let localidad: String?
     public let precioNoche: Double
+    /// Precio de una reserva de UN SOLO DÍA (entrega y recogida el mismo día, sin pasar la
+    /// noche) — `nil` cuando el anfitrión no ofrece esa opción en este hospedaje (ver
+    /// db/35-reserva-mismo-dia.sql). Cuando está presente, NuevaReservaView deja elegir esta
+    /// modalidad además de la de noches normal.
+    public let precioDia: Double?
     public let rating: Double
 
     // Presente en listado y detalle, AUSENTE en /cerca.
@@ -98,6 +103,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, titulo, tipo, ciudad, barrio, localidad, convivencia, servicios, fotos, reglas, activo, lat, lng
         case precioNoche = "precio_noche"
+        case precioDia = "precio_dia"
         case rating
         case maxMascotas = "max_mascotas"
         case numResenas = "num_resenas"
@@ -120,7 +126,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     public init(
         id: String, titulo: String, tipo: TipoHospedaje, ciudad: String, barrio: String? = nil,
         localidad: String? = nil,
-        precioNoche: Double, rating: Double = 0, convivencia: Convivencia? = nil, maxMascotas: Int? = nil,
+        precioNoche: Double, precioDia: Double? = nil, rating: Double = 0, convivencia: Convivencia? = nil, maxMascotas: Int? = nil,
         numResenas: Int? = nil, destacado: Bool? = nil, servicios: [String]? = nil, fotos: [String]? = nil,
         lat: Double? = nil, lng: Double? = nil, anfitrionNombre: String? = nil, anfitrionVerificado: Bool? = nil,
         distanciaM: Double? = nil, descripcion: String? = nil, direccion: String? = nil, reglas: [String]? = nil,
@@ -133,6 +139,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         self.barrio = barrio
         self.localidad = localidad
         self.precioNoche = precioNoche
+        self.precioDia = precioDia
         self.rating = rating
         self.convivencia = convivencia
         self.maxMascotas = maxMascotas
@@ -163,6 +170,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
         localidad = try c.decodeIfPresent(String.self, forKey: .localidad)
         precioNoche = try c.decodeFlexibleDouble(forKey: .precioNoche)
+        precioDia = try c.decodeFlexibleDoubleIfPresent(forKey: .precioDia)
         rating = try c.decodeFlexibleDoubleIfPresent(forKey: .rating) ?? 0
 
         convivencia = try c.decodeIfPresent(Convivencia.self, forKey: .convivencia)
@@ -196,6 +204,7 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         try c.encodeIfPresent(barrio, forKey: .barrio)
         try c.encodeIfPresent(localidad, forKey: .localidad)
         try c.encode(precioNoche, forKey: .precioNoche)
+        try c.encodeIfPresent(precioDia, forKey: .precioDia)
         try c.encode(rating, forKey: .rating)
         try c.encodeIfPresent(convivencia, forKey: .convivencia)
         try c.encodeIfPresent(maxMascotas, forKey: .maxMascotas)
@@ -252,6 +261,9 @@ public struct CrearHospedajeRequest: Encodable {
     public let lng: Double
     public let coberturaRadioM: Int?
     public let precioNoche: Double
+    /// Opcional — sin ella, este hospedaje no ofrece reservas de un solo día (ver
+    /// db/35-reserva-mismo-dia.sql).
+    public let precioDia: Double?
     public let convivencia: Convivencia
     public let maxMascotas: Int
     public let servicios: [String]
@@ -262,7 +274,8 @@ public struct CrearHospedajeRequest: Encodable {
 
     public init(
         titulo: String, tipo: TipoHospedaje, descripcion: String, localidad: String, barrio: String?,
-        lat: Double, lng: Double, coberturaRadioM: Int?, precioNoche: Double, convivencia: Convivencia,
+        lat: Double, lng: Double, coberturaRadioM: Int?, precioNoche: Double, precioDia: Double? = nil,
+        convivencia: Convivencia,
         maxMascotas: Int, servicios: [String], reglas: [String], fotos: [String]
     ) {
         self.titulo = titulo
@@ -274,6 +287,7 @@ public struct CrearHospedajeRequest: Encodable {
         self.lng = lng
         self.coberturaRadioM = coberturaRadioM
         self.precioNoche = precioNoche
+        self.precioDia = precioDia
         self.convivencia = convivencia
         self.maxMascotas = maxMascotas
         self.servicios = servicios

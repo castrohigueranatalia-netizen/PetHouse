@@ -17,7 +17,7 @@ const r = Router()
 r.get('/', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.convivencia,
+      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.precio_noche, h.precio_dia, h.convivencia,
               h.max_mascotas, h.rating, h.num_resenas, h.destacado, h.servicios, h.fotos,
               ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng,
               u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado

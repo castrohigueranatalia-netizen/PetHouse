@@ -48,9 +48,22 @@ struct NuevaReservaView: View {
                 Text(viewModel.hospedaje.titulo)
                     .phText(PHFont.titleMD, color: PHColor.ink)
 
+                if viewModel.ofreceMismoDia {
+                    Picker("Tipo de reserva", selection: $viewModel.mismoDia) {
+                        Text("Por noches").tag(false)
+                        Text("Mismo día").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    if viewModel.mismoDia {
+                        Text("Dejas a tu mascota y la recoges esa misma noche, sin que se quede a dormir.")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                    }
+                }
+
                 PHSelectorRangoFechas(
                     desde: $viewModel.desde,
                     hasta: $viewModel.hasta,
+                    soloUnDia: viewModel.mismoDia,
                     diaOcupado: { viewModel.diaOcupado($0) }
                 )
 
@@ -66,8 +79,13 @@ struct NuevaReservaView: View {
                 VStack(alignment: .leading, spacing: PHSpacing.s8) {
                     Text("Resumen estimado")
                         .phText(PHFont.titleMD, color: PHColor.ink)
-                    filaResumen("Precio por noche", PHFormato.precio(viewModel.hospedaje.precioNoche))
-                    filaResumen("Noches", "\(viewModel.noches)")
+                    if viewModel.mismoDia {
+                        filaResumen("Precio por día", PHFormato.precio(viewModel.precioBase))
+                        filaResumen("Duración", "Mismo día")
+                    } else {
+                        filaResumen("Precio por noche", PHFormato.precio(viewModel.precioBase))
+                        filaResumen("Noches", "\(viewModel.noches)")
+                    }
                     filaResumen("Limpieza (estimado)", PHFormato.precio(viewModel.estimadoLimpieza))
                     filaResumen("Servicio (estimado)", PHFormato.precio(viewModel.estimadoServicio))
                     Divider()
@@ -179,7 +197,11 @@ struct NuevaReservaView: View {
                 .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.muted)
 
             VStack(alignment: .leading, spacing: PHSpacing.s8) {
-                filaResumen("Noches", "\(respuesta.detalle.noches)")
+                if respuesta.reserva.esMismoDia {
+                    filaResumen("Duración", "Mismo día")
+                } else {
+                    filaResumen("Noches", "\(respuesta.detalle.noches)")
+                }
                 filaResumen("Total", PHFormato.precio(respuesta.reserva.total ?? viewModel.estimadoTotal), destacado: true)
             }
             .padding(PHSpacing.s16)

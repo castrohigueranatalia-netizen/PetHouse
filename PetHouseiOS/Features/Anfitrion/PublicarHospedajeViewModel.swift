@@ -28,6 +28,9 @@ public final class PublicarHospedajeViewModel {
     public var latTexto = ""
     public var lngTexto = ""
     public var precioNocheTexto = ""
+    /// Opcional — vacío significa que este hospedaje NO ofrece la opción de reservar por un
+    /// solo día (entrega y recogida el mismo día, ver db/35-reserva-mismo-dia.sql).
+    public var precioDiaTexto = ""
     public var convivencia: Convivencia = .cualquiera
     public var maxMascotasTexto = "1"
     public var serviciosTexto = ""   // separados por coma
@@ -69,6 +72,7 @@ public final class PublicarHospedajeViewModel {
             latTexto = h.lat.map { String($0) } ?? ""
             lngTexto = h.lng.map { String($0) } ?? ""
             precioNocheTexto = String(h.precioNoche)
+            precioDiaTexto = h.precioDia.map { String($0) } ?? ""
             convivencia = h.convivencia ?? .cualquiera
             maxMascotasTexto = h.maxMascotas.map { String($0) } ?? "1"
             serviciosTexto = (h.servicios ?? []).joined(separator: ", ")
@@ -97,7 +101,9 @@ public final class PublicarHospedajeViewModel {
     public var puedeGuardar: Bool {
         !titulo.isEmpty && !descripcion.isEmpty && localidad != nil
             && Double(latTexto) != nil && Double(lngTexto) != nil
-            && Double(precioNocheTexto) != nil && !isLoading
+            && Double(precioNocheTexto) != nil
+            && (precioDiaTexto.isEmpty || Double(precioDiaTexto) != nil)
+            && !isLoading
     }
 
     public func guardar() async {
@@ -105,6 +111,7 @@ public final class PublicarHospedajeViewModel {
               let localidad,
               let lat = Double(latTexto), let lng = Double(lngTexto),
               let precio = Double(precioNocheTexto) else { return }
+        let precioDia = precioDiaTexto.isEmpty ? nil : Double(precioDiaTexto)
 
         isLoading = true
         error = nil
@@ -113,7 +120,7 @@ public final class PublicarHospedajeViewModel {
         let payload = CrearHospedajeRequest(
             titulo: titulo, tipo: tipo, descripcion: descripcion, localidad: localidad.rawValue,
             barrio: barrio.isEmpty ? nil : barrio, lat: lat, lng: lng, coberturaRadioM: nil,
-            precioNoche: precio, convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
+            precioNoche: precio, precioDia: precioDia, convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
             servicios: lista(serviciosTexto), reglas: lista(reglasTexto), fotos: fotos
         )
 

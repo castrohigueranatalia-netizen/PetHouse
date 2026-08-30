@@ -49,6 +49,14 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public let total: Double?
 
     public let precioNoche: Double?
+    /// `true` cuando esta reserva es de UN SOLO DÍA (entrega y recogida el mismo día, sin
+    /// pasar la noche) — cambia cómo se muestra la duración ("mismo día" en vez de "N
+    /// noches") y qué precio ver: `precioDia`, no `precioNoche` (ver
+    /// db/35-reserva-mismo-dia.sql). `nil` en respuestas que no lo traen: tratar igual que
+    /// `false`.
+    public let mismoDia: Bool?
+    /// Precio de día cobrado — solo tiene sentido cuando `mismoDia == true`.
+    public let precioDia: Double?
     public let limpieza: Double?
     public let servicio: Double?
     /// % de comisión de PetHouse que aplicaba cuando se creó esta reserva, y su desglose ya
@@ -88,6 +96,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, codigo, estado, desde, hasta, noches, mascotas, total
         case precioNoche = "precio_noche"
+        case mismoDia = "mismo_dia"
+        case precioDia = "precio_dia"
         case limpieza, servicio
         case comisionPorcentaje = "comision_porcentaje"
         case comisionMonto = "comision_monto"
@@ -109,7 +119,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     /// sin pasar por JSON. Ver `ReservaCache.comoReserva`.
     public init(
         id: String, codigo: String, estado: EstadoReserva, desde: String?, hasta: String?,
-        noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?, limpieza: Double?,
+        noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?,
+        mismoDia: Bool? = nil, precioDia: Double? = nil, limpieza: Double?,
         servicio: Double?, comisionPorcentaje: Double? = nil, comisionMonto: Double? = nil,
         montoAnfitrion: Double? = nil, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
         anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
@@ -126,6 +137,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.mascotas = mascotas
         self.total = total
         self.precioNoche = precioNoche
+        self.mismoDia = mismoDia
+        self.precioDia = precioDia
         self.limpieza = limpieza
         self.servicio = servicio
         self.comisionPorcentaje = comisionPorcentaje
@@ -157,6 +170,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         mascotas = try c.decodeIfPresent(Int.self, forKey: .mascotas)
         total = try c.decodeFlexibleDoubleIfPresent(forKey: .total)
         precioNoche = try c.decodeFlexibleDoubleIfPresent(forKey: .precioNoche)
+        mismoDia = try c.decodeIfPresent(Bool.self, forKey: .mismoDia)
+        precioDia = try c.decodeFlexibleDoubleIfPresent(forKey: .precioDia)
         limpieza = try c.decodeFlexibleDoubleIfPresent(forKey: .limpieza)
         servicio = try c.decodeFlexibleDoubleIfPresent(forKey: .servicio)
         comisionPorcentaje = try c.decodeFlexibleDoubleIfPresent(forKey: .comisionPorcentaje)
@@ -176,6 +191,10 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         tipo = try c.decodeIfPresent(TipoHospedaje.self, forKey: .tipo)
         fotos = try c.decodeIfPresent([String].self, forKey: .fotos)
     }
+
+    /// `mismoDia` es `Bool?` porque no todas las respuestas lo traen — acá se trata la
+    /// ausencia igual que `false`, para no repetir `reserva.mismoDia == true` en cada vista.
+    public var esMismoDia: Bool { mismoDia == true }
 }
 
 public struct CrearReservaRequest: Encodable {

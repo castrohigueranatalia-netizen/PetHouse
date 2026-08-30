@@ -73,7 +73,7 @@ r.get('/', async (req, res, next) => {
     }
 
     let seleccion = `
-      SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.convivencia,
+      SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.precio_dia, h.convivencia,
              h.max_mascotas, h.rating, h.num_resenas, h.destacado, h.servicios, h.fotos,
              ST_Y(h.ubicacion::geometry) AS lat, ST_X(h.ubicacion::geometry) AS lng,
              u.nombre AS anfitrion_nombre, u.verificado AS anfitrion_verificado,
@@ -134,7 +134,7 @@ r.get('/cerca', async (req, res, next) => {
       return res.status(400).json({ error: 'Parámetros lat y lng requeridos.' })
     }
     const { rows } = await pool.query(
-      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.rating,
+      `SELECT h.id, h.titulo, h.tipo, h.ciudad, h.barrio, h.localidad, h.precio_noche, h.precio_dia, h.rating,
               ROUND(ST_Distance(h.ubicacion, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography)) AS distancia_m
          FROM hospedajes h
         WHERE h.activo
@@ -366,7 +366,7 @@ r.get('/:id', async (req, res, next) => {
 r.post('/', auth, soloAnfitrion, async (req, res, next) => {
   try {
     const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
-            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
+            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
 
     if (!titulo || !tipo || !descripcion || !localidad || lat == null || lng == null || !precioNoche) {
       return res.status(400).json({ error: 'Faltan campos obligatorios (titulo, tipo, descripcion, localidad, lat, lng, precioNoche).' })
@@ -378,11 +378,11 @@ r.post('/', auth, soloAnfitrion, async (req, res, next) => {
     const { rows } = await pool.query(
       `INSERT INTO hospedajes
          (anfitrion_id, tipo, titulo, descripcion, ciudad, barrio, localidad, ubicacion, cobertura_radio_m,
-          precio_noche, convivencia, max_mascotas, servicios, reglas, fotos)
-       VALUES ($1, $2, $3, $4, 'Bogotá', $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15)
-       RETURNING id, titulo, tipo, ciudad, localidad, precio_noche`,
+          precio_noche, precio_dia, convivencia, max_mascotas, servicios, reglas, fotos)
+       VALUES ($1, $2, $3, $4, 'Bogotá', $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15, $16)
+       RETURNING id, titulo, tipo, ciudad, localidad, precio_noche, precio_dia`,
       [req.usuario.id, tipo, titulo, descripcion, barrio || null, localidad, Number(lng), Number(lat),
-       coberturaRadioM || null, Number(precioNoche), convivencia || 'cualquiera',
+       coberturaRadioM || null, Number(precioNoche), precioDia ? Number(precioDia) : null, convivencia || 'cualquiera',
        Number(maxMascotas || 1), servicios || [], reglas || [], fotos || []]
     )
     res.status(201).json({ hospedaje: rows[0] })
@@ -399,7 +399,7 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     }
 
     const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
-            precioNoche, convivencia, maxMascotas, servicios, reglas, fotos, activo } = req.body || {}
+            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos, activo } = req.body || {}
 
     if (localidad !== undefined && !LOCALIDADES_BOGOTA.includes(localidad)) {
       return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
@@ -415,6 +415,8 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     if (barrio !== undefined) set('barrio', barrio || null)
     if (coberturaRadioM !== undefined) set('cobertura_radio_m', coberturaRadioM || null)
     if (precioNoche !== undefined) set('precio_noche', precioNoche)
+    // `null`/vacío desactiva la opción de un solo día para este hospedaje (no exige tenerla).
+    if (precioDia !== undefined) set('precio_dia', precioDia || null)
     if (convivencia !== undefined) set('convivencia', convivencia)
     if (maxMascotas !== undefined) set('max_mascotas', maxMascotas)
     if (servicios !== undefined) set('servicios', servicios || [])

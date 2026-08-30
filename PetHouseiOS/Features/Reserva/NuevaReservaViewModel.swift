@@ -28,6 +28,21 @@ public final class NuevaReservaViewModel {
 
     public var desde: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
     public var hasta: Date = Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now
+    /// `true` = entrega y recogida el mismo día (sin pasar la noche), cobrado a
+    /// `hospedaje.precioDia` — solo se puede activar si el hospedaje la ofrece (ver
+    /// `ofreceMismoDia`). Al activarla, `hasta` se iguala a `desde` (un solo día
+    /// seleccionable, ver `PHSelectorRangoFechas(soloUnDia:)`); al desactivarla, si `hasta`
+    /// quedó igual a `desde` se le vuelve a sumar 1 día para no dejar un rango inválido.
+    public var mismoDia = false {
+        didSet {
+            guard mismoDia != oldValue else { return }
+            if mismoDia {
+                hasta = desde
+            } else if hasta <= desde {
+                hasta = Calendar.current.date(byAdding: .day, value: 1, to: desde) ?? desde
+            }
+        }
+    }
     public var mascotaIdsSeleccionadas: Set<String> = []
 
     public private(set) var isLoading = false
@@ -79,12 +94,22 @@ public final class NuevaReservaViewModel {
 
     public var maxMascotas: Int { hospedaje.maxMascotas ?? 1 }
 
+    /// `true` si este hospedaje ofrece la opción de un solo día (ver
+    /// db/35-reserva-mismo-dia.sql) — controla si `NuevaReservaView` muestra el selector
+    /// "Por noches" / "Mismo día".
+    public var ofreceMismoDia: Bool { hospedaje.precioDia != nil }
+
     public var noches: Int {
         max(0, Calendar.current.dateComponents([.day], from: desde, to: hasta).day ?? 0)
     }
 
+    /// Para el estimado y el envío: 1 "unidad" para una reserva de un solo día (aunque
+    /// `noches` dé 0, porque `desde == hasta`), `noches` en cualquier otro caso — mismo
+    /// criterio que usa el servidor (ver `precioBase`/`pethouse-api/src/routes/reservas.js`).
+    private var unidadesParaCalculo: Int { mismoDia ? 1 : noches }
+
     public var fechasValidas: Bool {
-        noches > 0
+        mismoDia ? true : noches > 0
     }
 
     public func alternar(_ mascota: Mascota) {
@@ -96,17 +121,23 @@ public final class NuevaReservaViewModel {
         }
     }
 
+    /// `precioDia` si es de un solo día (garantizado no-nil ahí: `mismoDia` no se puede
+    /// activar sin `ofreceMismoDia`), `precioNoche` si no.
+    public var precioBase: Double {
+        mismoDia ? (hospedaje.precioDia ?? hospedaje.precioNoche) : hospedaje.precioNoche
+    }
+
     /// Estimado — ver el comentario del archivo. No es el monto final.
     public var estimadoLimpieza: Double {
-        (hospedaje.precioNoche * 0.6).rounded()
+        (precioBase * 0.6).rounded()
     }
 
     public var estimadoServicio: Double {
-        (hospedaje.precioNoche * Double(noches) * 0.1).rounded()
+        (precioBase * Double(unidadesParaCalculo) * 0.1).rounded()
     }
 
     public var estimadoTotal: Double {
-        hospedaje.precioNoche * Double(noches) + estimadoLimpieza + estimadoServicio
+        precioBase * Double(unidadesParaCalculo) + estimadoLimpieza + estimadoServicio
     }
 
     public var puedeReservar: Bool {
@@ -130,7 +161,11 @@ public final class NuevaReservaViewModel {
             let respuesta = try await service.crear(
                 hospedajeId: hospedaje.id,
                 desde: PHDate.toAPIDateOnly(desde),
-                hasta: PHDate.toAPIDateOnly(hasta),
+                // `hasta == desde` es justamente la señal que espera el servidor para
+                // reservas de un solo día (ver db/35-reserva-mismo-dia.sql) — se manda desde
+                // acá, no desde el binding de `hasta`, para no depender de que
+                // PHSelectorRangoFechas lo haya dejado sincronizado.
+                hasta: mismoDia ? PHDate.toAPIDateOnly(desde) : PHDate.toAPIDateOnly(hasta),
                 mascotaIds: Array(mascotaIdsSeleccionadas)
             )
             reservaConfirmada = respuesta

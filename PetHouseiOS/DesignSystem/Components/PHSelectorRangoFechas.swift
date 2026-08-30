@@ -20,6 +20,10 @@ public struct PHSelectorRangoFechas: View {
     @Binding var desde: Date
     @Binding var hasta: Date
     let diaOcupado: (Date) -> Bool
+    /// `true` para elegir un solo día (entrega y recogida el mismo día, ver
+    /// NuevaReservaViewModel.mismoDia) — tocar un día lo fija de una vez como `desde` Y
+    /// `hasta`, sin el paso de "ahora toca la salida" de la selección de rango normal.
+    let soloUnDia: Bool
 
     @State private var mesMostrado: Date
     @State private var seleccionandoSalida = false
@@ -34,9 +38,10 @@ public struct PHSelectorRangoFechas: View {
     private static let diasSemana = ["L", "M", "M", "J", "V", "S", "D"]
     private let calendario = Calendar.current
 
-    public init(desde: Binding<Date>, hasta: Binding<Date>, diaOcupado: @escaping (Date) -> Bool) {
+    public init(desde: Binding<Date>, hasta: Binding<Date>, soloUnDia: Bool = false, diaOcupado: @escaping (Date) -> Bool) {
         self._desde = desde
         self._hasta = hasta
+        self.soloUnDia = soloUnDia
         self.diaOcupado = diaOcupado
         self._mesMostrado = State(initialValue: desde.wrappedValue)
     }
@@ -52,14 +57,21 @@ public struct PHSelectorRangoFechas: View {
 
     private var resumenFechas: some View {
         HStack(spacing: PHSpacing.s16) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Llegada").phText(PHFont.captionSM, color: PHColor.muted)
-                Text(PHDate.display.string(from: desde)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-            }
-            Image(systemName: "arrow.right").foregroundStyle(PHColor.mutedSoft)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Salida").phText(PHFont.captionSM, color: PHColor.muted)
-                Text(PHDate.display.string(from: hasta)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+            if soloUnDia {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Fecha").phText(PHFont.captionSM, color: PHColor.muted)
+                    Text(PHDate.display.string(from: desde)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Llegada").phText(PHFont.captionSM, color: PHColor.muted)
+                    Text(PHDate.display.string(from: desde)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                }
+                Image(systemName: "arrow.right").foregroundStyle(PHColor.mutedSoft)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Salida").phText(PHFont.captionSM, color: PHColor.muted)
+                    Text(PHDate.display.string(from: hasta)).phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                }
             }
             Spacer()
         }
@@ -134,6 +146,11 @@ public struct PHSelectorRangoFechas: View {
     }
 
     private func tocar(_ dia: Date) {
+        if soloUnDia {
+            desde = dia
+            hasta = dia
+            return
+        }
         if !seleccionandoSalida || dia <= desde || hayOcupadoEntre(desde, dia) {
             desde = dia
             hasta = calendario.date(byAdding: .day, value: 1, to: dia) ?? dia

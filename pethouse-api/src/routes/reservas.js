@@ -51,7 +51,10 @@ r.post('/', auth, async (req, res, next) => {
     if (!Array.isArray(mascota_ids) || !mascota_ids.length) {
       return res.status(400).json({ error: 'Selecciona al menos una mascota.' })
     }
-    if (hasta <= desde) return res.status(400).json({ error: 'La fecha de salida debe ser posterior a la llegada.' })
+    // `hasta === desde` es una reserva de UN SOLO DÍA (entrega y recogida el mismo día, ver
+    // db/35-reserva-mismo-dia.sql) — ya no es un error, solo lo es `hasta` ANTES de `desde`.
+    if (hasta < desde) return res.status(400).json({ error: 'La fecha de salida debe ser posterior o igual a la llegada.' })
+    const mismoDia = hasta === desde
     // Comparación de texto (YYYY-MM-DD), no de objetos Date — ver el comentario de
     // hoyBogota() sobre por qué mezclar Date/UTC/local acá era un bug real.
     if (desde < hoyBogota()) {
@@ -62,7 +65,7 @@ r.post('/', auth, async (req, res, next) => {
 
     // Bloquea la fila del hospedaje para evitar carreras de reserva
     const { rows: hs } = await client.query(
-      'SELECT id, titulo, anfitrion_id, precio_noche, max_mascotas, convivencia, activo FROM hospedajes WHERE id = $1 FOR UPDATE',
+      'SELECT id, titulo, anfitrion_id, precio_noche, precio_dia, max_mascotas, convivencia, activo FROM hospedajes WHERE id = $1 FOR UPDATE',
       [hospedaje_id]
     )
     if (!hs.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Hospedaje no encontrado.' }) }
@@ -73,14 +76,31 @@ r.post('/', auth, async (req, res, next) => {
       await client.query('ROLLBACK')
       return res.status(409).json({ error: 'Este hospedaje no está disponible para reservar en este momento.' })
     }
+    if (mismoDia && h.precio_dia == null) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Este hospedaje no ofrece reservas de un solo día.' })
+    }
+
+    // `hastaReal` es SIEMPRE `desde + 1` para una reserva de un solo día — internamente
+    // ocupa ese día completo igual que una reserva de 1 noche (mismo EXCLUDE, mismo chequeo
+    // de traslapes de abajo), lo único que cambia es qué precio se cobra (ver `mismoDia` en
+    // el INSERT). Calculado en Postgres, no con `new Date()`, para no repetir el bug de
+    // huso horario que ya se arregló en hoyBogota().
+    let hastaReal = hasta
+    if (mismoDia) {
+      const { rows: sumado } = await client.query('SELECT ($1::date + 1)::text AS valor', [desde])
+      hastaReal = sumado[0].valor
+    }
 
     // El anfitrión bloqueó estas fechas a mano (ver db/34-fechas-bloqueadas.sql) — mismo
     // criterio de traslape que el EXCLUDE de `reservas`, pero verificado a mano porque un
-    // EXCLUDE no puede cruzar dos tablas distintas.
+    // EXCLUDE no puede cruzar dos tablas distintas. Usa `hastaReal`, no la `hasta` que mandó
+    // el cliente — con `hasta === desde` un daterange quedaría vacío y nunca "traslaparía"
+    // nada, dejando colar una reserva de un solo día sobre una fecha bloqueada.
     const { rows: bloqueado } = await client.query(
       `SELECT 1 FROM hospedaje_fechas_bloqueadas
         WHERE hospedaje_id = $1 AND daterange(desde, hasta) && daterange($2::date, $3::date) LIMIT 1`,
-      [hospedaje_id, desde, hasta]
+      [hospedaje_id, desde, hastaReal]
     )
     if (bloqueado.length) {
       await client.query('ROLLBACK')
@@ -120,9 +140,13 @@ r.post('/', auth, async (req, res, next) => {
       return res.status(400).json({ error: `Este hospedaje admite máximo ${h.max_mascotas} mascotas.` })
     }
 
-    const noches = Math.round((new Date(hasta) - new Date(desde)) / 86400000)
-    const limpieza = Math.round(h.precio_noche * 0.6)
-    const servicio = Math.round(h.precio_noche * noches * 0.1)
+    const noches = Math.round((new Date(hastaReal) - new Date(desde)) / 86400000)
+    // Base para limpieza/servicio: precio_dia si es de un solo día, precio_noche si no —
+    // el huésped de un solo día no debería pagar tarifas calculadas sobre el precio de
+    // noche completa cuando ni siquiera se queda a dormir.
+    const precioBase = mismoDia ? h.precio_dia : h.precio_noche
+    const limpieza = Math.round(precioBase * 0.6)
+    const servicio = Math.round(precioBase * noches * 0.1)
 
     // % de comisión vigente AHORA MISMO — se guarda en el pago, no se vuelve a leer después,
     // para que cambiarlo más adelante no altere lo ya calculado de reservas viejas.
@@ -132,11 +156,15 @@ r.post('/', auth, async (req, res, next) => {
     // notificado_anfitrion = FALSE: el anfitrión todavía no vio que llegó esta solicitud —
     // ver GET /notificaciones/pendientes-anfitrion y POST /:id/notificado-anfitrion más
     // abajo, mismo patrón que `notificado` (aviso al huésped) pero en la otra dirección.
+    // `hasta` guarda `hastaReal` (no el `hasta` crudo del cliente) — así el EXCLUDE de
+    // traslapes (ver 01-esquema.sql/11-reservas-pendientes-mascotas.sql) sigue protegiendo
+    // también las reservas de un solo día sin ningún cambio en esa restricción.
     const { rows } = await client.query(
-      `INSERT INTO reservas (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, limpieza, servicio, notificado_anfitrion)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
-       RETURNING id, codigo, desde, hasta, noches, mascotas, precio_noche, limpieza, servicio, total, estado, creado_en`,
-      [req.usuario.id, hospedaje_id, desde, hasta, mascotas, h.precio_noche, limpieza, servicio]
+      `INSERT INTO reservas
+         (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, notificado_anfitrion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
+       RETURNING id, codigo, desde, hasta, noches, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, total, estado, creado_en`,
+      [req.usuario.id, hospedaje_id, desde, hastaReal, mascotas, h.precio_noche, mismoDia, mismoDia ? h.precio_dia : null, limpieza, servicio]
     )
 
     await client.query(
@@ -185,7 +213,7 @@ r.get('/mias', auth, async (req, res, next) => {
     const { rows } = await pool.query(
       // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
-      `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.noches, rs.mascotas, rs.total, rs.estado,
+      `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.noches, rs.mismo_dia, rs.mascotas, rs.total, rs.estado,
               rs.hospedaje_id, h.anfitrion_id,
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
               ${MASCOTAS_DETALLE_SQL}

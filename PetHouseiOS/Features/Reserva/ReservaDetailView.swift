@@ -124,13 +124,17 @@ struct ReservaDetailView: View {
             if let desde = viewModel.reserva.desde, let hasta = viewModel.reserva.hasta {
                 filaDato("Fechas", "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))")
             }
-            if let noches = viewModel.reserva.noches {
+            if viewModel.reserva.esMismoDia {
+                filaDato("Duración", "Mismo día")
+            } else if let noches = viewModel.reserva.noches {
                 filaDato("Noches", "\(noches)")
             }
             if let mascotas = viewModel.reserva.mascotas {
                 filaDato("Mascotas", "\(mascotas)")
             }
-            if let precioNoche = viewModel.reserva.precioNoche {
+            if viewModel.reserva.esMismoDia, let precioDia = viewModel.reserva.precioDia {
+                filaDato("Precio por día", PHFormato.precio(precioDia))
+            } else if let precioNoche = viewModel.reserva.precioNoche {
                 filaDato("Precio por noche", PHFormato.precio(precioNoche))
             }
             if let limpieza = viewModel.reserva.limpieza {

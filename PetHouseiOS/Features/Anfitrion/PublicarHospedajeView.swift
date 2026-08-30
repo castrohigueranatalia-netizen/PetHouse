@@ -95,6 +95,17 @@ struct PublicarHospedajeView: View {
                 PHTextField(label: "Precio por noche (COP)", placeholder: "Ej. 60000", text: $viewModel.precioNocheTexto, keyboardType: .numberPad)
 
                 VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                    PHTextField(
+                        label: "Precio por un solo día (COP, opcional)",
+                        placeholder: "Ej. 35000",
+                        text: $viewModel.precioDiaTexto,
+                        keyboardType: .numberPad
+                    )
+                    Text("Para huéspedes que dejan a su mascota en la mañana y la recogen esa misma noche, sin quedarse a dormir. Déjalo vacío si no ofreces esta opción.")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                }
+
+                VStack(alignment: .leading, spacing: PHSpacing.s4) {
                     Text("Convivencia").phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
                     Picker("Convivencia", selection: $viewModel.convivencia) {
                         ForEach(Convivencia.allCases) { opcion in

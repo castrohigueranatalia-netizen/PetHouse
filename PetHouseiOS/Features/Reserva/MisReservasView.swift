@@ -161,7 +161,9 @@ struct MisReservasView: View {
                         HStack {
                             if let desde = reserva.desde, let hasta = reserva.hasta {
                                 Label(
-                                    "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
+                                    reserva.esMismoDia
+                                        ? "\(PHDate.displayFromAPIDateOnly(desde)) (mismo día)"
+                                        : "\(PHDate.displayFromAPIDateOnly(desde)) → \(PHDate.displayFromAPIDateOnly(hasta))",
                                     systemImage: "calendar"
                                 )
                                 .phText(PHFont.captionSM, color: PHColor.body)
