@@ -144,17 +144,28 @@ private struct SelectorFechasBusquedaSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: PHSpacing.s16) {
-                    Picker("Tipo de búsqueda", selection: $mismoDia) {
-                        Text("Por noches").tag(false)
-                        Text("Mismo día").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: mismoDia) { _, nuevo in
-                        if nuevo { viewModel.hasta = viewModel.desde }
-                        else if viewModel.hasta <= viewModel.desde {
-                            viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
+                    VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                        Text("¿Cómo quieres buscar?")
+                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+
+                        Picker("Tipo de búsqueda", selection: $mismoDia) {
+                            Text("Por noches").tag(false)
+                            Text("Por día").tag(true)
                         }
-                        faltaSalida = false
+                        .pickerStyle(.segmented)
+                        .onChange(of: mismoDia) { _, nuevo in
+                            if nuevo { viewModel.hasta = viewModel.desde }
+                            else if viewModel.hasta <= viewModel.desde {
+                                viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
+                            }
+                            faltaSalida = false
+                        }
+
+                        // Aclaración siempre visible (no solo cuando ya está elegido "Por
+                        // día") — "día" se presta a confusión con "noche" si no se explica
+                        // que NO incluye quedarse a dormir.
+                        Text("Por noches: tu mascota se queda a dormir. Por día: la dejas y la recoges el mismo día, sin pasar la noche.")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
                     }
 
                     // Un solo calendario para llegada y salida — tocar un día fija la
@@ -174,7 +185,7 @@ private struct SelectorFechasBusquedaSheet: View {
                     if mismoDia {
                         // Ver db/35-reserva-mismo-dia.sql — el servidor ya solo devuelve
                         // hospedajes que ofrezcan esa modalidad.
-                        Text("Con \"Mismo día\", solo se muestran hospedajes que ofrecen reservas de un solo día.")
+                        Text("Con \"Por día\", solo se muestran hospedajes que ofrecen reservas de un solo día.")
                             .phText(PHFont.captionSM, color: PHColor.muted)
                     }
                 }
