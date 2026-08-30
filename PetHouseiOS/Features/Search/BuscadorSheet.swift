@@ -33,7 +33,21 @@ struct BuscadorSheet: View {
                     }
                     .pickerStyle(.navigationLink)
 
-                    Toggle("Elegir fechas", isOn: $viewModel.usarFechas.animation())
+                    // Fila "Fechas" con un "+" en vez de un switch — más liviano y directo:
+                    // tocar el "+" abre el calendario de una, sin la animación del Toggle
+                    // (`.animation()` sobre `isOn`) que hacía sentir la apertura lenta.
+                    Button {
+                        viewModel.usarFechas.toggle()
+                    } label: {
+                        HStack {
+                            Text("Fechas").phText(PHFont.bodyMD, color: PHColor.ink)
+                            Spacer()
+                            Image(systemName: viewModel.usarFechas ? "xmark.circle.fill" : "plus.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(viewModel.usarFechas ? PHColor.mutedSoft : PHColor.primary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                     if viewModel.usarFechas {
                         DatePicker("Llegada", selection: $viewModel.desde, in: Date.now..., displayedComponents: .date)
                         DatePicker("Salida", selection: $viewModel.hasta, in: viewModel.desde..., displayedComponents: .date)
