@@ -14,6 +14,7 @@ public final class HospedajeDetailViewModel {
     public private(set) var resenas: [Resena] = []
     public private(set) var isLoading = false
     public private(set) var error: AppError?
+    public private(set) var alternandoActivo = false
 
     private let service: HospedajesServicing
 
@@ -43,5 +44,20 @@ public final class HospedajeDetailViewModel {
     public func actualizarResenaLocal(_ resena: Resena) {
         guard let indice = resenas.firstIndex(where: { $0.id == resena.id }) else { return }
         resenas[indice] = resena
+    }
+
+    /// Pausa (deja de salir en Buscar/mapa) o reactiva este hospedaje propio, sin borrarlo
+    /// ni perder su historial de reservas y reseñas.
+    public func alternarActivo() async {
+        guard let hospedaje else { return }
+        alternandoActivo = true
+        defer { alternandoActivo = false }
+        do {
+            self.hospedaje = try await service.alternarActivo(id: hospedaje.id, activo: !(hospedaje.activo ?? true))
+        } catch let appError as AppError {
+            error = appError
+        } catch {
+            self.error = .desconocido(error.localizedDescription)
+        }
     }
 }

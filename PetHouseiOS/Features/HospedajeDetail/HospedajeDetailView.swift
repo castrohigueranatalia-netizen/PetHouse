@@ -140,7 +140,11 @@ struct HospedajeDetailView: View {
                 .padding(.bottom, 100)
             }
             .safeAreaInset(edge: .bottom) {
-                barraReserva(hospedaje)
+                if esMiHospedaje(hospedaje) {
+                    barraAnfitrion(hospedaje, viewModel: viewModel)
+                } else {
+                    barraReserva(hospedaje)
+                }
             }
             .sheet(isPresented: $mostrarReserva) {
                 NuevaReservaView(hospedaje: hospedaje, mascotasDisponibles: session.mascotas)
@@ -220,8 +224,15 @@ struct HospedajeDetailView: View {
         }
     }
 
+    /// `true` cuando el hospedaje que se está viendo es propio (el anfitrión mirando su
+    /// propia publicación) — cambia la barra de abajo (ver `barraAnfitrion`) y habilita
+    /// responder reseñas.
+    private func esMiHospedaje(_ hospedaje: Hospedaje) -> Bool {
+        hospedaje.anfitrionId != nil && hospedaje.anfitrionId == session.usuario?.id
+    }
+
     private func resenaFila(_ resena: Resena, hospedaje: Hospedaje) -> some View {
-        let esMiHospedaje = hospedaje.anfitrionId != nil && hospedaje.anfitrionId == session.usuario?.id
+        let esMiHospedaje = esMiHospedaje(hospedaje)
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(resena.autor ?? "Usuario de PetHouse")
@@ -291,6 +302,58 @@ struct HospedajeDetailView: View {
         }
         .padding(PHSpacing.s16)
         .background(.ultraThinMaterial)
+    }
+
+    /// Reemplaza la barra de "Reservar" cuando el anfitrión entra a su propio hospedaje
+    /// desde Mis hospedajes — no tiene sentido que se reserve a sí mismo, así que acá mismo
+    /// tiene las tres acciones de manejo que antes vivían como enlaces sueltos en la lista.
+    private func barraAnfitrion(_ hospedaje: Hospedaje, viewModel: HospedajeDetailViewModel) -> some View {
+        HStack(spacing: PHSpacing.s8) {
+            NavigationLink {
+                ReservasRecibidasView(hospedaje: hospedaje)
+            } label: {
+                accionAnfitrion("Reservas recibidas", systemImage: "calendar")
+            }
+            NavigationLink {
+                CalendarioHospedajeView(hospedaje: hospedaje)
+            } label: {
+                accionAnfitrion("Calendario", systemImage: "calendar.badge.clock")
+            }
+            botonPausarAnfitrion(hospedaje, viewModel: viewModel)
+        }
+        .padding(PHSpacing.s16)
+        .background(.ultraThinMaterial)
+    }
+
+    private func accionAnfitrion(_ titulo: String, systemImage: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: systemImage).font(.system(size: 18))
+            Text(titulo).phText(PHFont.micro.weight(.semibold))
+        }
+        .foregroundStyle(PHColor.primary)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private func botonPausarAnfitrion(_ hospedaje: Hospedaje, viewModel: HospedajeDetailViewModel) -> some View {
+        let activo = hospedaje.activo ?? true
+        return Button {
+            Task { await viewModel.alternarActivo() }
+        } label: {
+            VStack(spacing: 4) {
+                if viewModel.alternandoActivo {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: activo ? "pause.circle" : "play.circle").font(.system(size: 18))
+                }
+                Text(activo ? "Pausar" : "Reactivar").phText(PHFont.micro.weight(.semibold))
+            }
+            .foregroundStyle(activo ? PHColor.muted : PHColor.success)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.alternandoActivo)
     }
 }
 

@@ -78,56 +78,20 @@ struct MisHospedajesView: View {
                                 }
                             }
 
+                            // Tocar la tarjeta lleva al detalle — como es un hospedaje
+                            // propio, ahí mismo (en vez de "Reservar") están las acciones de
+                            // manejo: ver reservas recibidas, ver calendario y pausar/
+                            // reactivar (ver HospedajeDetailView.barraAnfitrion).
                             Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
                                     .opacity(hospedaje.activo == false ? 0.5 : 1)
                             }
                             .buttonStyle(.plain)
-
-                            NavigationLink {
-                                ReservasRecibidasView(hospedaje: hospedaje)
-                            } label: {
-                                Label("Ver reservas recibidas", systemImage: "calendar")
-                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
-                            }
-                            .padding(.horizontal, PHSpacing.s4)
-
-                            NavigationLink {
-                                CalendarioHospedajeView(hospedaje: hospedaje)
-                            } label: {
-                                Label("Ver calendario", systemImage: "calendar.badge.clock")
-                                    .phText(PHFont.captionSM.weight(.semibold), color: PHColor.primary)
-                            }
-                            .padding(.horizontal, PHSpacing.s4)
-
-                            botonPausar(hospedaje)
                         }
                     }
                 }
                 .padding(PHSpacing.s16)
             }
         }
-    }
-
-    /// Pausar deja de mostrar el hospedaje en Buscar y en el mapa, sin borrarlo ni perder su
-    /// historial de reservas y reseñas — para cuando el anfitrión no puede recibir huéspedes
-    /// por un tiempo (viaje, remodelación, etc.) pero no quiere publicar de cero después.
-    private func botonPausar(_ hospedaje: Hospedaje) -> some View {
-        let activo = hospedaje.activo ?? true
-        return Button {
-            Task { await viewModel.alternarActivo(hospedaje) }
-        } label: {
-            HStack(spacing: PHSpacing.s4) {
-                if viewModel.alternandoId == hospedaje.id {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: activo ? "pause.circle" : "play.circle")
-                }
-                Text(activo ? "Pausar hospedaje" : "Reactivar hospedaje")
-            }
-            .phText(PHFont.captionSM.weight(.semibold), color: activo ? PHColor.muted : PHColor.success)
-        }
-        .disabled(viewModel.alternandoId != nil)
-        .padding(.horizontal, PHSpacing.s4)
     }
 }
