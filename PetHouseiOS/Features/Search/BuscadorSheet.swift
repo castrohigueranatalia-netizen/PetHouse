@@ -162,10 +162,15 @@ private struct SelectorFechasBusquedaSheet: View {
                         }
 
                         // Aclaración siempre visible (no solo cuando ya está elegido "Por
-                        // día") — "día" se presta a confusión con "noche" si no se explica
-                        // que NO incluye quedarse a dormir.
-                        Text("Por noches: tu mascota se queda a dormir. Por día: la dejas y la recoges el mismo día, sin pasar la noche.")
-                            .phText(PHFont.captionSM, color: PHColor.muted)
+                        // día") — una línea por opción, cada una explicando tanto el
+                        // concepto como cómo se elige la fecha en el calendario de abajo,
+                        // para que "Por día" quede tan clara como "Por noches" y no una
+                        // aclaración a medias.
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Por noches: eliges llegada y salida — tu mascota se queda a dormir esas noches.")
+                            Text("Por día: eliges una sola fecha — la dejas y la recoges ese mismo día, sin pasar la noche.")
+                        }
+                        .phText(PHFont.captionSM, color: PHColor.muted)
                     }
 
                     // Un solo calendario para llegada y salida — tocar un día fija la
