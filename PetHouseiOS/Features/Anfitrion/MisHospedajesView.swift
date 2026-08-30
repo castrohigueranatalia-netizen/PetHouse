@@ -61,18 +61,15 @@ struct MisHospedajesView: View {
                 LazyVStack(spacing: PHSpacing.s16) {
                     ForEach(viewModel.hospedajes) { hospedaje in
                         VStack(alignment: .leading, spacing: PHSpacing.s8) {
-                            if hospedaje.activo == false {
-                                PHBadge("Pausado", style: .warning)
-                            }
-
                             // Tocar la tarjeta lleva al detalle — como es un hospedaje
                             // propio, ahí mismo (en vez de "Reservar") están las acciones de
                             // manejo: ver reservas recibidas, ver calendario, pausar/
                             // reactivar y editar (ver HospedajeDetailView.barraAnfitrion
-                            // y el botón de editar en su toolbar).
+                            // y el botón de editar en su toolbar). Si está pausado, la
+                            // propia tarjeta ya se ve en gris con su badge (ver
+                            // PHHospedajeCard).
                             Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
-                                    .opacity(hospedaje.activo == false ? 0.5 : 1)
                             }
                             .buttonStyle(.plain)
                         }

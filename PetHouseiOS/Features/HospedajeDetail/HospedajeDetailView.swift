@@ -219,6 +219,9 @@ struct HospedajeDetailView: View {
         }
         .tabViewStyle(.page)
         .frame(height: 240)
+        // Mismo tratamiento que PHHospedajeCard: pausado se ve en gris, no solo tenue.
+        .grayscale(hospedaje.activo == false ? 1 : 0)
+        .opacity(hospedaje.activo == false ? 0.7 : 1)
         .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
     }
 

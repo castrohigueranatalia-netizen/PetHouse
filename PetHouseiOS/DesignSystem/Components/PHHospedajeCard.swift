@@ -33,7 +33,17 @@ public struct PHHospedajeCard: View {
                         )
                 }
                 .frame(height: 160)
+                // Pausado: la foto se ve en gris, no solo más tenue — para que sea notorio
+                // de un vistazo (no hay que leer el badge para darse cuenta).
+                .grayscale(hospedaje.activo == false ? 1 : 0)
+                .opacity(hospedaje.activo == false ? 0.7 : 1)
                 .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+
+                if hospedaje.activo == false {
+                    PHBadge("Pausado", style: .warning)
+                        .padding(PHSpacing.s8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
 
                 if let onToggleFavorito {
                     PHIconButton(
