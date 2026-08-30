@@ -65,11 +65,26 @@ r.get('/', async (req, res, next) => {
       condiciones.push(`to_tsvector('spanish', h.titulo || ' ' || h.descripcion || ' ' || h.ciudad) @@ plainto_tsquery('spanish', $${params.length})`)
     }
     if (desde && hasta) {
+      // `desde === hasta`: el cliente está buscando UN SOLO DÍA (ver
+      // db/35-reserva-mismo-dia.sql) — solo tiene sentido mostrarle hospedajes que de
+      // verdad ofrezcan esa modalidad; uno sin precio_dia aparecería en los resultados
+      // pero no se podría reservar por un solo día al entrar.
+      const mismoDiaBusqueda = desde === hasta
+      if (mismoDiaBusqueda) {
+        condiciones.push('h.precio_dia IS NOT NULL')
+      }
       params.push(desde, hasta)
+      const pDesde = params.length - 1
+      const pHasta = params.length
+      // Rango efectivo de la búsqueda: `[desde, hasta)` normalmente, o `[desde, desde+1)`
+      // (el día completo) cuando es de un solo día — con `desde === hasta` tal cual, el
+      // chequeo de traslape de abajo compararía un rango vacío y NUNCA detectaría
+      // conflicto, dejando pasar hospedajes ya ocupados justo ese día.
+      const hastaEfectiva = mismoDiaBusqueda ? `($${pHasta}::date + 1)` : `$${pHasta}::date`
       condiciones.push(`NOT EXISTS (
         SELECT 1 FROM reservas rr
          WHERE rr.hospedaje_id = h.id AND rr.estado = 'confirmada'
-           AND rr.desde < $${params.length} AND rr.hasta > $${params.length - 1})`)
+           AND rr.desde < ${hastaEfectiva} AND rr.hasta > $${pDesde})`)
     }
 
     let seleccion = `

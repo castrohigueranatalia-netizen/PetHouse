@@ -37,6 +37,14 @@ struct BuscadorSheet: View {
                     if viewModel.usarFechas {
                         DatePicker("Llegada", selection: $viewModel.desde, in: Date.now..., displayedComponents: .date)
                         DatePicker("Salida", selection: $viewModel.hasta, in: viewModel.desde..., displayedComponents: .date)
+                        if Calendar.current.isDate(viewModel.desde, inSameDayAs: viewModel.hasta) {
+                            // Llegada = Salida: está buscando UN SOLO DÍA (ver
+                            // db/35-reserva-mismo-dia.sql) — el servidor ya solo devuelve
+                            // hospedajes que ofrezcan esa modalidad, esto es solo para que
+                            // no le extrañe ver menos resultados que buscando por noches.
+                            Text("Con la misma fecha de llegada y salida, solo se muestran hospedajes que ofrecen reservas de un solo día.")
+                                .phText(PHFont.captionSM, color: PHColor.muted)
+                        }
                     }
 
                     Picker("¿Comparte espacio con otras mascotas?", selection: $viewModel.convivencia) {
