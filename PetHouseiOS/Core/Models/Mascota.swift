@@ -126,16 +126,24 @@ public struct Mascota: Codable, Identifiable, Hashable {
     /// confianza si acepta cuidar a esta mascota — no basta con el nombre. Se usa para
     /// bloquear la selección al reservar (ver NuevaReservaViewModel); el servidor valida
     /// exactamente lo mismo en POST /api/reservas, por si se llama a la API directo.
-    public var fichaCompleta: Bool {
-        guard let raza, !raza.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        guard edad != nil else { return false }
-        guard let tamano, !tamano.isEmpty else { return false }
-        guard pesoKg != nil else { return false }
-        guard !fotos.isEmpty else { return false }
-        if necesitaMedicamentos {
-            guard let notas, !notas.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+    public var fichaCompleta: Bool { camposFaltantes.isEmpty }
+
+    /// Qué le falta exactamente a la ficha, en español y listo para mostrar (ej. "raza,
+    /// peso") — antes NuevaReservaView solo decía "Completa su ficha (con foto)" sin decir
+    /// QUÉ faltaba, y el caso de "Necesita tomar medicamentos" activado sin describir cuál
+    /// (ver el toggle en MascotaFormView) era el más confuso: la foto y el resto podían
+    /// estar completos y aun así no dejaba reservar, sin pista de por qué.
+    public var camposFaltantes: [String] {
+        var faltantes: [String] = []
+        if raza?.trimmingCharacters(in: .whitespaces).isEmpty ?? true { faltantes.append("raza") }
+        if edad == nil { faltantes.append("edad") }
+        if tamano?.isEmpty ?? true { faltantes.append("tamaño") }
+        if pesoKg == nil { faltantes.append("peso") }
+        if fotos.isEmpty { faltantes.append("una foto") }
+        if necesitaMedicamentos && (notas?.trimmingCharacters(in: .whitespaces).isEmpty ?? true) {
+            faltantes.append("qué medicamento necesita y cuándo")
         }
-        return true
+        return faltantes
     }
 }
 

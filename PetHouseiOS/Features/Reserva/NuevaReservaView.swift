@@ -171,7 +171,7 @@ struct NuevaReservaView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(mascota.nombre)
                             .phText(PHFont.bodyMD.weight(.medium), color: PHColor.muted)
-                        Text("Completa su ficha (con foto) para poder reservar")
+                        Text("Falta \(mascota.camposFaltantes.joined(separator: ", "))")
                             .phText(PHFont.captionSM, color: PHColor.warning)
                     }
                     Spacer()
