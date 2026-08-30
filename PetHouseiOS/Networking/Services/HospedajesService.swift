@@ -60,8 +60,16 @@ public protocol HospedajesServicing: Sendable {
     /// GET /api/hospedajes/:id/disponibilidad — rangos de fecha ya ocupados, pública (sin
     /// datos del huésped). Usado por PHSelectorRangoFechas para sombrear días ocupados
     /// ANTES de que el huésped arme una solicitud, en vez de que se entere recién al
-    /// confirmar.
+    /// confirmar. Ya incluye tanto reservas reales como fechas bloqueadas a mano (ver
+    /// `bloquearFechas`) — el huésped las ve todas igual de "ocupadas".
     func disponibilidad(hospedajeId: String) async throws -> [RangoOcupado]
+    /// GET /api/hospedajes/:id/fechas-bloqueadas — fechas que el anfitrión dueño bloqueó a
+    /// mano (viaje, mantenimiento, etc.), sin necesidad de una reserva real.
+    func fechasBloqueadas(hospedajeId: String) async throws -> [FechaBloqueada]
+    /// POST /api/hospedajes/:id/fechas-bloqueadas — bloquea un rango nuevo.
+    func bloquearFechas(hospedajeId: String, desde: String, hasta: String, motivo: String?) async throws -> FechaBloqueada
+    /// DELETE /api/hospedajes/:id/fechas-bloqueadas/:bloqueoId — desbloquea un rango.
+    func desbloquearFechas(hospedajeId: String, bloqueoId: String) async throws
 }
 
 public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
@@ -136,5 +144,23 @@ public final class HospedajesService: HospedajesServicing, @unchecked Sendable {
         let request = APIRequest(method: "GET", path: "/hospedajes/\(hospedajeId)/disponibilidad")
         let response: DisponibilidadResponse = try await client.send(request)
         return response.ocupado
+    }
+
+    public func fechasBloqueadas(hospedajeId: String) async throws -> [FechaBloqueada] {
+        let request = APIRequest(method: "GET", path: "/hospedajes/\(hospedajeId)/fechas-bloqueadas", requiresAuth: true)
+        let response: FechasBloqueadasResponse = try await client.send(request)
+        return response.bloqueos
+    }
+
+    public func bloquearFechas(hospedajeId: String, desde: String, hasta: String, motivo: String?) async throws -> FechaBloqueada {
+        let data = try JSONEncoder().encode(BloquearFechasRequest(desde: desde, hasta: hasta, motivo: motivo))
+        let request = APIRequest(method: "POST", path: "/hospedajes/\(hospedajeId)/fechas-bloqueadas", body: data, requiresAuth: true)
+        let response: BloquearFechasResponse = try await client.send(request)
+        return response.bloqueo
+    }
+
+    public func desbloquearFechas(hospedajeId: String, bloqueoId: String) async throws {
+        let request = APIRequest(method: "DELETE", path: "/hospedajes/\(hospedajeId)/fechas-bloqueadas/\(bloqueoId)", requiresAuth: true)
+        try await client.sendNoBody(request)
     }
 }

@@ -252,13 +252,90 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
 // es pública y solo expone rangos de fecha, nada de quién reservó.
 r.get('/:id/disponibilidad', async (req, res, next) => {
   try {
+    // Une reservas reales con fechas que el anfitrión bloqueó a mano (ver
+    // db/34-fechas-bloqueadas.sql) — el huésped ve ambas igual de "ocupadas", sin
+    // distinción (no le importa POR QUÉ una fecha no está disponible).
     const { rows } = await pool.query(
       `SELECT desde, hasta, estado FROM reservas
         WHERE hospedaje_id = $1 AND estado IN ('confirmada', 'pendiente')
+       UNION ALL
+       SELECT desde, hasta, 'bloqueada' AS estado FROM hospedaje_fechas_bloqueadas
+        WHERE hospedaje_id = $1
         ORDER BY desde ASC`,
       [req.params.id]
     )
     res.json({ ocupado: rows })
+  } catch (err) { next(err) }
+})
+
+// ---- Fechas bloqueadas manualmente por el anfitrión (dueño) ----
+// A diferencia de pausar el hospedaje entero (PATCH /:id { activo }), esto bloquea fechas
+// puntuales sin esconder el hospedaje de Buscar — ver db/34-fechas-bloqueadas.sql.
+r.get('/:id/fechas-bloqueadas', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { rows: h } = await pool.query('SELECT anfitrion_id FROM hospedajes WHERE id = $1', [req.params.id])
+    if (!h.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+    if (h[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
+    }
+    const { rows } = await pool.query(
+      `SELECT id, desde, hasta, motivo, creado_en FROM hospedaje_fechas_bloqueadas
+        WHERE hospedaje_id = $1 ORDER BY desde ASC`,
+      [req.params.id]
+    )
+    res.json({ bloqueos: rows })
+  } catch (err) { next(err) }
+})
+
+r.post('/:id/fechas-bloqueadas', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { rows: h } = await pool.query('SELECT anfitrion_id FROM hospedajes WHERE id = $1', [req.params.id])
+    if (!h.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+    if (h[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
+    }
+
+    const { desde, hasta, motivo } = req.body || {}
+    if (!desde || !hasta) return res.status(400).json({ error: 'Faltan desde o hasta.' })
+    if (hasta <= desde) return res.status(400).json({ error: 'La fecha final debe ser posterior a la inicial.' })
+
+    // No dejar bloquear fechas que ya tienen una reserva real — el anfitrión debe
+    // resolver esa solicitud (aceptar/rechazar) antes de poder bloquearlas.
+    const { rows: conReserva } = await pool.query(
+      `SELECT 1 FROM reservas
+        WHERE hospedaje_id = $1 AND estado IN ('confirmada', 'pendiente')
+          AND daterange(desde, hasta) && daterange($2::date, $3::date) LIMIT 1`,
+      [req.params.id, desde, hasta]
+    )
+    if (conReserva.length) {
+      return res.status(409).json({ error: 'Ya hay una reserva en alguna de esas fechas — no se pueden bloquear.' })
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO hospedaje_fechas_bloqueadas (hospedaje_id, desde, hasta, motivo)
+       VALUES ($1, $2, $3, $4) RETURNING id, desde, hasta, motivo, creado_en`,
+      [req.params.id, desde, hasta, motivo || null]
+    )
+    res.status(201).json({ bloqueo: rows[0] })
+  } catch (err) {
+    if (err.code === '23P01') return res.status(409).json({ error: 'Esas fechas se cruzan con otro bloqueo ya creado.' })
+    next(err)
+  }
+})
+
+r.delete('/:id/fechas-bloqueadas/:bloqueoId', auth, soloAnfitrion, async (req, res, next) => {
+  try {
+    const { rows: h } = await pool.query('SELECT anfitrion_id FROM hospedajes WHERE id = $1', [req.params.id])
+    if (!h.length) return res.status(404).json({ error: 'Hospedaje no encontrado.' })
+    if (h[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
+    }
+    const { rowCount } = await pool.query(
+      'DELETE FROM hospedaje_fechas_bloqueadas WHERE id = $1 AND hospedaje_id = $2',
+      [req.params.bloqueoId, req.params.id]
+    )
+    if (!rowCount) return res.status(404).json({ error: 'Bloqueo no encontrado.' })
+    res.json({ ok: true })
   } catch (err) { next(err) }
 })
 

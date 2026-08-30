@@ -74,6 +74,19 @@ r.post('/', auth, async (req, res, next) => {
       return res.status(409).json({ error: 'Este hospedaje no está disponible para reservar en este momento.' })
     }
 
+    // El anfitrión bloqueó estas fechas a mano (ver db/34-fechas-bloqueadas.sql) — mismo
+    // criterio de traslape que el EXCLUDE de `reservas`, pero verificado a mano porque un
+    // EXCLUDE no puede cruzar dos tablas distintas.
+    const { rows: bloqueado } = await client.query(
+      `SELECT 1 FROM hospedaje_fechas_bloqueadas
+        WHERE hospedaje_id = $1 AND daterange(desde, hasta) && daterange($2::date, $3::date) LIMIT 1`,
+      [hospedaje_id, desde, hasta]
+    )
+    if (bloqueado.length) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'El anfitrión bloqueó esas fechas — elige otras.' })
+    }
+
     // Valida que las mascotas seleccionadas sean del usuario autenticado
     const { rows: mascotasPropias } = await client.query(
       `SELECT id, nombre, raza, edad, tamano, peso_kg, fotos, necesita_medicamentos, notas
