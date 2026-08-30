@@ -20,9 +20,16 @@ struct BuscadorSheet: View {
     @Bindable var viewModel: BuscarViewModel
     let alBuscar: () -> Void
     @Environment(\.dismiss) private var dismiss
-    /// Estado local, no del ViewModel — solo decide qué modo del selector mostrar mientras
-    /// esta hoja está abierta. `.onAppear` lo inicializa según `desde`/`hasta` actuales, para
-    /// que reabrir la hoja no "olvide" que se estaba buscando un solo día.
+    /// El calendario (PHSelectorRangoFechas) se abre en su PROPIA hoja, no adentro de este
+    /// `Form` — puesto directo en una `Section` (como se hizo primero) el botón de "mes
+    /// siguiente" dejaba de responder: un `Form`/`List` en iOS puede confundir los toques de
+    /// varios botones propios (flechas de mes + los 42 días de la grilla) cuando viven
+    /// dentro de una sola fila. Afuera del Form, en un ScrollView normal, es el mismo
+    /// componente que ya funciona bien en NuevaReservaView/BloquearFechasSheet.
+    @State private var mostrarCalendario = false
+    /// Igual que en `NuevaReservaView` — separado de `viewModel.usarFechas` porque este
+    /// decide el modo del selector mientras se está eligiendo, no si la búsqueda ya tiene
+    /// fechas confirmadas.
     @State private var mismoDia = false
 
     var body: some View {
@@ -37,49 +44,7 @@ struct BuscadorSheet: View {
                     }
                     .pickerStyle(.navigationLink)
 
-                    // Fila "Fechas" con un "+" en vez de un switch — más liviano y directo:
-                    // tocar el "+" abre el calendario de una, sin la animación del Toggle
-                    // (`.animation()` sobre `isOn`) que hacía sentir la apertura lenta.
-                    Button {
-                        viewModel.usarFechas.toggle()
-                    } label: {
-                        HStack {
-                            Text("Fechas").phText(PHFont.bodyMD, color: PHColor.ink)
-                            Spacer()
-                            Image(systemName: viewModel.usarFechas ? "xmark.circle.fill" : "plus.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(viewModel.usarFechas ? PHColor.mutedSoft : PHColor.primary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    if viewModel.usarFechas {
-                        Picker("Tipo de búsqueda", selection: $mismoDia) {
-                            Text("Por noches").tag(false)
-                            Text("Mismo día").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: mismoDia) { _, nuevo in
-                            if nuevo { viewModel.hasta = viewModel.desde }
-                            else if viewModel.hasta <= viewModel.desde {
-                                viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
-                            }
-                        }
-
-                        // Un solo calendario para llegada y salida — tocar un día fija la
-                        // llegada y pasa de una a pedir la salida, sin tener que abrir un
-                        // segundo selector aparte (mismo componente que ya usa Reservar).
-                        PHSelectorRangoFechas(
-                            desde: $viewModel.desde, hasta: $viewModel.hasta,
-                            soloUnDia: mismoDia, diaOcupado: { _ in false }
-                        )
-
-                        if mismoDia {
-                            // Ver db/35-reserva-mismo-dia.sql — el servidor ya solo devuelve
-                            // hospedajes que ofrezcan esa modalidad.
-                            Text("Con \"Mismo día\", solo se muestran hospedajes que ofrecen reservas de un solo día.")
-                                .phText(PHFont.captionSM, color: PHColor.muted)
-                        }
-                    }
+                    filaFechas
 
                     Picker("¿Comparte espacio con otras mascotas?", selection: $viewModel.convivencia) {
                         Text("Cualquiera").tag(Convivencia?.none)
@@ -121,6 +86,97 @@ struct BuscadorSheet: View {
         }
         .onAppear {
             mismoDia = Calendar.current.isDate(viewModel.desde, inSameDayAs: viewModel.hasta)
+        }
+        .sheet(isPresented: $mostrarCalendario) {
+            SelectorFechasBusquedaSheet(viewModel: viewModel, mismoDia: $mismoDia)
+        }
+    }
+
+    /// Fila "Fechas" con un "+" en vez de un switch — tocarla abre el calendario en su
+    /// propia hoja (ver `mostrarCalendario`); una vez elegidas, muestra el rango y una "x"
+    /// aparte para quitarlas sin tener que volver a abrir el calendario.
+    private var filaFechas: some View {
+        HStack {
+            Button {
+                mostrarCalendario = true
+            } label: {
+                HStack {
+                    Text("Fechas").phText(PHFont.bodyMD, color: PHColor.ink)
+                    Spacer()
+                    if viewModel.usarFechas {
+                        Text("\(PHDate.displayShort.string(from: viewModel.desde)) – \(PHDate.displayShort.string(from: viewModel.hasta))")
+                            .phText(PHFont.bodySM, color: PHColor.muted)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                if viewModel.usarFechas {
+                    viewModel.usarFechas = false
+                } else {
+                    mostrarCalendario = true
+                }
+            } label: {
+                Image(systemName: viewModel.usarFechas ? "xmark.circle.fill" : "plus.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(viewModel.usarFechas ? PHColor.mutedSoft : PHColor.primary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+/// Calendario para elegir las fechas de la búsqueda — hoja aparte, no adentro del `Form` de
+/// `BuscadorSheet` (ver el comentario de `mostrarCalendario`).
+private struct SelectorFechasBusquedaSheet: View {
+    @Bindable var viewModel: BuscarViewModel
+    @Binding var mismoDia: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: PHSpacing.s16) {
+                    Picker("Tipo de búsqueda", selection: $mismoDia) {
+                        Text("Por noches").tag(false)
+                        Text("Mismo día").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: mismoDia) { _, nuevo in
+                        if nuevo { viewModel.hasta = viewModel.desde }
+                        else if viewModel.hasta <= viewModel.desde {
+                            viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
+                        }
+                    }
+
+                    // Un solo calendario para llegada y salida — tocar un día fija la
+                    // llegada y pasa de una a pedir la salida, sin abrir un segundo
+                    // selector aparte (mismo componente que ya usa Reservar).
+                    PHSelectorRangoFechas(
+                        desde: $viewModel.desde, hasta: $viewModel.hasta,
+                        soloUnDia: mismoDia, diaOcupado: { _ in false }
+                    )
+
+                    if mismoDia {
+                        // Ver db/35-reserva-mismo-dia.sql — el servidor ya solo devuelve
+                        // hospedajes que ofrezcan esa modalidad.
+                        Text("Con \"Mismo día\", solo se muestran hospedajes que ofrecen reservas de un solo día.")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                    }
+                }
+                .padding(PHSpacing.s16)
+            }
+            .navigationTitle("Elegir fechas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHTextButton("Listo") {
+                        viewModel.usarFechas = true
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
