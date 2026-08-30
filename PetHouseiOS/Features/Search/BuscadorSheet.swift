@@ -133,6 +133,12 @@ private struct SelectorFechasBusquedaSheet: View {
     @Bindable var viewModel: BuscarViewModel
     @Binding var mismoDia: Bool
     @Environment(\.dismiss) private var dismiss
+    /// Solo importa en modo "Por noches": el primer toque en el calendario deja una salida
+    /// TENTATIVA (al día siguiente de la llegada) para que se vea el rango mientras se
+    /// elige — pero eso no es lo mismo que el huésped haya tocado de verdad cuándo se va.
+    /// `false` hasta que confirma la salida con un segundo toque (ver
+    /// `PHSelectorRangoFechas.onCambio`); en "Mismo día" un solo toque ya es suficiente.
+    @State private var faltaSalida = false
 
     var body: some View {
         NavigationStack {
@@ -148,6 +154,7 @@ private struct SelectorFechasBusquedaSheet: View {
                         else if viewModel.hasta <= viewModel.desde {
                             viewModel.hasta = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.desde) ?? viewModel.desde
                         }
+                        faltaSalida = false
                     }
 
                     // Un solo calendario para llegada y salida — tocar un día fija la
@@ -155,8 +162,14 @@ private struct SelectorFechasBusquedaSheet: View {
                     // selector aparte (mismo componente que ya usa Reservar).
                     PHSelectorRangoFechas(
                         desde: $viewModel.desde, hasta: $viewModel.hasta,
-                        soloUnDia: mismoDia, diaOcupado: { _ in false }
+                        soloUnDia: mismoDia, onCambio: { completo in faltaSalida = !completo },
+                        diaOcupado: { _ in false }
                     )
+
+                    if !mismoDia && faltaSalida {
+                        Text("Falta elegir la fecha de salida — toca otro día para confirmarla.")
+                            .phText(PHFont.captionSM, color: PHColor.error)
+                    }
 
                     if mismoDia {
                         // Ver db/35-reserva-mismo-dia.sql — el servidor ya solo devuelve
@@ -175,6 +188,7 @@ private struct SelectorFechasBusquedaSheet: View {
                         viewModel.usarFechas = true
                         dismiss()
                     }
+                    .disabled(!mismoDia && faltaSalida)
                 }
             }
         }

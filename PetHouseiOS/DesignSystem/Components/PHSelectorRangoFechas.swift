@@ -24,6 +24,13 @@ public struct PHSelectorRangoFechas: View {
     /// NuevaReservaViewModel.mismoDia) — tocar un día lo fija de una vez como `desde` Y
     /// `hasta`, sin el paso de "ahora toca la salida" de la selección de rango normal.
     let soloUnDia: Bool
+    /// Avisa, después de cada toque, si la selección ya quedó COMPLETA (`true`) o si todavía
+    /// falta confirmar la salida (`false` — el primer toque ya deja una `hasta` tentativa al
+    /// día siguiente, pero eso no es lo mismo que el huésped haya elegido de verdad cuándo se
+    /// va). Con `soloUnDia` siempre es `true`, un solo toque alcanza. Quien use este selector
+    /// decide qué hacer con eso (ver `BuscadorSheet`, que no deja confirmar la búsqueda "Por
+    /// noches" sin una salida real).
+    var onCambio: ((Bool) -> Void)? = nil
 
     @State private var mesMostrado: Date
     @State private var seleccionandoSalida = false
@@ -38,10 +45,14 @@ public struct PHSelectorRangoFechas: View {
     private static let diasSemana = ["L", "M", "M", "J", "V", "S", "D"]
     private let calendario = Calendar.current
 
-    public init(desde: Binding<Date>, hasta: Binding<Date>, soloUnDia: Bool = false, diaOcupado: @escaping (Date) -> Bool) {
+    public init(
+        desde: Binding<Date>, hasta: Binding<Date>, soloUnDia: Bool = false,
+        onCambio: ((Bool) -> Void)? = nil, diaOcupado: @escaping (Date) -> Bool
+    ) {
         self._desde = desde
         self._hasta = hasta
         self.soloUnDia = soloUnDia
+        self.onCambio = onCambio
         self.diaOcupado = diaOcupado
         self._mesMostrado = State(initialValue: desde.wrappedValue)
     }
@@ -149,15 +160,18 @@ public struct PHSelectorRangoFechas: View {
         if soloUnDia {
             desde = dia
             hasta = dia
+            onCambio?(true)
             return
         }
         if !seleccionandoSalida || dia <= desde || hayOcupadoEntre(desde, dia) {
             desde = dia
             hasta = calendario.date(byAdding: .day, value: 1, to: dia) ?? dia
             seleccionandoSalida = true
+            onCambio?(false)
         } else {
             hasta = dia
             seleccionandoSalida = false
+            onCambio?(true)
         }
     }
 
