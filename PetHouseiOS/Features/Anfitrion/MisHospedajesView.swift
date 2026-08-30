@@ -35,7 +35,7 @@ struct MisHospedajesView: View {
                 }
             }
             .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
-                HospedajeDetailView(hospedajeId: hospedaje.id) { editado in
+                HospedajeDetailView(hospedajeId: hospedaje.id, esPropio: true) { editado in
                     viewModel.guardarLocal(editado)
                 }
             }

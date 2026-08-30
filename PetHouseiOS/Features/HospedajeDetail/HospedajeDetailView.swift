@@ -7,6 +7,12 @@ import SwiftUI
 
 struct HospedajeDetailView: View {
     let hospedajeId: String
+    /// `true` cuando quien presenta esta vista YA sabe que el hospedaje es propio (ver
+    /// MisHospedajesView, que solo lista los propios) — así el lápiz de editar aparece de
+    /// una en el toolbar en vez de esperar a que responda el servidor con el detalle
+    /// completo (~2 segundos), que es lo único que hace falta cargar para ver el resto de
+    /// la pantalla (fotos, descripción, reseñas).
+    var esPropio: Bool = false
     /// Se llama tras editar un hospedaje propio (ver `mostrarEditar`) — quien presenta esta
     /// vista desde una lista propia (ver MisHospedajesView) la usa para refrescar esa lista
     /// sin esperar a que la recargue sola.
@@ -35,11 +41,12 @@ struct HospedajeDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let hospedaje = viewModel?.hospedaje, esMiHospedaje(hospedaje) {
+            if esPropio || (viewModel?.hospedaje).map(esMiHospedaje) == true {
                 ToolbarItem(placement: .topBarTrailing) {
-                    PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(hospedaje.titulo)") {
+                    PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar hospedaje") {
                         mostrarEditar = true
                     }
+                    .disabled(viewModel?.hospedaje == nil)
                 }
             }
         }
