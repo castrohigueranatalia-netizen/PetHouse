@@ -38,6 +38,42 @@ final class PHImageCache {
     func insert(_ image: UIImage, for url: URL) {
         cache.setObject(image, forKey: url.absoluteString as NSString)
     }
+
+    /// Descarga y decodifica una imagen por adelantado, dejándola lista en cache — para
+    /// "precalentar" fotos que se van a mostrar pronto (ver `AppState.aplicarPerfil`, que
+    /// precarga el avatar y las fotos de las mascotas apenas se conoce el perfil, en vez de
+    /// esperar a que el usuario entre a Perfil y recién ahí empiece la descarga). Usa el
+    /// mismo `ladoMaximoPt` por defecto que `PHCachedAsyncImage`/`PHAvatar` para que quede
+    /// cacheada en el tamaño correcto y no haga falta volver a bajarla al mostrarla.
+    static func precargar(urlString: String?, ladoMaximoPt: CGFloat = 240) {
+        guard let urlString, let url = URL(string: urlString), shared.image(for: url) == nil else { return }
+        let maxPixels = ladoMaximoPt * UIScreen.main.scale
+        Task.detached(priority: .utility) {
+            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return }
+            guard let image = downsampledImage(data: data, maxDimensionPixels: maxPixels) else { return }
+            shared.insert(image, for: url)
+        }
+    }
+
+    /// Decodifica directo a un tamaño reducido vía ImageIO en vez de `UIImage(data:)` (que
+    /// decodifica a la resolución original completa) — el patrón recomendado por Apple para
+    /// listas/galerías con fotos, mucho más liviano en CPU y memoria. Compartido por
+    /// `PHCachedAsyncImage.load()` y `precargar(urlString:ladoMaximoPt:)`.
+    fileprivate static func downsampledImage(data: Data, maxDimensionPixels: CGFloat) -> UIImage? {
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else { return nil }
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxDimensionPixels))
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+            return UIImage(data: data) // respaldo si ImageIO no puede (formato raro): mejor mostrar algo que nada
+        }
+        return UIImage(cgImage: cgImage)
+    }
 }
 
 /// `AsyncImage` con cache de memoria propio y un `placeholder` genérico para estado
@@ -107,7 +143,7 @@ public struct PHCachedAsyncImage<Placeholder: View>: View {
             // instantes se notaban como lentitud general. `Task.detached` lo saca a un hilo
             // de fondo; solo la asignación a `uiImage` (que sí necesita @MainActor) vuelve.
             let image = await Task.detached(priority: .userInitiated) {
-                Self.downsampledImage(data: data, maxDimensionPixels: maxPixels)
+                PHImageCache.downsampledImage(data: data, maxDimensionPixels: maxPixels)
             }.value
             if let image {
                 PHImageCache.shared.insert(image, for: url)
@@ -117,24 +153,5 @@ public struct PHCachedAsyncImage<Placeholder: View>: View {
             // Sin red o URL inválida: se queda en el placeholder, sin crashear.
             uiImage = nil
         }
-    }
-
-    /// Decodifica directo a un tamaño reducido vía ImageIO en vez de `UIImage(data:)`
-    /// (que decodifica a la resolución original completa) — el patrón recomendado por
-    /// Apple para listas/galerías con fotos, mucho más liviano en CPU y memoria.
-    private static func downsampledImage(data: Data, maxDimensionPixels: CGFloat) -> UIImage? {
-        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
-        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else { return nil }
-
-        let thumbnailOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxDimensionPixels))
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
-            return UIImage(data: data) // respaldo si ImageIO no puede (formato raro): mejor mostrar algo que nada
-        }
-        return UIImage(cgImage: cgImage)
     }
 }

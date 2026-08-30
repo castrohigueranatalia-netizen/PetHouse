@@ -406,6 +406,17 @@ public final class SessionStore {
         if !desdeCache && guardarEnCache {
             guardarCache(usuario: usuario, mascotas: mascotas)
         }
+        precargarFotosPerfil(usuario: usuario, mascotas: mascotas)
+    }
+
+    /// Empieza a bajar el avatar y las fotos de las mascotas apenas se conoce el perfil
+    /// (login, restaurar sesión, o refrescarlo) — para cuando el usuario realmente entre a
+    /// Perfil, ya están en cache y aparecen de una en vez de demorar unos segundos.
+    private func precargarFotosPerfil(usuario: Usuario, mascotas: [Mascota]) {
+        PHImageCache.precargar(urlString: MediaURL.resolver(usuario.fotoUrl))
+        for mascota in mascotas {
+            PHImageCache.precargar(urlString: MediaURL.resolver(mascota.fotos.first))
+        }
     }
 
     private func guardarTokens(_ respuesta: AuthResponse) throws {
