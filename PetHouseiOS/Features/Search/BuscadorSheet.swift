@@ -161,15 +161,13 @@ private struct SelectorFechasBusquedaSheet: View {
                             faltaSalida = false
                         }
 
-                        // Aclaración siempre visible (no solo cuando ya está elegido "Por
-                        // día") — una línea por opción, cada una explicando tanto el
-                        // concepto como cómo se elige la fecha en el calendario de abajo,
-                        // para que "Por día" quede tan clara como "Por noches" y no una
-                        // aclaración a medias.
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Por noches: eliges llegada y salida — tu mascota se queda a dormir esas noches.")
-                            Text("Por día: eliges una sola fecha — la dejas y la recoges ese mismo día, sin pasar la noche.")
-                        }
+                        // Solo la aclaración de la opción elegida — cada una explica tanto
+                        // el concepto como cómo se elige la fecha en el calendario de abajo.
+                        Text(
+                            mismoDia
+                                ? "Por día: eliges una sola fecha — la dejas y la recoges ese mismo día, sin pasar la noche."
+                                : "Por noches: eliges llegada y salida — tu mascota se queda a dormir esas noches."
+                        )
                         .phText(PHFont.captionSM, color: PHColor.muted)
                     }
 
