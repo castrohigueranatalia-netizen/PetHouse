@@ -46,6 +46,12 @@ public final class HospedajeDetailViewModel {
         resenas[indice] = resena
     }
 
+    /// Reemplaza el hospedaje local tras editarlo (ver `PublicarHospedajeView`) — así se ve
+    /// de inmediato sin volver a pedirlo al servidor.
+    public func actualizarLocal(_ hospedaje: Hospedaje) {
+        self.hospedaje = hospedaje
+    }
+
     /// Pausa (deja de salir en Buscar/mapa) o reactiva este hospedaje propio, sin borrarlo
     /// ni perder su historial de reservas y reseñas.
     public func alternarActivo() async {

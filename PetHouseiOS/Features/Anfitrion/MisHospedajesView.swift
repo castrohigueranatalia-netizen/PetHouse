@@ -9,7 +9,6 @@ struct MisHospedajesView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = MisHospedajesViewModel()
     @State private var mostrarPublicar = false
-    @State private var hospedajeParaEditar: Hospedaje?
     @State private var hospedajeSeleccionado: Hospedaje?
 
     var body: some View {
@@ -35,13 +34,10 @@ struct MisHospedajesView: View {
                     viewModel.guardarLocal(guardado)
                 }
             }
-            .sheet(item: $hospedajeParaEditar) { hospedaje in
-                PublicarHospedajeView(hospedajeExistente: hospedaje) { guardado in
-                    viewModel.guardarLocal(guardado)
-                }
-            }
             .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
-                HospedajeDetailView(hospedajeId: hospedaje.id)
+                HospedajeDetailView(hospedajeId: hospedaje.id) { editado in
+                    viewModel.guardarLocal(editado)
+                }
             }
     }
 
@@ -65,23 +61,15 @@ struct MisHospedajesView: View {
                 LazyVStack(spacing: PHSpacing.s16) {
                     ForEach(viewModel.hospedajes) { hospedaje in
                         VStack(alignment: .leading, spacing: PHSpacing.s8) {
-                            // El botón de editar va ARRIBA de la imagen, a la derecha — un
-                            // ícono de 40pt, mucho más fácil de ver y de tocar que el texto
-                            // chico que tenía antes debajo de la tarjeta.
-                            HStack {
-                                if hospedaje.activo == false {
-                                    PHBadge("Pausado", style: .warning)
-                                }
-                                Spacer()
-                                PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(hospedaje.titulo)") {
-                                    hospedajeParaEditar = hospedaje
-                                }
+                            if hospedaje.activo == false {
+                                PHBadge("Pausado", style: .warning)
                             }
 
                             // Tocar la tarjeta lleva al detalle — como es un hospedaje
                             // propio, ahí mismo (en vez de "Reservar") están las acciones de
-                            // manejo: ver reservas recibidas, ver calendario y pausar/
-                            // reactivar (ver HospedajeDetailView.barraAnfitrion).
+                            // manejo: ver reservas recibidas, ver calendario, pausar/
+                            // reactivar y editar (ver HospedajeDetailView.barraAnfitrion
+                            // y el botón de editar en su toolbar).
                             Button { hospedajeSeleccionado = hospedaje } label: {
                                 PHHospedajeCard(hospedaje)
                                     .opacity(hospedaje.activo == false ? 0.5 : 1)

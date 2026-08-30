@@ -7,6 +7,10 @@ import SwiftUI
 
 struct HospedajeDetailView: View {
     let hospedajeId: String
+    /// Se llama tras editar un hospedaje propio (ver `mostrarEditar`) — quien presenta esta
+    /// vista desde una lista propia (ver MisHospedajesView) la usa para refrescar esa lista
+    /// sin esperar a que la recargue sola.
+    var alEditar: ((Hospedaje) -> Void)? = nil
 
     @State private var viewModel: HospedajeDetailViewModel?
     @State private var favoritosViewModel = FavoritosViewModel()
@@ -18,6 +22,7 @@ struct HospedajeDetailView: View {
     @State private var mostrarReportarAnfitrion = false
     @State private var resenaAReportar: Resena?
     @State private var resenaAResponder: Resena?
+    @State private var mostrarEditar = false
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -29,11 +34,28 @@ struct HospedajeDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let hospedaje = viewModel?.hospedaje, esMiHospedaje(hospedaje) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "pencil", accessibilityLabel: "Editar \(hospedaje.titulo)") {
+                        mostrarEditar = true
+                    }
+                }
+            }
+        }
         .task {
             if viewModel == nil {
                 viewModel = HospedajeDetailViewModel(hospedajeId: hospedajeId)
             }
             await viewModel?.cargar()
+        }
+        .sheet(isPresented: $mostrarEditar) {
+            if let hospedaje = viewModel?.hospedaje {
+                PublicarHospedajeView(hospedajeExistente: hospedaje) { guardado in
+                    viewModel?.actualizarLocal(guardado)
+                    alEditar?(guardado)
+                }
+            }
         }
         .sheet(item: $resenaAReportar) { resena in
             ReportarSheet(
