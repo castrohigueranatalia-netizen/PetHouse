@@ -249,6 +249,7 @@ struct BuscarView: View {
                             PHHospedajeCard(
                                 hospedaje,
                                 esFavorito: favoritosViewModel.esFavorito(hospedaje.id),
+                                mostrarPrecioDia: viewModel.busquedaMismoDia,
                                 onToggleFavorito: {
                                     Task { await favoritosViewModel.alternar(hospedaje) }
                                 }

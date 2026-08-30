@@ -13,11 +13,29 @@ public struct PHHospedajeCard: View {
     let hospedaje: Hospedaje
     let esFavorito: Bool
     let onToggleFavorito: (() -> Void)?
+    /// `true` cuando se está mostrando en una búsqueda "Por día" (ver
+    /// `BuscarViewModel.busquedaMismoDia`) — muestra `precioDia` en vez de `precioNoche`,
+    /// que es el que de verdad aplica ahí. Si por alguna razón `precioDia` viniera vacío
+    /// (no debería pasar: el servidor ya filtra a hospedajes que sí lo tienen), cae al
+    /// precio de noche en vez de mostrar un espacio vacío.
+    let mostrarPrecioDia: Bool
 
-    public init(_ hospedaje: Hospedaje, esFavorito: Bool = false, onToggleFavorito: (() -> Void)? = nil) {
+    public init(
+        _ hospedaje: Hospedaje, esFavorito: Bool = false, mostrarPrecioDia: Bool = false,
+        onToggleFavorito: (() -> Void)? = nil
+    ) {
         self.hospedaje = hospedaje
         self.esFavorito = esFavorito
+        self.mostrarPrecioDia = mostrarPrecioDia
         self.onToggleFavorito = onToggleFavorito
+    }
+
+    private var precioMostrado: Double {
+        mostrarPrecioDia ? (hospedaje.precioDia ?? hospedaje.precioNoche) : hospedaje.precioNoche
+    }
+
+    private var unidadMostrada: String {
+        mostrarPrecioDia && hospedaje.precioDia != nil ? "/ día" : "/ noche"
     }
 
     public var body: some View {
@@ -68,9 +86,9 @@ public struct PHHospedajeCard: View {
                 .lineLimit(1)
 
             HStack {
-                Text(PHFormato.precio(hospedaje.precioNoche))
+                Text(PHFormato.precio(precioMostrado))
                     .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                Text("/ noche")
+                Text(unidadMostrada)
                     .phText(PHFont.captionSM, color: PHColor.muted)
                 Spacer()
                 PHBadge(hospedaje.tipo.etiqueta)
@@ -81,7 +99,7 @@ public struct PHHospedajeCard: View {
         .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         .phShadow(PHShadow.level1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(hospedaje.titulo), \(hospedaje.tipo.etiqueta), \(lugarTexto), \(PHFormato.precio(hospedaje.precioNoche)) por noche")
+        .accessibilityLabel("\(hospedaje.titulo), \(hospedaje.tipo.etiqueta), \(lugarTexto), \(PHFormato.precio(precioMostrado)) \(unidadMostrada)")
     }
 
     // Prefiere `localidad` sobre `ciudad`: con la app restringida a Bogotá, `ciudad` es

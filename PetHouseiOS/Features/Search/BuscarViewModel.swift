@@ -52,6 +52,14 @@ public final class BuscarViewModel {
     public var desde: Date = .now
     public var hasta: Date = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
 
+    /// `true` cuando la búsqueda actual es "Por día" (llegada = salida, ver
+    /// db/35-reserva-mismo-dia.sql) — el servidor ya solo devuelve hospedajes con
+    /// `precioDia`, así que las cards de resultados (ver BuscarView) muestran ese precio en
+    /// vez del de noche: es el que de verdad aplica para lo que se está buscando.
+    public var busquedaMismoDia: Bool {
+        usarFechas && Calendar.current.isDate(desde, inSameDayAs: hasta)
+    }
+
     /// Texto corto para mostrar en la barra colapsada (ver BuscarView).
     public var resumenBusqueda: String {
         var partes: [String] = []
