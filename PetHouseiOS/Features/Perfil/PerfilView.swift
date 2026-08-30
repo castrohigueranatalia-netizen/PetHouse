@@ -230,6 +230,15 @@ struct PerfilView: View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
             Text("Cuenta")
                 .phText(PHFont.titleMD, color: PHColor.ink)
+
+            // Va primero y con estilo destacado (mismo peso visual que "Conviértete en
+            // anfitrión" de abajo) — es la acción principal para quien ya es anfitrión, no
+            // debería verse igual de discreta que Favoritos/Soporte.
+            if session.usuario?.esAnfitrion == true {
+                botonMisHospedajes
+                    .padding(.bottom, PHSpacing.s4)
+            }
+
             NavigationLink {
                 FavoritosView()
             } label: {
@@ -240,14 +249,6 @@ struct PerfilView: View {
                 SoporteListView()
             } label: {
                 filaCuenta("Soporte", icono: "bubble.left.and.bubble.right")
-            }
-
-            if session.usuario?.esAnfitrion == true {
-                NavigationLink {
-                    MisHospedajesView()
-                } label: {
-                    filaCuenta("Mis hospedajes", icono: "building.2.fill")
-                }
             }
 
             if session.usuario?.rol == .admin {
@@ -316,6 +317,34 @@ struct PerfilView: View {
             .padding(PHSpacing.s12)
             .background(PHColor.primaryContainer)
             .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Versión destacada de "Mis hospedajes" — ícono más grande, título en negrita y una
+    /// bajada, sobre fondo de color (mismo estilo que `conviertete`), a diferencia de las
+    /// filas planas de `filaCuenta` de abajo. Es la acción principal de un anfitrión.
+    private var botonMisHospedajes: some View {
+        NavigationLink {
+            MisHospedajesView()
+        } label: {
+            HStack(spacing: PHSpacing.s12) {
+                Image(systemName: "building.2.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(PHColor.primary)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mis hospedajes")
+                        .phText(PHFont.titleMD.weight(.bold), color: PHColor.ink)
+                    Text("Administra tus publicaciones, reservas y calendario")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft)
+            }
+            .padding(PHSpacing.s16)
+            .background(PHColor.primaryContainer)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         }
         .buttonStyle(.plain)
     }
