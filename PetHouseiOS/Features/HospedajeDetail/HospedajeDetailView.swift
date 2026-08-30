@@ -29,6 +29,7 @@ struct HospedajeDetailView: View {
     @State private var resenaAReportar: Resena?
     @State private var resenaAResponder: Resena?
     @State private var mostrarEditar = false
+    @State private var mostrarBloquearFechas = false
     @Environment(SessionStore.self) private var session
 
     var body: some View {
@@ -62,6 +63,11 @@ struct HospedajeDetailView: View {
                     viewModel?.actualizarLocal(guardado)
                     alEditar?(guardado)
                 }
+            }
+        }
+        .sheet(isPresented: $mostrarBloquearFechas) {
+            if let hospedaje = viewModel?.hospedaje {
+                BloquearFechasSheet(hospedaje: hospedaje)
             }
         }
         .sheet(item: $resenaAReportar) { resena in
@@ -164,6 +170,10 @@ struct HospedajeDetailView: View {
                             }
                         }
                     }
+
+                    if esPropio || esMiHospedaje(hospedaje) {
+                        botonBloquearFechas
+                    }
                 }
                 .padding(PHSpacing.s16)
                 .padding(.bottom, 100)
@@ -247,6 +257,33 @@ struct HospedajeDetailView: View {
             Spacer()
             PHIconButton(systemImage: "flag", accessibilityLabel: "Reportar a \(nombre)", action: alReportar)
         }
+    }
+
+    /// Opción visible apenas se entra a un hospedaje propio, después de Reseñas — a
+    /// diferencia del ícono chico del toolbar de CalendarioHospedajeView, esta es la forma
+    /// más fácil de encontrarla sin tener que entrar primero a "Ver calendario".
+    private var botonBloquearFechas: some View {
+        Button {
+            mostrarBloquearFechas = true
+        } label: {
+            HStack(spacing: PHSpacing.s12) {
+                Image(systemName: "calendar.badge.minus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(PHColor.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Bloquear fechas")
+                        .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    Text("Congela fechas puntuales sin pausar todo el hospedaje")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(PHColor.mutedSoft).font(.caption)
+            }
+            .padding(PHSpacing.s12)
+            .background(PHColor.surfaceSoft)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func seccion<Content: View>(titulo: String, @ViewBuilder content: () -> Content) -> some View {

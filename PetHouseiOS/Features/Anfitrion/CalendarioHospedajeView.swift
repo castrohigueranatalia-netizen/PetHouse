@@ -73,7 +73,9 @@ struct CalendarioHospedajeView: View {
         }
         .task { await viewModel.cargar() }
         .sheet(isPresented: $mostrarBloquear) {
-            BloquearFechasSheet(viewModel: viewModel)
+            BloquearFechasSheet(hospedaje: viewModel.hospedaje) {
+                Task { await viewModel.cargar() }
+            }
         }
         .sheet(item: $diaSeleccionado) { dia in
             switch dia {

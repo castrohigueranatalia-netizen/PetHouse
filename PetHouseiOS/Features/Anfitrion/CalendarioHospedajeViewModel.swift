@@ -21,7 +21,6 @@ public final class CalendarioHospedajeViewModel {
     public private(set) var fechasBloqueadas: [FechaBloqueada] = []
     public private(set) var isLoading = false
     public private(set) var error: AppError?
-    public private(set) var bloqueando = false
 
     /// El primer día del mes que se está mostrando — siempre normalizado a las 00:00 del
     /// día 1, para que sumar/restar meses no arrastre la hora del momento en que se abrió
@@ -59,31 +58,9 @@ public final class CalendarioHospedajeViewModel {
         }
     }
 
-    /// Bloquea un rango nuevo (ver `BloquearFechasSheet`) — `hasta` es exclusiva, mismo
-    /// criterio que en una reserva. El servidor rechaza (409) si se cruza con una reserva
-    /// real o con otro bloqueo ya creado.
-    public func bloquear(desde: Date, hasta: Date, motivo: String) async -> Bool {
-        bloqueando = true
-        defer { bloqueando = false }
-        do {
-            let nuevo = try await hospedajesService.bloquearFechas(
-                hospedajeId: hospedaje.id,
-                desde: PHDate.toAPIDateOnly(desde),
-                hasta: PHDate.toAPIDateOnly(hasta),
-                motivo: motivo.isEmpty ? nil : motivo
-            )
-            fechasBloqueadas.append(nuevo)
-            return true
-        } catch let appError as AppError {
-            error = appError
-            return false
-        } catch {
-            self.error = .desconocido(error.localizedDescription)
-            return false
-        }
-    }
-
-    /// Quita un bloqueo (el día vuelve a estar disponible para reservar).
+    /// Quita un bloqueo (el día vuelve a estar disponible para reservar). Bloquear uno nuevo
+    /// se hace desde `BloquearFechasSheet` (independiente de este ViewModel, ver su propio
+    /// comentario) — `cargar()` trae el resultado apenas se refresca esta pantalla.
     public func desbloquear(_ bloqueo: FechaBloqueada) async {
         do {
             try await hospedajesService.desbloquearFechas(hospedajeId: hospedaje.id, bloqueoId: bloqueo.id)
@@ -126,12 +103,5 @@ public final class CalendarioHospedajeViewModel {
     public func bloqueo(en dia: Date) -> FechaBloqueada? {
         let diaTexto = PHDate.toAPIDateOnly(dia)
         return fechasBloqueadas.first { diaTexto >= $0.desde && diaTexto < $0.hasta }
-    }
-
-    /// `true` si el día ya tiene una reserva o ya está bloqueado — lo usa
-    /// `BloquearFechasSheet` (con `PHSelectorRangoFechas`) para no dejar elegir un rango que
-    /// se cruce con ninguno de los dos.
-    public func diaOcupado(_ dia: Date) -> Bool {
-        reserva(en: dia) != nil || bloqueo(en: dia) != nil
     }
 }

@@ -60,19 +60,7 @@ public final class NuevaReservaViewModel {
 
     public func cargarDisponibilidad() async {
         guard let rangos = try? await hospedajesService.disponibilidad(hospedajeId: hospedaje.id) else { return }
-        var dias: Set<String> = []
-        let calendario = Calendar.current
-        for rango in rangos {
-            guard let inicio = PHDate.apiDateOnly.date(from: rango.desde),
-                  let fin = PHDate.apiDateOnly.date(from: rango.hasta) else { continue }
-            var cursor = inicio
-            while cursor < fin {
-                dias.insert(PHDate.toAPIDateOnly(cursor))
-                guard let siguiente = calendario.date(byAdding: .day, value: 1, to: cursor) else { break }
-                cursor = siguiente
-            }
-        }
-        diasOcupados = dias
+        diasOcupados = rangos.diasOcupados()
     }
 
     public func diaOcupado(_ dia: Date) -> Bool {
