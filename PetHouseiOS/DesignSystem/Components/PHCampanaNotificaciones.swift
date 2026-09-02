@@ -33,12 +33,15 @@ public struct PHCampanaNotificaciones: View {
                             .padding(.horizontal, 4)
                             .frame(minWidth: 16, minHeight: 16)
                             .background(PHColor.error, in: Capsule())
-                            // Este botón siempre es el más a la derecha de la pantalla (las 4
-                            // pantallas donde aparece lo usan como último ítem del toolbar) —
-                            // con `x: 4` el contador sobresalía justo en el borde y se veía
-                            // cortado por el borde de la pantalla. Sin desplazamiento horizontal,
-                            // queda pegado a la esquina del círculo sin salirse de su marco.
-                            .offset(x: 0, y: -4)
+                            // Este botón vive en un `ToolbarItem` (ver MisReservasView,
+                            // BuscarView, etc.) — la barra de navegación recorta cualquier
+                            // contenido que se salga de su propio marco, así que un `y`
+                            // negativo (como el `-4` que había antes, pensado para que el
+                            // contador "se asome" por encima del círculo) quedaba con la
+                            // mitad de arriba cortada por ese recorte. Con un desplazamiento
+                            // hacia ADENTRO (positivo) el contador queda completo dentro del
+                            // marco de 40x40 del botón, sin que la barra le corte nada.
+                            .offset(x: -2, y: 2)
                     }
                 }
         }

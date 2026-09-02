@@ -70,9 +70,18 @@ public enum PHDate {
     }
 
     /// Formatea un string `YYYY-MM-DD` recibido de la API a texto legible en español.
+    ///
+    /// Respaldo con `parseTimestamp`: por un bug real ya corregido en el servidor (columnas
+    /// `DATE` que `pg` decodificaba como objeto `Date` de JS y `res.json()` serializaba como
+    /// timestamp completo, ej. "2026-12-01T05:00:00.000Z" en vez de "2026-12-01"), una
+    /// reserva vieja en caché local (`ReservaCache`, para ver "Mis reservas" sin conexión)
+    /// puede haber quedado con ese formato guardado de antes del arreglo. Sin este respaldo,
+    /// `apiDateOnly.date(from:)` fallaba (formato estricto `yyyy-MM-dd`, no tolera la "T" ni
+    /// la zona horaria) y se mostraba el string crudo tal cual — feo y confuso en la UI.
     public static func displayFromAPIDateOnly(_ raw: String) -> String {
-        guard let date = apiDateOnly.date(from: raw) else { return raw }
-        return display.string(from: date)
+        if let date = apiDateOnly.date(from: raw) { return display.string(from: date) }
+        if let date = parseTimestamp(raw) { return display.string(from: date) }
+        return raw
     }
 
     /// Formatea un `TIMESTAMPTZ` completo (`creado_en`) a texto legible en español, ej.
