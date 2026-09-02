@@ -153,7 +153,16 @@ public struct PHSelectorRangoFechas: View {
                     color: ocupado ? PHColor.mutedSoft : (esInicio || esFin ? .white : PHColor.ink)
                 )
                 .frame(width: 36, height: 36)
-                .background(esInicio || esFin ? PHColor.primary : (enRango ? PHColor.primaryContainer : .clear))
+                // Ocupado (reservado o bloqueado por el anfitrión — GET /disponibilidad ya
+                // une ambos, ver Core/Models/Disponibilidad.swift) lleva relleno gris, no
+                // solo el texto tachado — antes era muy sutil para notarlo de un vistazo al
+                // abrir el calendario, había que fijarse casilla por casilla.
+                .background(
+                    esInicio || esFin ? PHColor.primary
+                        : enRango ? PHColor.primaryContainer
+                        : ocupado ? PHColor.surfaceStrong
+                        : .clear
+                )
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
@@ -163,8 +172,9 @@ public struct PHSelectorRangoFechas: View {
 
     private var leyenda: some View {
         HStack(spacing: PHSpacing.s4) {
-            Text("—").strikethrough().phText(PHFont.captionSM, color: PHColor.mutedSoft)
-            Text("No disponible").phText(PHFont.captionSM, color: PHColor.muted)
+            Circle().fill(PHColor.surfaceStrong).frame(width: 14, height: 14)
+                .overlay(Circle().stroke(PHColor.hairline, lineWidth: 1))
+            Text("Reservado o bloqueado").phText(PHFont.captionSM, color: PHColor.muted)
         }
     }
 
