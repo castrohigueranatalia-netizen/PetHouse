@@ -281,8 +281,18 @@ r.get('/:id/disponibilidad', async (req, res, next) => {
     // "2026-09-06T00:00:00.000Z") en vez del "YYYY-MM-DD" que espera el cliente — con eso,
     // `PHSelectorRangoFechas.diaOcupado` nunca reconocía esos rangos y dejaba seleccionar
     // fechas ya ocupadas (el conflicto solo se notaba al confirmar, con un 409 del EXCLUDE).
+    //
+    // `estado::text` en la primera rama es la causa real de que esta ruta llevara 500ando
+    // SIEMPRE desde que existe `hospedaje_fechas_bloqueadas` (confirmado reproduciendo el
+    // error acá mismo): `reservas.estado` es un ENUM (`estado_reserva`), y un UNION ALL
+    // fuerza a que ambas ramas compartan tipo — Postgres intentaba meter el literal
+    // 'bloqueada' de la segunda rama DENTRO de ese enum (que no tiene ese valor) y tiraba
+    // `invalid input value for enum estado_reserva: "bloqueada"`. El cliente nunca lo vio
+    // porque `try?` en NuevaReservaViewModel.cargarDisponibilidad() lo tragaba en silencio:
+    // por eso el calendario de reservar JAMÁS marcaba nada como ocupado, para ningún
+    // hospedaje, aunque sí tuviera reservas o bloqueos reales.
     const { rows } = await pool.query(
-      `SELECT desde::text, hasta::text, estado FROM reservas
+      `SELECT desde::text, hasta::text, estado::text FROM reservas
         WHERE hospedaje_id = $1 AND estado IN ('confirmada', 'pendiente')
        UNION ALL
        SELECT desde::text, hasta::text, 'bloqueada' AS estado FROM hospedaje_fechas_bloqueadas

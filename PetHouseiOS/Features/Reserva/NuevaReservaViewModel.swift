@@ -74,16 +74,8 @@ public final class NuevaReservaViewModel {
     }
 
     public func cargarDisponibilidad() async {
-        do {
-            let rangos = try await hospedajesService.disponibilidad(hospedajeId: hospedaje.id)
-            diasOcupados = rangos.diasOcupados()
-            // TEMPORAL: para diagnosticar por qué un rango realmente ocupado no aparecía
-            // gris en el calendario — se quita una vez confirmado en Xcode qué llega del
-            // servidor. Visible en la consola de Xcode mientras la app corre desde ahí.
-            print("PetHouse/disponibilidad \(hospedaje.id): recibido=\(rangos.map { "\($0.desde)..<\($0.hasta) [\($0.estado)]" }) → diasOcupados=\(diasOcupados.sorted())")
-        } catch {
-            print("PetHouse/disponibilidad \(hospedaje.id): FALLÓ — \(error)")
-        }
+        guard let rangos = try? await hospedajesService.disponibilidad(hospedajeId: hospedaje.id) else { return }
+        diasOcupados = rangos.diasOcupados()
     }
 
     public func diaOcupado(_ dia: Date) -> Bool {
