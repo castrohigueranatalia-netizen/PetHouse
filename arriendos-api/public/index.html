@@ -107,6 +107,28 @@
 
   #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100; }
   #toast.mostrar { opacity: 1; }
+
+  /* Asistente (chat) */
+  .fab-asistente {
+    position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 50%;
+    background: var(--coral); border: none; color: #fff; font-size: 24px; box-shadow: 0 6px 16px rgba(0,0,0,.2); z-index: 60;
+  }
+  .panel-asistente {
+    position: fixed; bottom: 88px; right: 20px; width: 340px; max-width: calc(100vw - 32px); height: 460px; max-height: 70vh;
+    background: #fff; border: 1px solid var(--borde); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    display: flex; flex-direction: column; overflow: hidden; z-index: 60;
+  }
+  .panel-asistente-header {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--borde); font-weight: 700;
+  }
+  .chat-mensajes { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .chat-burbuja { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; }
+  .chat-usuario { align-self: flex-end; background: var(--coral); color: #fff; border-bottom-right-radius: 2px; }
+  .chat-asistente { align-self: flex-start; background: var(--fondo); color: var(--tinta); border-bottom-left-radius: 2px; }
+  .chat-cargando { opacity: .6; font-style: italic; }
+  .chat-vacio { color: var(--gris); font-size: 13px; text-align: center; margin: auto; padding: 0 10px; }
+  .chat-form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--borde); }
+  .chat-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -195,6 +217,22 @@
   <section id="tab-apartamentos" class="oculto">
     <div class="grid-apartamentos" id="grid-apartamentos"></div>
   </section>
+</div>
+
+<button id="btn-asistente" class="fab-asistente oculto" title="Preguntar al asistente">💬</button>
+
+<div id="panel-asistente" class="panel-asistente oculto">
+  <div class="panel-asistente-header">
+    <span>🤖 Pregúntale a la app</span>
+    <button id="btn-cerrar-asistente" class="btn btn-chico" type="button">✕</button>
+  </div>
+  <div id="chat-mensajes" class="chat-mensajes">
+    <div class="chat-vacio">Ej: "¿cuántas noches libres tiene el apto 3 en octubre?" o "¿cuánto facturé este mes?"</div>
+  </div>
+  <form id="form-asistente" class="chat-form">
+    <input id="chat-input" type="text" placeholder="Escribe tu pregunta…" autocomplete="off" required>
+    <button type="submit" class="btn btn-primario btn-chico">Enviar</button>
+  </form>
 </div>
 
 <div id="toast"></div>
@@ -589,11 +627,61 @@ function renderApartamentos() {
   });
 }
 
+// ---------------- Asistente (chat) ----------------
+let historialAsistente = [];
+
+document.getElementById('btn-asistente').addEventListener('click', () => {
+  document.getElementById('panel-asistente').classList.toggle('oculto');
+  document.getElementById('chat-input').focus();
+});
+document.getElementById('btn-cerrar-asistente').addEventListener('click', () => {
+  document.getElementById('panel-asistente').classList.add('oculto');
+});
+
+function renderChat() {
+  const cont = document.getElementById('chat-mensajes');
+  if (!historialAsistente.length) {
+    cont.innerHTML = '<div class="chat-vacio">Ej: "¿cuántas noches libres tiene el apto 3 en octubre?" o "¿cuánto facturé este mes?"</div>';
+    return;
+  }
+  cont.innerHTML = historialAsistente.map((m) =>
+    `<div class="chat-burbuja ${m.rol === 'usuario' ? 'chat-usuario' : 'chat-asistente'}">${esc(m.texto)}</div>`
+  ).join('');
+  cont.scrollTop = cont.scrollHeight;
+}
+
+document.getElementById('form-asistente').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  const texto = input.value.trim();
+  if (!texto) return;
+  input.value = '';
+
+  historialAsistente.push({ rol: 'usuario', texto });
+  renderChat();
+
+  const cont = document.getElementById('chat-mensajes');
+  const cargando = document.createElement('div');
+  cargando.className = 'chat-burbuja chat-asistente chat-cargando';
+  cargando.textContent = 'Pensando…';
+  cont.appendChild(cargando);
+  cont.scrollTop = cont.scrollHeight;
+
+  try {
+    const { respuesta } = await api('/asistente', { method: 'POST', body: { mensajes: historialAsistente } });
+    historialAsistente.push({ rol: 'asistente', texto: respuesta });
+  } catch (err) {
+    historialAsistente.push({ rol: 'asistente', texto: '⚠ ' + err.message });
+  }
+  renderChat();
+});
+
 // ---------------- Arranque ----------------
 async function iniciarApp() {
   document.getElementById('vista-login').classList.add('oculto');
   document.getElementById('vista-app').classList.remove('oculto');
   document.getElementById('nombre-usuario').textContent = estado.usuario?.nombre || estado.usuario?.email || '';
+  document.getElementById('btn-asistente').classList.remove('oculto');
   try {
     await cargarApartamentos();
     await refrescarReservas();

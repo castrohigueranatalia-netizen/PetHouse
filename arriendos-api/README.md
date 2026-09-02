@@ -72,6 +72,30 @@ punto de partida es la documentación de Booking para partners de
 conectividad — pero para el tamaño actual (7 apartamentos, un solo dueño),
 iCal es la opción que funciona sin depender de que Booking apruebe nada.
 
+## Asistente de preguntas (botón 💬)
+
+Dentro de la app hay un botón flotante para hacerle preguntas a la reservas
+en lenguaje natural, por ejemplo:
+
+- *"¿Cuántas noches libres tiene el Apto 3 en octubre?"*
+- *"¿Cuánto facturé este mes?"*
+- *"¿Cuántas reservas de Booking hay pendientes de completar el nombre del huésped?"*
+
+Funciona con la API de Claude (Anthropic): el modelo consulta la base de
+datos (solo lectura) y calcula la respuesta con los datos reales, nunca
+inventa cifras. Para activarlo:
+
+1. Crea una clave en **https://console.anthropic.com/settings/keys**
+2. Pégala en `.env` como `ANTHROPIC_API_KEY=...`
+3. Reinicia el servidor (`npm run dev`)
+
+Sin esa clave, la app funciona igual — el botón del asistente solo muestra
+un aviso de que falta configurarlo. El costo es por uso (no hay suscripción):
+cada pregunta consulta el modelo Claude Opus 5 y normalmente cuesta una
+fracción de centavo de dólar; para el volumen de preguntas de un solo
+usuario esto es prácticamente insignificante, pero el costo corre por la
+cuenta de Anthropic asociada a esa clave.
+
 ## Qué evita la base de datos
 
 - **Doble reserva:** no se puede crear/editar una reserva confirmada que se
@@ -91,8 +115,8 @@ arriendos-api/
 │   ├── 02-seed.sql         Usuario inicial + los 7 apartamentos
 │   └── docker-compose.yml  PostgreSQL local (puerto 5433)
 ├── src/
-│   ├── routes/              auth · apartamentos · reservas · ical
-│   ├── services/             icalSync (importar) · icalExport (exportar)
+│   ├── routes/              auth · apartamentos · reservas · ical · asistente
+│   ├── services/             icalSync (importar) · icalExport (exportar) · asistente (Claude API)
 │   └── ...
 └── public/index.html        Frontend (una sola página, sin build)
 ```

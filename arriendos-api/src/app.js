@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js'
 import apartamentosRoutes from './routes/apartamentos.js'
 import reservasRoutes from './routes/reservas.js'
 import icalRoutes from './routes/ical.js'
+import asistenteRoutes from './routes/asistente.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/apartamentos', apartamentosRoutes)
 app.use('/api/apartamentos', icalRoutes)   // GET /:id/calendario.ics · POST /:id/sincronizar
 app.use('/api/reservas', reservasRoutes)
+app.use('/api/asistente', asistenteRoutes)
 
 // Frontend (página autocontenida) servida desde /public
 app.use(express.static(path.join(__dirname, '..', 'public')))
