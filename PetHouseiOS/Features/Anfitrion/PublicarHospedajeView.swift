@@ -105,6 +105,20 @@ struct PublicarHospedajeView: View {
                         .phText(PHFont.captionSM, color: PHColor.muted)
                 }
 
+                rangoHorario(
+                    titulo: "Limitar horario de entrega",
+                    descripcion: "Ej. de 7:00 a 9:00. Sin activar esto, el huésped puede elegir cualquier hora al reservar.",
+                    desde: $viewModel.horarioEntregaDesde, hasta: $viewModel.horarioEntregaHasta,
+                    defaultDesde: horaPorDefecto(7), defaultHasta: horaPorDefecto(9)
+                )
+
+                rangoHorario(
+                    titulo: "Limitar horario de recogida",
+                    descripcion: "Ej. de 18:00 a 19:00.",
+                    desde: $viewModel.horarioRecogidaDesde, hasta: $viewModel.horarioRecogidaHasta,
+                    defaultDesde: horaPorDefecto(18), defaultHasta: horaPorDefecto(19)
+                )
+
                 VStack(alignment: .leading, spacing: PHSpacing.s4) {
                     Text("Convivencia").phText(PHFont.captionSM.weight(.semibold), color: PHColor.muted)
                     Picker("Convivencia", selection: $viewModel.convivencia) {
@@ -131,6 +145,52 @@ struct PublicarHospedajeView: View {
             .padding(PHSpacing.s16)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// Rango de horas en que este hospedaje acepta entrega/recogida (ver
+    /// db/37-horarios-hospedaje.sql) — con el interruptor apagado, `desde`/`hasta` quedan en
+    /// `nil` (sin restricción, el huésped elige cualquier hora al reservar); al activarlo se
+    /// llenan con valores por defecto que el anfitrión puede ajustar.
+    private func rangoHorario(
+        titulo: String, descripcion: String,
+        desde: Binding<Date?>, hasta: Binding<Date?>,
+        defaultDesde: Date, defaultHasta: Date
+    ) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Toggle(titulo, isOn: Binding(
+                get: { desde.wrappedValue != nil },
+                set: { activo in
+                    desde.wrappedValue = activo ? defaultDesde : nil
+                    hasta.wrappedValue = activo ? defaultHasta : nil
+                }
+            ))
+            Text(descripcion).phText(PHFont.captionSM, color: PHColor.muted)
+            if desde.wrappedValue != nil {
+                HStack(spacing: PHSpacing.s16) {
+                    VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                        Text("Desde").phText(PHFont.captionSM, color: PHColor.muted)
+                        DatePicker(
+                            "", selection: Binding(get: { desde.wrappedValue ?? defaultDesde }, set: { desde.wrappedValue = $0 }),
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                    }
+                    VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                        Text("Hasta").phText(PHFont.captionSM, color: PHColor.muted)
+                        DatePicker(
+                            "", selection: Binding(get: { hasta.wrappedValue ?? defaultHasta }, set: { hasta.wrappedValue = $0 }),
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func horaPorDefecto(_ hora: Int) -> Date {
+        Calendar.current.date(bySettingHour: hora, minute: 0, second: 0, of: .now) ?? .now
     }
 
     private func exito(_ guardado: Hospedaje) -> some View {

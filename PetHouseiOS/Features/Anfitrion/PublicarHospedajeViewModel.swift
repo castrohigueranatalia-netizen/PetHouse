@@ -31,6 +31,13 @@ public final class PublicarHospedajeViewModel {
     /// Opcional — vacío significa que este hospedaje NO ofrece la opción de reservar por un
     /// solo día (entrega y recogida el mismo día, ver db/35-reserva-mismo-dia.sql).
     public var precioDiaTexto = ""
+    /// Rango en que este hospedaje acepta entrega/recogida (ver db/37-horarios-hospedaje.sql)
+    /// — los cuatro vacíos = sin restricción, el huésped puede elegir cualquier hora. Si se
+    /// llena uno de un par, hay que llenar el otro (ver `puedeGuardar`).
+    public var horarioEntregaDesde: Date?
+    public var horarioEntregaHasta: Date?
+    public var horarioRecogidaDesde: Date?
+    public var horarioRecogidaHasta: Date?
     public var convivencia: Convivencia = .cualquiera
     public var maxMascotasTexto = "1"
     public var serviciosTexto = ""   // separados por coma
@@ -73,6 +80,10 @@ public final class PublicarHospedajeViewModel {
             lngTexto = h.lng.map { String($0) } ?? ""
             precioNocheTexto = String(h.precioNoche)
             precioDiaTexto = h.precioDia.map { String($0) } ?? ""
+            horarioEntregaDesde = Self.parseHora(h.horarioEntregaDesde)
+            horarioEntregaHasta = Self.parseHora(h.horarioEntregaHasta)
+            horarioRecogidaDesde = Self.parseHora(h.horarioRecogidaDesde)
+            horarioRecogidaHasta = Self.parseHora(h.horarioRecogidaHasta)
             convivencia = h.convivencia ?? .cualquiera
             maxMascotasTexto = h.maxMascotas.map { String($0) } ?? "1"
             serviciosTexto = (h.servicios ?? []).joined(separator: ", ")
@@ -103,6 +114,10 @@ public final class PublicarHospedajeViewModel {
             && Double(latTexto) != nil && Double(lngTexto) != nil
             && Double(precioNocheTexto) != nil
             && (precioDiaTexto.isEmpty || Double(precioDiaTexto) != nil)
+            // Cada par debe estar completo o vacío — un "desde" sin "hasta" (o al revés) no
+            // es un rango válido.
+            && (horarioEntregaDesde == nil) == (horarioEntregaHasta == nil)
+            && (horarioRecogidaDesde == nil) == (horarioRecogidaHasta == nil)
             && !isLoading
     }
 
@@ -120,7 +135,12 @@ public final class PublicarHospedajeViewModel {
         let payload = CrearHospedajeRequest(
             titulo: titulo, tipo: tipo, descripcion: descripcion, localidad: localidad.rawValue,
             barrio: barrio.isEmpty ? nil : barrio, lat: lat, lng: lng, coberturaRadioM: nil,
-            precioNoche: precio, precioDia: precioDia, convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
+            precioNoche: precio, precioDia: precioDia,
+            horarioEntregaDesde: horarioEntregaDesde.map(PHDate.toAPITimeOnly),
+            horarioEntregaHasta: horarioEntregaHasta.map(PHDate.toAPITimeOnly),
+            horarioRecogidaDesde: horarioRecogidaDesde.map(PHDate.toAPITimeOnly),
+            horarioRecogidaHasta: horarioRecogidaHasta.map(PHDate.toAPITimeOnly),
+            convivencia: convivencia, maxMascotas: Int(maxMascotasTexto) ?? 1,
             servicios: lista(serviciosTexto), reglas: lista(reglasTexto), fotos: fotos
         )
 
@@ -147,5 +167,13 @@ public final class PublicarHospedajeViewModel {
 
     private func lista(_ texto: String) -> [String] {
         texto.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// `"HH:MM"` o `"HH:MM:SS"` (Postgres `TIME`, ver db/37-horarios-hospedaje.sql) a `Date`
+    /// para el `DatePicker` del formulario — `nil` si no vino nada, o si el string no es una
+    /// hora reconocible.
+    private static func parseHora(_ raw: String?) -> Date? {
+        guard let raw, raw.count >= 5 else { return nil }
+        return PHDate.apiTimeOnly.date(from: String(raw.prefix(5)))
     }
 }

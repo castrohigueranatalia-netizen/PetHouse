@@ -123,29 +123,47 @@ struct NuevaReservaView: View {
     /// solo se pedían las fechas (ver db/36-horarios-entrega.sql). Aplica tanto a "por
     /// noches" (entrega el día de llegada, recogida el día de salida — días DISTINTOS, así
     /// que no se comparan entre sí) como a "mismo día" (las dos caen el mismo día, ver
-    /// `NuevaReservaViewModel.horasValidas`).
+    /// `NuevaReservaViewModel.horasValidas`). Chips con horas concretas en vez de una rueda de
+    /// reloj libre — más rápido de tocar, y ya acotado al rango que el anfitrión configuró
+    /// para este hospedaje (ver `opcionesEntrega`/`opcionesRecogida`, db/37-horarios-hospedaje.sql).
     private var seccionHorarios: some View {
-        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+        VStack(alignment: .leading, spacing: PHSpacing.s12) {
             Text("¿A qué hora?")
                 .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-            HStack(spacing: PHSpacing.s24) {
-                VStack(alignment: .leading, spacing: PHSpacing.s4) {
-                    Text(viewModel.mismoDia ? "La llevas" : "Llegas ese día")
-                        .phText(PHFont.captionSM, color: PHColor.muted)
-                    DatePicker("", selection: $viewModel.horaEntrega, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                }
-                VStack(alignment: .leading, spacing: PHSpacing.s4) {
-                    Text(viewModel.mismoDia ? "La recoges" : "La recoges ese día")
-                        .phText(PHFont.captionSM, color: PHColor.muted)
-                    DatePicker("", selection: $viewModel.horaRecogida, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                }
-                Spacer()
-            }
-            if !viewModel.horasValidas {
+
+            selectorHora(
+                titulo: viewModel.mismoDia ? "La llevas" : "Llegas ese día",
+                opciones: viewModel.opcionesEntrega,
+                seleccionada: viewModel.horaEntrega
+            ) { viewModel.horaEntrega = $0 }
+
+            selectorHora(
+                titulo: viewModel.mismoDia ? "La recoges" : "La recoges ese día",
+                opciones: viewModel.opcionesRecogida,
+                seleccionada: viewModel.horaRecogida
+            ) { viewModel.horaRecogida = $0 }
+
+            if viewModel.horaEntrega == nil || viewModel.horaRecogida == nil {
+                Text("Elige a qué hora llevas y a qué hora recoges a tu mascota.")
+                    .phText(PHFont.captionSM, color: PHColor.muted)
+            } else if !viewModel.horasValidas {
                 Text("La hora de recogida debe ser posterior a la de entrega.")
                     .phText(PHFont.captionSM, color: PHColor.error)
+            }
+        }
+    }
+
+    private func selectorHora(titulo: String, opciones: [String], seleccionada: String?, onSeleccionar: @escaping (String) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s4) {
+            Text(titulo).phText(PHFont.captionSM, color: PHColor.muted)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: PHSpacing.s8) {
+                    ForEach(opciones, id: \.self) { opcion in
+                        PHChip(PHDate.displayFromAPITimeOnly(opcion), isSelected: seleccionada == opcion) {
+                            onSeleccionar(opcion)
+                        }
+                    }
+                }
             }
         }
     }

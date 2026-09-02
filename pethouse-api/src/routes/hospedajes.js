@@ -410,10 +410,21 @@ r.get('/:id', async (req, res, next) => {
 })
 
 // ---- Crear hospedaje (anfitrión) ----
+// `undefined`/vacío es válido (sin rango = el cliente usa un rango por defecto, ver
+// db/37-horarios-hospedaje.sql); si el anfitrión sí manda algo, tiene que ser "HH:MM" y el
+// "desde" debe ser antes que el "hasta" — un rango invertido no tiene sentido.
+function horarioValido(desde, hasta) {
+  if (desde == null && hasta == null) return true
+  const patron = /^([01]\d|2[0-3]):[0-5]\d$/
+  return typeof desde === 'string' && typeof hasta === 'string' &&
+    patron.test(desde) && patron.test(hasta) && desde < hasta
+}
+
 r.post('/', auth, soloAnfitrion, async (req, res, next) => {
   try {
     const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
-            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos } = req.body || {}
+            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos,
+            horarioEntregaDesde, horarioEntregaHasta, horarioRecogidaDesde, horarioRecogidaHasta } = req.body || {}
 
     if (!titulo || !tipo || !descripcion || !localidad || lat == null || lng == null || !precioNoche) {
       return res.status(400).json({ error: 'Faltan campos obligatorios (titulo, tipo, descripcion, localidad, lat, lng, precioNoche).' })
@@ -421,16 +432,21 @@ r.post('/', auth, soloAnfitrion, async (req, res, next) => {
     if (!LOCALIDADES_BOGOTA.includes(localidad)) {
       return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
     }
+    if (!horarioValido(horarioEntregaDesde, horarioEntregaHasta) || !horarioValido(horarioRecogidaDesde, horarioRecogidaHasta)) {
+      return res.status(400).json({ error: 'El rango de horario de entrega/recogida no es válido (HH:MM, y el inicio debe ser antes que el fin).' })
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO hospedajes
          (anfitrion_id, tipo, titulo, descripcion, ciudad, barrio, localidad, ubicacion, cobertura_radio_m,
-          precio_noche, precio_dia, convivencia, max_mascotas, servicios, reglas, fotos)
-       VALUES ($1, $2, $3, $4, 'Bogotá', $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15, $16)
+          precio_noche, precio_dia, convivencia, max_mascotas, servicios, reglas, fotos,
+          horario_entrega_desde, horario_entrega_hasta, horario_recogida_desde, horario_recogida_hasta)
+       VALUES ($1, $2, $3, $4, 'Bogotá', $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING id, titulo, tipo, ciudad, localidad, precio_noche, precio_dia`,
       [req.usuario.id, tipo, titulo, descripcion, barrio || null, localidad, Number(lng), Number(lat),
        coberturaRadioM || null, Number(precioNoche), precioDia ? Number(precioDia) : null, convivencia || 'cualquiera',
-       Number(maxMascotas || 1), servicios || [], reglas || [], fotos || []]
+       Number(maxMascotas || 1), servicios || [], reglas || [], fotos || [],
+       horarioEntregaDesde || null, horarioEntregaHasta || null, horarioRecogidaDesde || null, horarioRecogidaHasta || null]
     )
     res.status(201).json({ hospedaje: rows[0] })
   } catch (err) { next(err) }
@@ -446,10 +462,23 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     }
 
     const { titulo, tipo, descripcion, localidad, barrio, lat, lng, coberturaRadioM,
-            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos, activo } = req.body || {}
+            precioNoche, precioDia, convivencia, maxMascotas, servicios, reglas, fotos, activo,
+            horarioEntregaDesde, horarioEntregaHasta, horarioRecogidaDesde, horarioRecogidaHasta } = req.body || {}
 
     if (localidad !== undefined && !LOCALIDADES_BOGOTA.includes(localidad)) {
       return res.status(400).json({ error: 'localidad debe ser una de las 20 localidades de Bogotá.' })
+    }
+    // Solo se valida el par si vino AL MENOS uno de los dos — mandar solo "desde" sin "hasta"
+    // (o viceversa) no tiene forma de interpretarse como rango válido.
+    if (horarioEntregaDesde !== undefined || horarioEntregaHasta !== undefined) {
+      if (!horarioValido(horarioEntregaDesde, horarioEntregaHasta)) {
+        return res.status(400).json({ error: 'El rango de horario de entrega no es válido (HH:MM, y el inicio debe ser antes que el fin).' })
+      }
+    }
+    if (horarioRecogidaDesde !== undefined || horarioRecogidaHasta !== undefined) {
+      if (!horarioValido(horarioRecogidaDesde, horarioRecogidaHasta)) {
+        return res.status(400).json({ error: 'El rango de horario de recogida no es válido (HH:MM, y el inicio debe ser antes que el fin).' })
+      }
     }
 
     const campos = []
@@ -469,6 +498,12 @@ r.patch('/:id', auth, soloAnfitrion, async (req, res, next) => {
     if (servicios !== undefined) set('servicios', servicios || [])
     if (reglas !== undefined) set('reglas', reglas || [])
     if (fotos !== undefined) set('fotos', fotos || [])
+    // `|| null` en las cuatro: mandar una cadena vacía es la forma de QUITAR el rango (volver
+    // a "sin restricción", igual que `precioDia` para desactivar la opción de un solo día).
+    if (horarioEntregaDesde !== undefined) set('horario_entrega_desde', horarioEntregaDesde || null)
+    if (horarioEntregaHasta !== undefined) set('horario_entrega_hasta', horarioEntregaHasta || null)
+    if (horarioRecogidaDesde !== undefined) set('horario_recogida_desde', horarioRecogidaDesde || null)
+    if (horarioRecogidaHasta !== undefined) set('horario_recogida_hasta', horarioRecogidaHasta || null)
     // Pausar/reactivar (ver "Pausar hospedaje" en el cliente): un hospedaje pausado
     // (activo = FALSE) no aparece en Buscar ni en el mapa, pero no se borra — el anfitrión
     // conserva su historial de reservas y reseñas, y puede reactivarlo cuando quiera.

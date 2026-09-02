@@ -106,6 +106,23 @@ public enum PHDate {
         return raw
     }
 
+    /// Lista de horas "HH:mm" cada `pasoMinutos` entre `desde` y `hasta` (ambos incluidos) —
+    /// las opciones concretas que el huésped puede tocar para elegir hora de entrega/recogida
+    /// (ver `NuevaReservaViewModel`), en vez de una rueda de reloj libre: más rápido de usar,
+    /// y ya viene acotado al rango que el anfitrión configuró para su hospedaje (ver
+    /// db/37-horarios-hospedaje.sql). `[]` si `desde`/`hasta` no son horas válidas.
+    public static func horasEnRango(desde: String, hasta: String, pasoMinutos: Int = 30) -> [String] {
+        guard let inicio = apiTimeOnly.date(from: desde), let fin = apiTimeOnly.date(from: hasta) else { return [] }
+        var opciones: [String] = []
+        var cursor = inicio
+        while cursor <= fin {
+            opciones.append(toAPITimeOnly(cursor))
+            guard let siguiente = Calendar.current.date(byAdding: .minute, value: pasoMinutos, to: cursor) else { break }
+            cursor = siguiente
+        }
+        return opciones
+    }
+
     /// Formatea un string `YYYY-MM-DD` recibido de la API a texto legible en español.
     ///
     /// Respaldo con `parseTimestamp`: por un bug real ya corregido en el servidor (columnas

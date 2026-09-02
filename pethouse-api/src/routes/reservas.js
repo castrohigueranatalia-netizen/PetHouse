@@ -82,7 +82,10 @@ r.post('/', auth, async (req, res, next) => {
 
     // Bloquea la fila del hospedaje para evitar carreras de reserva
     const { rows: hs } = await client.query(
-      'SELECT id, titulo, anfitrion_id, precio_noche, precio_dia, max_mascotas, convivencia, activo FROM hospedajes WHERE id = $1 FOR UPDATE',
+      `SELECT id, titulo, anfitrion_id, precio_noche, precio_dia, max_mascotas, convivencia, activo,
+              horario_entrega_desde::text, horario_entrega_hasta::text,
+              horario_recogida_desde::text, horario_recogida_hasta::text
+         FROM hospedajes WHERE id = $1 FOR UPDATE`,
       [hospedaje_id]
     )
     if (!hs.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Hospedaje no encontrado.' }) }
@@ -96,6 +99,29 @@ r.post('/', auth, async (req, res, next) => {
     if (mismoDia && h.precio_dia == null) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Este hospedaje no ofrece reservas de un solo día.' })
+    }
+    // Si el anfitrión definió un rango de horas para entrega/recogida (ver
+    // db/37-horarios-hospedaje.sql), la hora elegida tiene que caer ahí — validado también
+    // en el cliente (ver NuevaReservaViewModel), pero esto es lo que de verdad lo impide: la
+    // API pública se puede llamar directo sin pasar por la app. `TIME` viene como "HH:MM:SS"
+    // (ver `::text` arriba); se compara agregándole ":00" a la hora del cliente (ya validada
+    // como "HH:MM" por `horaValida`), en vez de recortar segundos en la consulta.
+    const dentroDeRango = (hora, desde, hasta) => {
+      if (!desde || !hasta) return true
+      const conSegundos = `${hora}:00`
+      return conSegundos >= desde && conSegundos <= hasta
+    }
+    if (!dentroDeRango(hora_entrega, h.horario_entrega_desde, h.horario_entrega_hasta)) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({
+        error: `Este hospedaje solo recibe mascotas entre ${h.horario_entrega_desde.slice(0, 5)} y ${h.horario_entrega_hasta.slice(0, 5)}.`
+      })
+    }
+    if (!dentroDeRango(hora_recogida, h.horario_recogida_desde, h.horario_recogida_hasta)) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({
+        error: `Este hospedaje solo entrega mascotas de vuelta entre ${h.horario_recogida_desde.slice(0, 5)} y ${h.horario_recogida_hasta.slice(0, 5)}.`
+      })
     }
 
     // `hastaReal` es SIEMPRE `desde + 1` para una reserva de un solo día — internamente

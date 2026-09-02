@@ -76,6 +76,14 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     public let precioDia: Double?
     public let rating: Double
 
+    /// Rango de horas en que el anfitrión acepta la entrega/recogida de la mascota (`HH:mm:ss`,
+    /// ver db/37-horarios-hospedaje.sql) — `nil` cuando no lo configuró, en cuyo caso
+    /// `NuevaReservaViewModel` usa un rango por defecto en vez de dejar cualquier hora del día.
+    public let horarioEntregaDesde: String?
+    public let horarioEntregaHasta: String?
+    public let horarioRecogidaDesde: String?
+    public let horarioRecogidaHasta: String?
+
     // Presente en listado y detalle, AUSENTE en /cerca.
     public let convivencia: Convivencia?
     public let maxMascotas: Int?
@@ -104,6 +112,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         case id, titulo, tipo, ciudad, barrio, localidad, convivencia, servicios, fotos, reglas, activo, lat, lng
         case precioNoche = "precio_noche"
         case precioDia = "precio_dia"
+        case horarioEntregaDesde = "horario_entrega_desde"
+        case horarioEntregaHasta = "horario_entrega_hasta"
+        case horarioRecogidaDesde = "horario_recogida_desde"
+        case horarioRecogidaHasta = "horario_recogida_hasta"
         case rating
         case maxMascotas = "max_mascotas"
         case numResenas = "num_resenas"
@@ -126,7 +138,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
     public init(
         id: String, titulo: String, tipo: TipoHospedaje, ciudad: String, barrio: String? = nil,
         localidad: String? = nil,
-        precioNoche: Double, precioDia: Double? = nil, rating: Double = 0, convivencia: Convivencia? = nil, maxMascotas: Int? = nil,
+        precioNoche: Double, precioDia: Double? = nil,
+        horarioEntregaDesde: String? = nil, horarioEntregaHasta: String? = nil,
+        horarioRecogidaDesde: String? = nil, horarioRecogidaHasta: String? = nil,
+        rating: Double = 0, convivencia: Convivencia? = nil, maxMascotas: Int? = nil,
         numResenas: Int? = nil, destacado: Bool? = nil, servicios: [String]? = nil, fotos: [String]? = nil,
         lat: Double? = nil, lng: Double? = nil, anfitrionNombre: String? = nil, anfitrionVerificado: Bool? = nil,
         distanciaM: Double? = nil, descripcion: String? = nil, direccion: String? = nil, reglas: [String]? = nil,
@@ -140,6 +155,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         self.localidad = localidad
         self.precioNoche = precioNoche
         self.precioDia = precioDia
+        self.horarioEntregaDesde = horarioEntregaDesde
+        self.horarioEntregaHasta = horarioEntregaHasta
+        self.horarioRecogidaDesde = horarioRecogidaDesde
+        self.horarioRecogidaHasta = horarioRecogidaHasta
         self.rating = rating
         self.convivencia = convivencia
         self.maxMascotas = maxMascotas
@@ -171,6 +190,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         localidad = try c.decodeIfPresent(String.self, forKey: .localidad)
         precioNoche = try c.decodeFlexibleDouble(forKey: .precioNoche)
         precioDia = try c.decodeFlexibleDoubleIfPresent(forKey: .precioDia)
+        horarioEntregaDesde = try c.decodeIfPresent(String.self, forKey: .horarioEntregaDesde)
+        horarioEntregaHasta = try c.decodeIfPresent(String.self, forKey: .horarioEntregaHasta)
+        horarioRecogidaDesde = try c.decodeIfPresent(String.self, forKey: .horarioRecogidaDesde)
+        horarioRecogidaHasta = try c.decodeIfPresent(String.self, forKey: .horarioRecogidaHasta)
         rating = try c.decodeFlexibleDoubleIfPresent(forKey: .rating) ?? 0
 
         convivencia = try c.decodeIfPresent(Convivencia.self, forKey: .convivencia)
@@ -205,6 +228,10 @@ public struct Hospedaje: Codable, Identifiable, Hashable {
         try c.encodeIfPresent(localidad, forKey: .localidad)
         try c.encode(precioNoche, forKey: .precioNoche)
         try c.encodeIfPresent(precioDia, forKey: .precioDia)
+        try c.encodeIfPresent(horarioEntregaDesde, forKey: .horarioEntregaDesde)
+        try c.encodeIfPresent(horarioEntregaHasta, forKey: .horarioEntregaHasta)
+        try c.encodeIfPresent(horarioRecogidaDesde, forKey: .horarioRecogidaDesde)
+        try c.encodeIfPresent(horarioRecogidaHasta, forKey: .horarioRecogidaHasta)
         try c.encode(rating, forKey: .rating)
         try c.encodeIfPresent(convivencia, forKey: .convivencia)
         try c.encodeIfPresent(maxMascotas, forKey: .maxMascotas)
@@ -264,6 +291,13 @@ public struct CrearHospedajeRequest: Encodable {
     /// Opcional — sin ella, este hospedaje no ofrece reservas de un solo día (ver
     /// db/35-reserva-mismo-dia.sql).
     public let precioDia: Double?
+    /// Rango "HH:MM" en que este hospedaje acepta entrega/recogida — opcionales, sin ellos el
+    /// huésped puede elegir cualquier hora (ver `NuevaReservaViewModel` y
+    /// db/37-horarios-hospedaje.sql).
+    public let horarioEntregaDesde: String?
+    public let horarioEntregaHasta: String?
+    public let horarioRecogidaDesde: String?
+    public let horarioRecogidaHasta: String?
     public let convivencia: Convivencia
     public let maxMascotas: Int
     public let servicios: [String]
@@ -275,6 +309,8 @@ public struct CrearHospedajeRequest: Encodable {
     public init(
         titulo: String, tipo: TipoHospedaje, descripcion: String, localidad: String, barrio: String?,
         lat: Double, lng: Double, coberturaRadioM: Int?, precioNoche: Double, precioDia: Double? = nil,
+        horarioEntregaDesde: String? = nil, horarioEntregaHasta: String? = nil,
+        horarioRecogidaDesde: String? = nil, horarioRecogidaHasta: String? = nil,
         convivencia: Convivencia,
         maxMascotas: Int, servicios: [String], reglas: [String], fotos: [String]
     ) {
@@ -288,6 +324,10 @@ public struct CrearHospedajeRequest: Encodable {
         self.coberturaRadioM = coberturaRadioM
         self.precioNoche = precioNoche
         self.precioDia = precioDia
+        self.horarioEntregaDesde = horarioEntregaDesde
+        self.horarioEntregaHasta = horarioEntregaHasta
+        self.horarioRecogidaDesde = horarioRecogidaDesde
+        self.horarioRecogidaHasta = horarioRecogidaHasta
         self.convivencia = convivencia
         self.maxMascotas = maxMascotas
         self.servicios = servicios
