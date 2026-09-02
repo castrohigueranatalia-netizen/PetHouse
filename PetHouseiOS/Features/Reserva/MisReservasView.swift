@@ -175,6 +175,14 @@ struct MisReservasView: View {
                             }
                         }
 
+                        if let horaEntrega = reserva.horaEntrega, let horaRecogida = reserva.horaRecogida {
+                            Label(
+                                "Entrega \(PHDate.displayFromAPITimeOnly(horaEntrega)) · Recogida \(PHDate.displayFromAPITimeOnly(horaRecogida))",
+                                systemImage: "clock"
+                            )
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                        }
+
                         Text("Código \(reserva.codigo)")
                             .phText(PHFont.micro, color: PHColor.mutedSoft)
                     }

@@ -49,17 +49,29 @@ async function filaConDetalleAnfitrion(id) {
 r.post('/', auth, async (req, res, next) => {
   const client = await pool.connect()
   try {
-    const { hospedaje_id, desde, hasta, mascota_ids } = req.body || {}
+    const { hospedaje_id, desde, hasta, hora_entrega, hora_recogida, mascota_ids } = req.body || {}
     if (!hospedaje_id || !desde || !hasta) {
       return res.status(400).json({ error: 'Faltan hospedaje_id, desde o hasta.' })
     }
     if (!Array.isArray(mascota_ids) || !mascota_ids.length) {
       return res.status(400).json({ error: 'Selecciona al menos una mascota.' })
     }
+    // El anfitrión necesita saber a qué hora esperar al huésped, no solo qué días — sin
+    // esto no tenía forma de planear si debía estar ahí a las 7am o a las 7pm.
+    const horaValida = (h) => typeof h === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(h)
+    if (!horaValida(hora_entrega) || !horaValida(hora_recogida)) {
+      return res.status(400).json({ error: 'Indica a qué hora llevas y a qué hora recoges a tu mascota (HH:MM).' })
+    }
     // `hasta === desde` es una reserva de UN SOLO DÍA (entrega y recogida el mismo día, ver
     // db/35-reserva-mismo-dia.sql) — ya no es un error, solo lo es `hasta` ANTES de `desde`.
     if (hasta < desde) return res.status(400).json({ error: 'La fecha de salida debe ser posterior o igual a la llegada.' })
     const mismoDia = hasta === desde
+    // Mismo día: las dos horas caen en la misma fecha, así que si la de recogida no es
+    // después de la de entrega, no tiene sentido (un rango "por noches" no se compara así —
+    // la entrega y la recogida son de días distintos).
+    if (mismoDia && hora_recogida <= hora_entrega) {
+      return res.status(400).json({ error: 'La hora de recogida debe ser posterior a la de entrega.' })
+    }
     // Comparación de texto (YYYY-MM-DD), no de objetos Date — ver el comentario de
     // hoyBogota() sobre por qué mezclar Date/UTC/local acá era un bug real.
     if (desde < hoyBogota()) {
@@ -166,10 +178,11 @@ r.post('/', auth, async (req, res, next) => {
     // también las reservas de un solo día sin ningún cambio en esa restricción.
     const { rows } = await client.query(
       `INSERT INTO reservas
-         (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, notificado_anfitrion)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
-       RETURNING id, codigo, desde::text, hasta::text, noches, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, total, estado, creado_en`,
-      [req.usuario.id, hospedaje_id, desde, hastaReal, mascotas, h.precio_noche, mismoDia, mismoDia ? h.precio_dia : null, limpieza, servicio]
+         (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, hora_entrega, hora_recogida, notificado_anfitrion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, FALSE)
+       RETURNING id, codigo, desde::text, hasta::text, noches, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio,
+                 hora_entrega::text, hora_recogida::text, total, estado, creado_en`,
+      [req.usuario.id, hospedaje_id, desde, hastaReal, mascotas, h.precio_noche, mismoDia, mismoDia ? h.precio_dia : null, limpieza, servicio, hora_entrega, hora_recogida]
     )
 
     await client.query(
@@ -219,6 +232,7 @@ r.get('/mias', auth, async (req, res, next) => {
       // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
       `SELECT rs.id, rs.codigo, rs.desde::text, rs.hasta::text, rs.noches, rs.mismo_dia, rs.mascotas, rs.total, rs.estado,
+              rs.hora_entrega::text, rs.hora_recogida::text,
               rs.hospedaje_id, h.anfitrion_id,
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
               ${MASCOTAS_DETALLE_SQL}

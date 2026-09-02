@@ -208,6 +208,16 @@ struct ReservasRecibidasView: View {
                 .phText(PHFont.captionSM, color: PHColor.body)
             }
 
+            // A qué hora esperar al huésped — antes solo se sabían las fechas, no la hora
+            // (ver db/36-horarios-entrega.sql).
+            if let horaEntrega = reserva.horaEntrega, let horaRecogida = reserva.horaRecogida {
+                Label(
+                    "Entrega \(PHDate.displayFromAPITimeOnly(horaEntrega)) · Recogida \(PHDate.displayFromAPITimeOnly(horaRecogida))",
+                    systemImage: "clock"
+                )
+                .phText(PHFont.captionSM, color: PHColor.body)
+            }
+
             if let mascotas = reserva.mascotasDetalle, !mascotas.isEmpty {
                 seccionMascotas(mascotas)
             }

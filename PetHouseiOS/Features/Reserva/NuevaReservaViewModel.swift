@@ -43,6 +43,12 @@ public final class NuevaReservaViewModel {
             }
         }
     }
+    /// A qué hora el huésped lleva/recoge a la mascota — el anfitrión lo necesita para saber
+    /// cuándo esperarlo, no solo qué días (ver db/36-horarios-entrega.sql). Con "por noches"
+    /// son horas de días DISTINTOS (llegada vs. salida); con "mismo día" caen el mismo día,
+    /// así que `horasValidas` exige que la recogida sea después de la entrega.
+    public var horaEntrega: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: .now) ?? .now
+    public var horaRecogida: Date = Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: .now) ?? .now
     public var mascotaIdsSeleccionadas: Set<String> = []
 
     public private(set) var isLoading = false
@@ -128,6 +134,14 @@ public final class NuevaReservaViewModel {
         mismoDia ? true : noches > 0
     }
 
+    /// Con "mismo día" las dos horas caen en el mismo día calendario — la de recogida debe
+    /// ser posterior a la de entrega. Con "por noches" son horas de días distintos, así que
+    /// no tiene sentido compararlas (misma regla que valida el servidor, ver reservas.js).
+    public var horasValidas: Bool {
+        guard mismoDia else { return true }
+        return PHDate.toAPITimeOnly(horaRecogida) > PHDate.toAPITimeOnly(horaEntrega)
+    }
+
     public func alternar(_ mascota: Mascota) {
         guard mascota.fichaCompleta else { return }
         if mascotaIdsSeleccionadas.contains(mascota.id) {
@@ -158,6 +172,7 @@ public final class NuevaReservaViewModel {
 
     public var puedeReservar: Bool {
         fechasValidas
+            && horasValidas
             && !rangoOcupado
             && !mascotaIdsSeleccionadas.isEmpty
             && mascotaIdsSeleccionadas.count <= maxMascotas
@@ -183,6 +198,8 @@ public final class NuevaReservaViewModel {
                 // acá, no desde el binding de `hasta`, para no depender de que
                 // PHSelectorRangoFechas lo haya dejado sincronizado.
                 hasta: mismoDia ? PHDate.toAPIDateOnly(desde) : PHDate.toAPIDateOnly(hasta),
+                horaEntrega: PHDate.toAPITimeOnly(horaEntrega),
+                horaRecogida: PHDate.toAPITimeOnly(horaRecogida),
                 mascotaIds: Array(mascotaIdsSeleccionadas)
             )
             reservaConfirmada = respuesta

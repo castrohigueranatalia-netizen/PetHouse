@@ -75,6 +75,8 @@ struct NuevaReservaView: View {
                         .phText(PHFont.captionSM, color: PHColor.error)
                 }
 
+                seccionHorarios
+
                 seccionMascotas
 
                 Divider()
@@ -114,6 +116,37 @@ struct NuevaReservaView: View {
                 .disabled(!viewModel.puedeReservar)
             }
             .padding(PHSpacing.s16)
+        }
+    }
+
+    /// El anfitrión necesita saber a qué hora esperar al huésped, no solo qué días — antes
+    /// solo se pedían las fechas (ver db/36-horarios-entrega.sql). Aplica tanto a "por
+    /// noches" (entrega el día de llegada, recogida el día de salida — días DISTINTOS, así
+    /// que no se comparan entre sí) como a "mismo día" (las dos caen el mismo día, ver
+    /// `NuevaReservaViewModel.horasValidas`).
+    private var seccionHorarios: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text("¿A qué hora?")
+                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+            HStack(spacing: PHSpacing.s24) {
+                VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                    Text(viewModel.mismoDia ? "La llevas" : "Llegas ese día")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                    DatePicker("", selection: $viewModel.horaEntrega, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+                VStack(alignment: .leading, spacing: PHSpacing.s4) {
+                    Text(viewModel.mismoDia ? "La recoges" : "La recoges ese día")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                    DatePicker("", selection: $viewModel.horaRecogida, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+                Spacer()
+            }
+            if !viewModel.horasValidas {
+                Text("La hora de recogida debe ser posterior a la de entrega.")
+                    .phText(PHFont.captionSM, color: PHColor.error)
+            }
         }
     }
 

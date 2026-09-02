@@ -129,6 +129,12 @@ struct ReservaDetailView: View {
             } else if let noches = viewModel.reserva.noches {
                 filaDato("Noches", "\(noches)")
             }
+            if let horaEntrega = viewModel.reserva.horaEntrega {
+                filaDato("Hora de entrega", PHDate.displayFromAPITimeOnly(horaEntrega))
+            }
+            if let horaRecogida = viewModel.reserva.horaRecogida {
+                filaDato("Hora de recogida", PHDate.displayFromAPITimeOnly(horaRecogida))
+            }
             if let mascotas = viewModel.reserva.mascotas {
                 filaDato("Mascotas", "\(mascotas)")
             }

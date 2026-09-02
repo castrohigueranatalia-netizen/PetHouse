@@ -69,6 +69,43 @@ public enum PHDate {
         apiDateOnly.string(from: date)
     }
 
+    /// `HH:mm`, sin segundos — el formato que espera la API para `hora_entrega`/
+    /// `hora_recogida` de una reserva (ver db/36-horarios-entrega.sql). Zona horaria LOCAL,
+    /// igual que `apiDateOnly`: es la hora del reloj que el huésped elige, no un instante UTC.
+    public static let apiTimeOnly: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .iso8601)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    /// Formato legible de hora en español, ej. "8:30 a. m.".
+    public static let displayTime: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
+    /// Convierte un `Date` (solo se usa su componente de hora) al `HH:mm` que espera la API.
+    public static func toAPITimeOnly(_ date: Date) -> String {
+        apiTimeOnly.string(from: date)
+    }
+
+    /// Formatea una hora de la API (`HH:mm` o `HH:mm:ss` — Postgres `TIME` devuelve con
+    /// segundos) a texto legible en español, ej. "8:30 a. m.".
+    public static func displayFromAPITimeOnly(_ raw: String) -> String {
+        if let date = apiTimeOnly.date(from: raw) { return displayTime.string(from: date) }
+        // Con segundos ("HH:mm:ss"): se recorta a "HH:mm" en vez de mantener un segundo
+        // formateador aparte solo para esto.
+        if raw.count >= 5, let date = apiTimeOnly.date(from: String(raw.prefix(5))) {
+            return displayTime.string(from: date)
+        }
+        return raw
+    }
+
     /// Formatea un string `YYYY-MM-DD` recibido de la API a texto legible en español.
     ///
     /// Respaldo con `parseTimestamp`: por un bug real ya corregido en el servidor (columnas

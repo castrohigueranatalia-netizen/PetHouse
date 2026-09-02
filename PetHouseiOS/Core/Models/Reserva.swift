@@ -48,6 +48,12 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public let mascotas: Int?
     public let total: Double?
 
+    /// A qué hora el huésped lleva/recoge a la mascota (`HH:mm:ss`, ver
+    /// db/36-horarios-entrega.sql) — `nil` en reservas creadas antes de este campo, nunca en
+    /// una nueva (`POST /api/reservas` las exige, ver `NuevaReservaViewModel`).
+    public let horaEntrega: String?
+    public let horaRecogida: String?
+
     public let precioNoche: Double?
     /// `true` cuando esta reserva es de UN SOLO DÍA (entrega y recogida el mismo día, sin
     /// pasar la noche) — cambia cómo se muestra la duración ("mismo día" en vez de "N
@@ -95,6 +101,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, codigo, estado, desde, hasta, noches, mascotas, total
+        case horaEntrega = "hora_entrega"
+        case horaRecogida = "hora_recogida"
         case precioNoche = "precio_noche"
         case mismoDia = "mismo_dia"
         case precioDia = "precio_dia"
@@ -119,7 +127,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     /// sin pasar por JSON. Ver `ReservaCache.comoReserva`.
     public init(
         id: String, codigo: String, estado: EstadoReserva, desde: String?, hasta: String?,
-        noches: Int?, mascotas: Int?, total: Double?, precioNoche: Double?,
+        noches: Int?, mascotas: Int?, total: Double?, horaEntrega: String? = nil,
+        horaRecogida: String? = nil, precioNoche: Double?,
         mismoDia: Bool? = nil, precioDia: Double? = nil, limpieza: Double?,
         servicio: Double?, comisionPorcentaje: Double? = nil, comisionMonto: Double? = nil,
         montoAnfitrion: Double? = nil, creadoEn: String?, usuarioId: String?, hospedajeId: String?,
@@ -136,6 +145,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.noches = noches
         self.mascotas = mascotas
         self.total = total
+        self.horaEntrega = horaEntrega
+        self.horaRecogida = horaRecogida
         self.precioNoche = precioNoche
         self.mismoDia = mismoDia
         self.precioDia = precioDia
@@ -169,6 +180,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         noches = try c.decodeIfPresent(Int.self, forKey: .noches)
         mascotas = try c.decodeIfPresent(Int.self, forKey: .mascotas)
         total = try c.decodeFlexibleDoubleIfPresent(forKey: .total)
+        horaEntrega = try c.decodeIfPresent(String.self, forKey: .horaEntrega)
+        horaRecogida = try c.decodeIfPresent(String.self, forKey: .horaRecogida)
         precioNoche = try c.decodeFlexibleDoubleIfPresent(forKey: .precioNoche)
         mismoDia = try c.decodeIfPresent(Bool.self, forKey: .mismoDia)
         precioDia = try c.decodeFlexibleDoubleIfPresent(forKey: .precioDia)
@@ -201,18 +214,26 @@ public struct CrearReservaRequest: Encodable {
     public let hospedajeId: String
     public let desde: String
     public let hasta: String
+    /// `HH:mm` — a qué hora el huésped lleva/recoge a la mascota (ver
+    /// db/36-horarios-entrega.sql). El servidor las exige, no son opcionales.
+    public let horaEntrega: String
+    public let horaRecogida: String
     public let mascotaIds: [String]
 
     enum CodingKeys: String, CodingKey {
         case hospedajeId = "hospedaje_id"
         case desde, hasta
+        case horaEntrega = "hora_entrega"
+        case horaRecogida = "hora_recogida"
         case mascotaIds = "mascota_ids"
     }
 
-    public init(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) {
+    public init(hospedajeId: String, desde: String, hasta: String, horaEntrega: String, horaRecogida: String, mascotaIds: [String]) {
         self.hospedajeId = hospedajeId
         self.desde = desde
         self.hasta = hasta
+        self.horaEntrega = horaEntrega
+        self.horaRecogida = horaRecogida
         self.mascotaIds = mascotaIds
     }
 }

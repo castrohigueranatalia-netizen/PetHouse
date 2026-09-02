@@ -19,7 +19,7 @@
 import Foundation
 
 public protocol ReservasServicing: Sendable {
-    func crear(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) async throws -> CrearReservaResponse
+    func crear(hospedajeId: String, desde: String, hasta: String, horaEntrega: String, horaRecogida: String, mascotaIds: [String]) async throws -> CrearReservaResponse
     func mias() async throws -> MisReservasResponse
     func detalle(id: String) async throws -> ReservaDetailResponse
     func cancelar(id: String) async throws -> CancelarReservaResponse
@@ -41,8 +41,8 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
         self.client = client
     }
 
-    public func crear(hospedajeId: String, desde: String, hasta: String, mascotaIds: [String]) async throws -> CrearReservaResponse {
-        let payload = CrearReservaRequest(hospedajeId: hospedajeId, desde: desde, hasta: hasta, mascotaIds: mascotaIds)
+    public func crear(hospedajeId: String, desde: String, hasta: String, horaEntrega: String, horaRecogida: String, mascotaIds: [String]) async throws -> CrearReservaResponse {
+        let payload = CrearReservaRequest(hospedajeId: hospedajeId, desde: desde, hasta: hasta, horaEntrega: horaEntrega, horaRecogida: horaRecogida, mascotaIds: mascotaIds)
         let data = try JSONEncoder().encode(payload)
         let request = APIRequest(method: "POST", path: "/reservas", body: data, requiresAuth: true)
         return try await client.send(request)
