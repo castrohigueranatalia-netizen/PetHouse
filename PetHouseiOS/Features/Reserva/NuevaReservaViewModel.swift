@@ -82,6 +82,22 @@ public final class NuevaReservaViewModel {
         diasOcupados.contains(PHDate.toAPIDateOnly(dia))
     }
 
+    /// `true` si el rango elegido ahora mismo pisa un día ya ocupado — normalmente
+    /// `PHSelectorRangoFechas` ya no deja tocar esos días, pero si `diasOcupados` se acaba de
+    /// actualizar (ver `confirmar()`, tras un 409 real) la selección vieja puede haber
+    /// quedado sobre una fecha que recién se supo ocupada. Bloquea "Enviar solicitud" hasta
+    /// que se elija otra fecha, en vez de dejar reintentar el mismo conflicto.
+    public var rangoOcupado: Bool {
+        var cursor = desde
+        let fin = mismoDia ? (Calendar.current.date(byAdding: .day, value: 1, to: desde) ?? desde) : hasta
+        while cursor < fin {
+            if diaOcupado(cursor) { return true }
+            guard let siguiente = Calendar.current.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = siguiente
+        }
+        return false
+    }
+
     /// Se llama al volver de completar la ficha de una mascota (ver NuevaReservaView) —
     /// `mascotasDisponibles` es un snapshot tomado al abrir esta pantalla, no una referencia
     /// viva a `SessionStore.mascotas`, así que hay que refrescarlo a mano.
@@ -142,6 +158,7 @@ public final class NuevaReservaViewModel {
 
     public var puedeReservar: Bool {
         fechasValidas
+            && !rangoOcupado
             && !mascotaIdsSeleccionadas.isEmpty
             && mascotaIdsSeleccionadas.count <= maxMascotas
             // Defensivo: `alternar(_:)` ya no deja seleccionar una mascota incompleta, pero
@@ -171,6 +188,13 @@ public final class NuevaReservaViewModel {
             reservaConfirmada = respuesta
         } catch let appError as AppError {
             error = appError
+            // 409 = alguien más ganó la carrera por estas fechas justo entre que se abrió el
+            // calendario y se confirmó (ver EXCLUDE en db/11-reservas-pendientes-mascotas.sql)
+            // — se refresca `diasOcupados` de una vez para que el día quede gris y
+            // `puedeReservar` bloqueado, en vez de dejar reintentar el mismo conflicto.
+            if case .servidor(409, _) = appError {
+                await cargarDisponibilidad()
+            }
         } catch {
             self.error = .desconocido(error.localizedDescription)
         }

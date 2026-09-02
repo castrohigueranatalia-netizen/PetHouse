@@ -30,7 +30,12 @@ const r = Router()
 // así el cliente puede reemplazarla en su lista sin perder los demás campos.
 async function filaConDetalleAnfitrion(id) {
   const { rows } = await pool.query(
-    `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
+    // `rs.desde::text, rs.hasta::text` DESPUÉS de `rs.*` a propósito: pisan (mismo nombre de
+    // columna, `pg` se queda con el último valor) las versiones DATE crudas de `rs.*`, que si
+    // no se convertían a texto, `pg` las decodificaba como objeto `Date` de JS y `res.json()`
+    // las serializaba como timestamp completo en UTC en vez del "YYYY-MM-DD" que espera el
+    // cliente (ver el mismo arreglo en GET /:id/disponibilidad, hospedajes.js).
+    `SELECT rs.*, rs.desde::text, rs.hasta::text, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre, ${MASCOTAS_DETALLE_SQL}
        FROM reservas rs
        JOIN hospedajes h ON h.id = rs.hospedaje_id
        JOIN usuarios u ON u.id = rs.usuario_id
@@ -163,7 +168,7 @@ r.post('/', auth, async (req, res, next) => {
       `INSERT INTO reservas
          (usuario_id, hospedaje_id, desde, hasta, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, notificado_anfitrion)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
-       RETURNING id, codigo, desde, hasta, noches, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, total, estado, creado_en`,
+       RETURNING id, codigo, desde::text, hasta::text, noches, mascotas, precio_noche, mismo_dia, precio_dia, limpieza, servicio, total, estado, creado_en`,
       [req.usuario.id, hospedaje_id, desde, hastaReal, mascotas, h.precio_noche, mismoDia, mismoDia ? h.precio_dia : null, limpieza, servicio]
     )
 
@@ -213,7 +218,7 @@ r.get('/mias', auth, async (req, res, next) => {
     const { rows } = await pool.query(
       // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
-      `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.noches, rs.mismo_dia, rs.mascotas, rs.total, rs.estado,
+      `SELECT rs.id, rs.codigo, rs.desde::text, rs.hasta::text, rs.noches, rs.mismo_dia, rs.mascotas, rs.total, rs.estado,
               rs.hospedaje_id, h.anfitrion_id,
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
               ${MASCOTAS_DETALLE_SQL}
@@ -231,7 +236,7 @@ r.get('/:id', auth, async (req, res, next) => {
   try {
     await completarReservasVencidas()
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, h.anfitrion_id, ${MASCOTAS_DETALLE_SQL}
+      `SELECT rs.*, rs.desde::text, rs.hasta::text, h.titulo AS hospedaje_titulo, h.anfitrion_id, ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
         WHERE rs.id = $1`,
       [req.params.id]
@@ -352,7 +357,7 @@ r.post('/:id/rechazar', auth, async (req, res, next) => {
 r.get('/notificaciones/resueltas', auth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT rs.id, rs.codigo, rs.desde, rs.hasta, rs.estado, h.titulo AS hospedaje_titulo
+      `SELECT rs.id, rs.codigo, rs.desde::text, rs.hasta::text, rs.estado, h.titulo AS hospedaje_titulo
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
         WHERE rs.usuario_id = $1 AND rs.notificado = FALSE AND rs.estado IN ('confirmada', 'rechazada')
         ORDER BY rs.creado_en ASC`,

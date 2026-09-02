@@ -214,7 +214,7 @@ r.get('/mios/reservas', auth, soloAnfitrion, async (req, res, next) => {
   try {
     await completarReservasVencidas()
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
+      `SELECT rs.*, rs.desde::text, rs.hasta::text, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
               u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
               pg.comision_porcentaje, pg.comision_monto, pg.monto_anfitrion,
               ${MASCOTAS_DETALLE_SQL}
@@ -249,7 +249,7 @@ r.get('/:id/reservas', auth, async (req, res, next) => {
     // antes de aceptar o rechazar; el detalle completo (comentarios) está en
     // GET /api/usuarios/:id/resenas.
     const { rows } = await pool.query(
-      `SELECT rs.*, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
+      `SELECT rs.*, rs.desde::text, rs.hasta::text, h.titulo AS hospedaje_titulo, u.nombre AS usuario_nombre,
               u.rating AS usuario_rating, u.num_resenas AS usuario_num_resenas,
               pg.comision_porcentaje, pg.comision_monto, pg.monto_anfitrion,
               ${MASCOTAS_DETALLE_SQL}
@@ -275,11 +275,17 @@ r.get('/:id/disponibilidad', async (req, res, next) => {
     // Une reservas reales con fechas que el anfitrión bloqueó a mano (ver
     // db/34-fechas-bloqueadas.sql) — el huésped ve ambas igual de "ocupadas", sin
     // distinción (no le importa POR QUÉ una fecha no está disponible).
+    // `desde`/`hasta` van con `::text`: sin el cast, el driver `pg` decodifica una columna
+    // DATE como objeto `Date` de JS (parser por defecto de `pg-types` para el OID 1082), y
+    // `res.json()` lo serializa como timestamp completo en UTC (ej.
+    // "2026-09-06T00:00:00.000Z") en vez del "YYYY-MM-DD" que espera el cliente — con eso,
+    // `PHSelectorRangoFechas.diaOcupado` nunca reconocía esos rangos y dejaba seleccionar
+    // fechas ya ocupadas (el conflicto solo se notaba al confirmar, con un 409 del EXCLUDE).
     const { rows } = await pool.query(
-      `SELECT desde, hasta, estado FROM reservas
+      `SELECT desde::text, hasta::text, estado FROM reservas
         WHERE hospedaje_id = $1 AND estado IN ('confirmada', 'pendiente')
        UNION ALL
-       SELECT desde, hasta, 'bloqueada' AS estado FROM hospedaje_fechas_bloqueadas
+       SELECT desde::text, hasta::text, 'bloqueada' AS estado FROM hospedaje_fechas_bloqueadas
         WHERE hospedaje_id = $1
         ORDER BY desde ASC`,
       [req.params.id]
@@ -299,7 +305,7 @@ r.get('/:id/fechas-bloqueadas', auth, soloAnfitrion, async (req, res, next) => {
       return res.status(403).json({ error: 'No eres el anfitrión de este hospedaje.' })
     }
     const { rows } = await pool.query(
-      `SELECT id, desde, hasta, motivo, creado_en FROM hospedaje_fechas_bloqueadas
+      `SELECT id, desde::text, hasta::text, motivo, creado_en FROM hospedaje_fechas_bloqueadas
         WHERE hospedaje_id = $1 ORDER BY desde ASC`,
       [req.params.id]
     )
@@ -333,7 +339,7 @@ r.post('/:id/fechas-bloqueadas', auth, soloAnfitrion, async (req, res, next) => 
 
     const { rows } = await pool.query(
       `INSERT INTO hospedaje_fechas_bloqueadas (hospedaje_id, desde, hasta, motivo)
-       VALUES ($1, $2, $3, $4) RETURNING id, desde, hasta, motivo, creado_en`,
+       VALUES ($1, $2, $3, $4) RETURNING id, desde::text, hasta::text, motivo, creado_en`,
       [req.params.id, desde, hasta, motivo || null]
     )
     res.status(201).json({ bloqueo: rows[0] })

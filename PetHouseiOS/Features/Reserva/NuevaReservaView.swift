@@ -70,6 +70,9 @@ struct NuevaReservaView: View {
                 if !viewModel.fechasValidas {
                     Text("La fecha de salida debe ser posterior a la de llegada.")
                         .phText(PHFont.captionSM, color: PHColor.error)
+                } else if viewModel.rangoOcupado {
+                    Text("Esas fechas ya no están disponibles — elige otras.")
+                        .phText(PHFont.captionSM, color: PHColor.error)
                 }
 
                 seccionMascotas

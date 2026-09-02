@@ -273,7 +273,7 @@ r.get('/usuarios/:id', async (req, res, next) => {
         [req.params.id]
       ),
       pool.query(
-        `SELECT rs.id, rs.codigo, rs.estado, rs.total, rs.desde, rs.hasta, h.titulo AS hospedaje_titulo
+        `SELECT rs.id, rs.codigo, rs.estado, rs.total, rs.desde::text, rs.hasta::text, h.titulo AS hospedaje_titulo
            FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
           WHERE rs.usuario_id = $1
           ORDER BY rs.creado_en DESC LIMIT 20`,
@@ -405,7 +405,7 @@ r.get('/reservas', async (req, res, next) => {
 
     params.push(porPagina, offset)
     const { rows } = await pool.query(
-      `SELECT rs.id, rs.codigo, rs.estado, rs.desde, rs.hasta, rs.noches, rs.mascotas, rs.total, rs.creado_en,
+      `SELECT rs.id, rs.codigo, rs.estado, rs.desde::text, rs.hasta::text, rs.noches, rs.mascotas, rs.total, rs.creado_en,
               u.id AS usuario_id, u.nombre AS usuario_nombre,
               h.id AS hospedaje_id, h.titulo AS hospedaje_titulo, h.ciudad, h.localidad,
               an.id AS anfitrion_id, an.nombre AS anfitrion_nombre,
