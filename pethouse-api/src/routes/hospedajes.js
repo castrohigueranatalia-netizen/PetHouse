@@ -81,10 +81,21 @@ r.get('/', async (req, res, next) => {
       // chequeo de traslape de abajo compararía un rango vacío y NUNCA detectaría
       // conflicto, dejando pasar hospedajes ya ocupados justo ese día.
       const hastaEfectiva = mismoDiaBusqueda ? `($${pHasta}::date + 1)` : `$${pHasta}::date`
+      // Antes solo miraba `reservas` con `estado = 'confirmada'` — dejaba pasar hospedajes
+      // con una solicitud 'pendiente' que ya ocupa esas fechas (el mismo EXCLUDE que impide
+      // crear dos reservas traslapadas ya las trata como ocupadas, ver
+      // db/11-reservas-pendientes-mascotas.sql) y, sobre todo, ignoraba por completo
+      // `hospedaje_fechas_bloqueadas` (ver db/34-fechas-bloqueadas.sql): un anfitrión podía
+      // bloquear fechas a mano y el hospedaje seguía apareciendo en Buscar para esas mismas
+      // fechas, aunque GET /:id/disponibilidad sí las marcara ocupadas al entrar al detalle.
       condiciones.push(`NOT EXISTS (
         SELECT 1 FROM reservas rr
-         WHERE rr.hospedaje_id = h.id AND rr.estado = 'confirmada'
+         WHERE rr.hospedaje_id = h.id AND rr.estado IN ('confirmada', 'pendiente')
            AND rr.desde < ${hastaEfectiva} AND rr.hasta > $${pDesde})`)
+      condiciones.push(`NOT EXISTS (
+        SELECT 1 FROM hospedaje_fechas_bloqueadas fb
+         WHERE fb.hospedaje_id = h.id
+           AND fb.desde < ${hastaEfectiva} AND fb.hasta > $${pDesde})`)
     }
 
     let seleccion = `
