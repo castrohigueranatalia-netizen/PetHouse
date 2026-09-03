@@ -111,6 +111,7 @@ final class ReservasRecibidasViewModel {
 
 struct ReservasRecibidasView: View {
     let hospedaje: Hospedaje
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = ReservasRecibidasViewModel()
     /// Mascota cuya ficha se está mostrando — ver `FichaMascotaView`. El anfitrión la abre
     /// tocando cualquier mascota de una solicitud para evaluar si puede aceptarla.
@@ -130,6 +131,10 @@ struct ReservasRecibidasView: View {
             .navigationTitle("Reservas recibidas")
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.cargar(hospedajeId: hospedaje.id) }
+            // Sincroniza acá también (no solo al arrancar/loguearse, ver SessionStore) — así
+            // una reserva recién aceptada empieza a recordarse cada 2 horas sin esperar a la
+            // próxima vez que se abra la app desde cero.
+            .task { await session.sincronizarRecordatoriosEstadia() }
             .refreshable { await viewModel.cargar(hospedajeId: hospedaje.id) }
             .navigationDestination(item: Binding(get: { viewModel.conversacion }, set: { _ in })) { conversacion in
                 ChatDetailView(conversacion: conversacion)

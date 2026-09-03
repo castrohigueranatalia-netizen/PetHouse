@@ -143,6 +143,7 @@ public final class SessionStore {
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
             await revisarSolicitudesNuevasAnfitrion()
+            await sincronizarRecordatoriosEstadia()
         } catch AppError.sesionExpirada {
             // El único caso que representa una sesión inválida de verdad: `APIClient` ya
             // intentó el refresh (ver APIClient.performWithRefresh) y también falló. Borrar
@@ -184,6 +185,7 @@ public final class SessionStore {
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
             await revisarSolicitudesNuevasAnfitrion()
+            await sincronizarRecordatoriosEstadia()
         }
     }
 
@@ -204,6 +206,7 @@ public final class SessionStore {
             await revisarResolucionVerificacion()
             await revisarResolucionesReserva()
             await revisarSolicitudesNuevasAnfitrion()
+            await sincronizarRecordatoriosEstadia()
         }
     }
 
@@ -395,6 +398,19 @@ public final class SessionStore {
         guard let primera = solicitudesNuevasAnfitrion.first else { return }
         solicitudesNuevasAnfitrion.removeFirst()
         try? await reservasService.marcarNotificadaAnfitrion(id: primera.id)
+    }
+
+    /// Sincroniza los recordatorios locales de "publica una actualización" (ver
+    /// RecordatoriosEstadia) contra TODAS las reservas del anfitrión — se llama en los
+    /// mismos momentos que el resto de los avisos (arrancar/loguearse/registrarse) y también
+    /// cada vez que se abre "Reservas recibidas" (ver ReservasRecibidasView), para que una
+    /// reserva recién aceptada empiece a recordarse sin esperar al próximo arranque de la
+    /// app. Sale de inmediato si la cuenta no es anfitrión — un huésped normal no tiene
+    /// reservas propias que recordar.
+    public func sincronizarRecordatoriosEstadia() async {
+        guard usuario?.esAnfitrion == true else { return }
+        guard let historial = try? await anfitrionService.historial() else { return }
+        await RecordatoriosEstadia.sincronizar(historial)
     }
 
     // MARK: - Privado
