@@ -508,4 +508,80 @@ r.post('/:id/plan', auth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// ---- Actualizaciones durante la estadía (ver db/38-actualizaciones-reserva.sql) ----
+// El anfitrión publica notas/fotos de cómo va la mascota mientras la reserva está
+// 'confirmada' — el huésped las ve en su detalle de reserva. GET la usan los dos lados
+// (huésped dueño de la reserva, anfitrión dueño del hospedaje); POST solo el anfitrión.
+r.get('/:id/actualizaciones', auth, async (req, res, next) => {
+  try {
+    const { rows: rs } = await pool.query(
+      `SELECT rs.usuario_id, h.anfitrion_id
+         FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
+        WHERE rs.id = $1`,
+      [req.params.id]
+    )
+    if (!rs.length) return res.status(404).json({ error: 'Reserva no encontrada.' })
+    if (rs[0].usuario_id !== req.usuario.id && rs[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta reserva.' })
+    }
+    const { rows } = await pool.query(
+      `SELECT id, reserva_id, notas, fotos, creado_en
+         FROM actualizaciones_reserva WHERE reserva_id = $1 ORDER BY creado_en ASC`,
+      [req.params.id]
+    )
+    res.json({ actualizaciones: rows })
+  } catch (err) { next(err) }
+})
+
+r.post('/:id/actualizaciones', auth, async (req, res, next) => {
+  try {
+    const { notas, fotos } = req.body || {}
+    const notasLimpias = typeof notas === 'string' && notas.trim() ? notas.trim() : null
+    const fotosLimpias = Array.isArray(fotos) ? fotos.filter(Boolean) : []
+    if (!notasLimpias && !fotosLimpias.length) {
+      return res.status(400).json({ error: 'Agrega una nota o al menos una foto.' })
+    }
+
+    const { rows: rs } = await pool.query(
+      `SELECT rs.id, rs.estado, rs.usuario_id, h.anfitrion_id
+         FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
+        WHERE rs.id = $1`,
+      [req.params.id]
+    )
+    if (!rs.length) return res.status(404).json({ error: 'Reserva no encontrada.' })
+    if (rs[0].anfitrion_id !== req.usuario.id) {
+      return res.status(403).json({ error: 'Solo el anfitrión de esta reserva puede publicar actualizaciones.' })
+    }
+    // Solo mientras el huésped ya dejó a la mascota y todavía no la ha recogido — antes de
+    // 'confirmada' no hay nada que actualizar, y después de 'completada'/'cancelada'/
+    // 'rechazada' ya no tiene sentido.
+    if (rs[0].estado !== 'confirmada') {
+      return res.status(400).json({ error: 'Solo se pueden publicar actualizaciones mientras la reserva está confirmada.' })
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO actualizaciones_reserva (reserva_id, autor_id, notas, fotos)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, reserva_id, notas, fotos, creado_en`,
+      [req.params.id, req.usuario.id, notasLimpias, fotosLimpias]
+    )
+
+    await crearNotificacion(pool, {
+      usuarioId: rs[0].usuario_id,
+      tipo: 'actualizacion_reserva',
+      titulo: 'Nueva actualización de tu mascota',
+      mensaje: 'El anfitrión publicó una actualización sobre la estadía de tu mascota.',
+      reservaId: req.params.id
+    })
+    // Sin await a propósito — mismo criterio que el resto de los avisos de este archivo: un
+    // push lento o fallido nunca debe demorar la respuesta de "actualización publicada".
+    enviarPush(rs[0].usuario_id, {
+      titulo: 'Nueva actualización de tu mascota',
+      mensaje: 'El anfitrión publicó una actualización sobre la estadía de tu mascota.'
+    })
+
+    res.status(201).json({ actualizacion: rows[0] })
+  } catch (err) { next(err) }
+})
+
 export default r

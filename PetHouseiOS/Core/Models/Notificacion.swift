@@ -18,6 +18,9 @@ public enum TipoNotificacion: String, Decodable, Hashable {
     case solicitudNueva = "solicitud_nueva"
     case soporteRespondido = "soporte_respondido"
     case privacidadRespondida = "privacidad_respondida"
+    /// El anfitrión publicó una nota/foto durante la estadía (ver
+    /// db/38-actualizaciones-reserva.sql) — la recibe el huésped dueño de la reserva.
+    case actualizacionReserva = "actualizacion_reserva"
 }
 
 public struct Notificacion: Decodable, Identifiable, Hashable {

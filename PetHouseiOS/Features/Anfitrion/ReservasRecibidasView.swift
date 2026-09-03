@@ -121,6 +121,9 @@ struct ReservasRecibidasView: View {
     @State private var reservaParaCalificar: Reserva?
     /// Reserva cuyo huésped se está reportando — ver `ReportarSheet`.
     @State private var reservaParaReportar: Reserva?
+    /// Reserva 'confirmada' para la que se está viendo/agregando actualizaciones de la
+    /// estadía — ver `ActualizacionesReservaView`.
+    @State private var reservaParaActualizar: Reserva?
 
     var body: some View {
         content
@@ -153,6 +156,9 @@ struct ReservasRecibidasView: View {
                     tipo: .usuario,
                     hospedajeId: hospedaje.id
                 )
+            }
+            .sheet(item: $reservaParaActualizar) { reserva in
+                ActualizacionesReservaView(reserva: reserva)
             }
     }
 
@@ -258,6 +264,12 @@ struct ReservasRecibidasView: View {
                     }
                 }
                 .padding(.top, PHSpacing.s4)
+
+                // Solo mientras la mascota está de verdad ahí (ya la dejaron, no la han
+                // recogido) — ver db/38-actualizaciones-reserva.sql.
+                if reserva.estado == .confirmada {
+                    PHTextButton("Publicar actualización") { reservaParaActualizar = reserva }
+                }
 
                 if reserva.estado == .completada {
                     PHTextButton("Calificar huésped") { reservaParaCalificar = reserva }

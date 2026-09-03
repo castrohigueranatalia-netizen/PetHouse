@@ -32,6 +32,13 @@ public protocol ReservasServicing: Sendable {
     func marcarNotificadaAnfitrion(id: String) async throws
     func calificarHuesped(reservaId: String, rating: Int, titulo: String?, texto: String?) async throws -> Resena
     func agregarAlPlan(reservaId: String, actividadId: String, fecha: String?) async throws -> PlanActividad
+    /// GET /api/reservas/:id/actualizaciones — notas/fotos que el anfitrión publicó mientras
+    /// la reserva estaba 'confirmada' (ver db/38-actualizaciones-reserva.sql). La ve tanto el
+    /// huésped dueño de la reserva como el anfitrión dueño del hospedaje.
+    func actualizaciones(reservaId: String) async throws -> [ActualizacionReserva]
+    /// POST /api/reservas/:id/actualizaciones — solo el anfitrión, y solo mientras la
+    /// reserva sigue 'confirmada'. Exige `notas` o `fotos` (al menos uno de los dos).
+    func crearActualizacion(reservaId: String, notas: String?, fotos: [String]) async throws -> ActualizacionReserva
 }
 
 public final class ReservasService: ReservasServicing, @unchecked Sendable {
@@ -127,5 +134,19 @@ public final class ReservasService: ReservasServicing, @unchecked Sendable {
         struct Wrapper: Decodable { let plan: PlanActividad }
         let wrapper: Wrapper = try await client.send(request)
         return wrapper.plan
+    }
+
+    public func actualizaciones(reservaId: String) async throws -> [ActualizacionReserva] {
+        let request = APIRequest(method: "GET", path: "/reservas/\(reservaId)/actualizaciones", requiresAuth: true)
+        let response: ActualizacionesReservaResponse = try await client.send(request)
+        return response.actualizaciones
+    }
+
+    public func crearActualizacion(reservaId: String, notas: String?, fotos: [String]) async throws -> ActualizacionReserva {
+        let payload = CrearActualizacionRequest(notas: notas, fotos: fotos)
+        let data = try JSONEncoder().encode(payload)
+        let request = APIRequest(method: "POST", path: "/reservas/\(reservaId)/actualizaciones", body: data, requiresAuth: true)
+        let response: CrearActualizacionResponse = try await client.send(request)
+        return response.actualizacion
     }
 }

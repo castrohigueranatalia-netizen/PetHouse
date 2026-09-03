@@ -127,13 +127,14 @@ struct NotificacionesView: View {
         case .solicitudNueva: "bell.badge"
         case .soporteRespondido: "bubble.left.and.bubble.right"
         case .privacidadRespondida: "hand.raised"
+        case .actualizacionReserva: "camera"
         }
     }
 
     private func abrir(_ notificacion: Notificacion) {
         Task { await viewModel.marcarLeida(notificacion.id) }
         switch notificacion.tipo {
-        case .reservaResuelta:
+        case .reservaResuelta, .actualizacionReserva:
             guard let reservaId = notificacion.reservaId else { return }
             destino = .reserva(Reserva(
                 id: reservaId, codigo: "", estado: .confirmada, desde: nil, hasta: nil,

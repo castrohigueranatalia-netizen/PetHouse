@@ -40,6 +40,10 @@ struct ReservaDetailView: View {
                     seccionPlan
                 }
 
+                if !viewModel.actualizaciones.isEmpty {
+                    seccionActualizaciones
+                }
+
                 if let error = viewModel.error {
                     Text(error.localizedDescription)
                         .phText(PHFont.bodySM, color: PHColor.error)
@@ -232,6 +236,53 @@ struct ReservaDetailView: View {
                 }
             }
         }
+    }
+
+    /// Notas/fotos que el anfitrión publicó mientras la reserva estaba 'confirmada' — ver
+    /// db/38-actualizaciones-reserva.sql. Más reciente arriba, al contrario que `plan`, para
+    /// que lo último que se supo de la mascota sea lo primero que se vea.
+    private var seccionActualizaciones: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text("Cómo va tu mascota")
+                .phText(PHFont.titleMD, color: PHColor.ink)
+            VStack(spacing: PHSpacing.s12) {
+                ForEach(viewModel.actualizaciones.reversed()) { actualizacion in
+                    filaActualizacion(actualizacion)
+                }
+            }
+        }
+    }
+
+    private func filaActualizacion(_ actualizacion: ActualizacionReserva) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Text(PHDate.displayRelative(actualizacion.creadoEn))
+                .phText(PHFont.captionSM, color: PHColor.muted)
+            if let notas = actualizacion.notas, !notas.isEmpty {
+                Text(notas)
+                    .phText(PHFont.bodySM, color: PHColor.ink)
+            }
+            if !actualizacion.fotos.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: PHSpacing.s8) {
+                        ForEach(Array(actualizacion.fotos.enumerated()), id: \.offset) { indice, foto in
+                            Button {
+                                fotoVisor = FotoVisorItem(urls: actualizacion.fotos, indiceInicial: indice)
+                            } label: {
+                                PHCachedAsyncImage(urlString: MediaURL.resolver(foto), ladoMaximoPt: 400) {
+                                    Rectangle().fill(PHColor.surfaceStrong)
+                                }
+                                .frame(width: 96, height: 96)
+                                .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(PHSpacing.s12)
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
     }
 
     private var botonMensaje: some View {

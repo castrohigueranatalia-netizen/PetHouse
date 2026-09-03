@@ -18,6 +18,10 @@ public final class ReservaDetailViewModel {
     public private(set) var reserva: Reserva
     public private(set) var hospedaje: Hospedaje?
     public private(set) var plan: [PlanActividad] = []
+    /// Notas/fotos que el anfitrión publicó durante la estadía (ver
+    /// db/38-actualizaciones-reserva.sql) — vacío para reservas que nunca llegaron a
+    /// 'confirmada' o donde el anfitrión no publicó nada.
+    public private(set) var actualizaciones: [ActualizacionReserva] = []
     public private(set) var isLoading = false
     public private(set) var error: AppError?
 
@@ -62,6 +66,10 @@ public final class ReservaDetailViewModel {
         if let hospedajeId = reserva.hospedajeId {
             hospedaje = try? await hospedajesService.detalle(id: hospedajeId).hospedaje
         }
+        // También silencioso: la mayoría de las reservas nunca tienen ninguna (pendiente,
+        // rechazada, o el anfitrión no publicó nada) — no vale la pena mostrar un error por
+        // esto si falla, la sección simplemente no aparece (ver ReservaDetailView).
+        actualizaciones = (try? await reservasService.actualizaciones(reservaId: reserva.id)) ?? []
     }
 
     public func limpiarConversacion() {
