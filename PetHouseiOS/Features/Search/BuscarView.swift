@@ -13,6 +13,7 @@ struct BuscarView: View {
     @State private var mostrarFiltros = false
     @State private var mostrarMapa = false
     @State private var mostrarNotificaciones = false
+    @State private var mostrarMisHospedajes = false
     @State private var hospedajeSeleccionado: Hospedaje?
 
     var body: some View {
@@ -41,6 +42,18 @@ struct BuscarView: View {
                     mostrarMapa = true
                 }
             }
+            // Solo para cuentas con la capacidad de anfitrión activa (ver
+            // db/06-verificacion-anfitrion.sql) — acceso rápido a "Mis hospedajes" desde el
+            // inicio, sin tener que entrar a Perfil. NO es una pestaña propia a propósito
+            // (ver el comentario largo en App/RootView.swift sobre el bug de la pestaña
+            // "Más" de iOS con más de 4 pestañas).
+            if session.usuario?.esAnfitrion == true {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "house", accessibilityLabel: "Mis hospedajes") {
+                        mostrarMisHospedajes = true
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 PHCampanaNotificaciones(noLeidas: session.notificacionesNoLeidas) {
                     mostrarNotificaciones = true
@@ -53,6 +66,15 @@ struct BuscarView: View {
         // mecanismo de presentación aparte, sin ese conflicto.
         .fullScreenCover(isPresented: $mostrarNotificaciones) {
             NotificacionesView()
+        }
+        // `.fullScreenCover`, no `.sheet` — mismo motivo que `mostrarNotificaciones` arriba
+        // (ya hay tres `.sheet(isPresented:)` encadenados en esta vista). `MisHospedajesView`
+        // no trae su propio `NavigationStack` (normalmente vive empujada dentro del de
+        // Perfil, ver PerfilView) — acá se le da uno propio, igual que con `MapaView`.
+        .fullScreenCover(isPresented: $mostrarMisHospedajes) {
+            NavigationStack {
+                MisHospedajesView()
+            }
         }
         .sheet(isPresented: $mostrarBuscador) {
             BuscadorSheet(viewModel: viewModel) {
@@ -84,6 +106,11 @@ struct BuscarView: View {
             mostrarBuscador = false
             mostrarFiltros = false
             mostrarMapa = false
+            // El logo dentro de `MisHospedajesView` (ver su propio toolbar) también dispara
+            // esta misma señal — así tocarlo cierra este `fullScreenCover` de una vez, sin
+            // necesitar un botón "Cerrar" aparte que compitiera por el mismo lugar del
+            // toolbar con el logo que esa vista ya trae.
+            mostrarMisHospedajes = false
             session.volverABuscar = false
         }
     }
