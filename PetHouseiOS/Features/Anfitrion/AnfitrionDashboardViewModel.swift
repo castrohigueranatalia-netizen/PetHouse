@@ -11,6 +11,22 @@
 
 import Foundation
 
+/// A dónde lleva tocar una recomendación — cada regla en `recomendaciones` sabe exactamente
+/// qué corrige y elige la acción que va DIRECTO a esa solución, no a una pantalla genérica:
+///  - `.editar`: el dato que falta (fotos, precio de día, descripción, servicios) se llena
+///    en el formulario de publicar/editar — ver `AnfitrionDashboardView`.
+///  - `.verHospedaje`: para "pausado", cuyo botón de reactivar vive en el detalle del
+///    hospedaje (`HospedajeDetailView.barraAnfitrion`), no en el formulario de edición.
+///  - `.verReservasRecibidas`: solicitudes pendientes de UN hospedaje concreto — directo a
+///    aceptar/rechazar, sin pasar por el detalle primero.
+///  - `.publicarHospedaje`: cuando el anfitrión todavía no tiene ningún hospedaje.
+public enum AccionRecomendacion: Hashable {
+    case editar(Hospedaje)
+    case verHospedaje(Hospedaje)
+    case verReservasRecibidas(Hospedaje)
+    case publicarHospedaje
+}
+
 /// Una sugerencia concreta y accionable ("agrega fotos a X"), no una idea genérica — cada
 /// una nace de un chequeo real contra los datos de un hospedaje propio o del historial de
 /// solicitudes. Sin backend de analítica de búsquedas: las reglas usan solo lo que el
@@ -19,6 +35,7 @@ public struct RecomendacionAnfitrion: Identifiable, Hashable {
     public let id = UUID()
     public let icono: String
     public let texto: String
+    public let accion: AccionRecomendacion
 }
 
 @MainActor
@@ -54,6 +71,17 @@ public final class AnfitrionDashboardViewModel {
         }
     }
 
+    /// Se llama tras editar/reactivar un hospedaje desde una de las recomendaciones (ver
+    /// `AnfitrionDashboardView`) — sin esto, la lista de sugerencias seguiría mostrando la
+    /// misma recomendación ya resuelta hasta que se recargue toda la pantalla.
+    public func guardarLocal(_ hospedaje: Hospedaje) {
+        if let indice = hospedajes.firstIndex(where: { $0.id == hospedaje.id }) {
+            hospedajes[indice] = hospedaje
+        } else {
+            hospedajes.insert(hospedaje, at: 0)
+        }
+    }
+
     /// Solo estadías que YA ocurrieron — 'pendiente'/'confirmada' son a futuro (o esperando
     /// respuesta), no algo que el anfitrión ya "hospedó" o "ganó" de verdad todavía.
     private var completadas: [Reserva] {
@@ -73,8 +101,19 @@ public final class AnfitrionDashboardViewModel {
 
     public var totalEstadias: Int { completadas.count }
 
-    public var solicitudesPendientes: Int {
-        historial.filter { $0.estado == .pendiente }.count
+    /// Solicitudes 'pendiente' agrupadas por hospedaje — cada grupo se convierte en UNA
+    /// recomendación tocable que lleva directo a resolver las de ESE hospedaje (ver
+    /// `recomendaciones`), en vez de un aviso genérico sin adónde llevar al tocarlo.
+    private var pendientesPorHospedaje: [(hospedaje: Hospedaje, cantidad: Int)] {
+        var conteo: [String: Int] = [:]
+        for reserva in historial where reserva.estado == .pendiente {
+            guard let hospedajeId = reserva.hospedajeId else { continue }
+            conteo[hospedajeId, default: 0] += 1
+        }
+        return hospedajes.compactMap { hospedaje in
+            guard let cantidad = conteo[hospedaje.id], cantidad > 0 else { return nil }
+            return (hospedaje, cantidad)
+        }
     }
 
     /// Reglas simples, cada una independiente — no hay "la mejor sugerencia", se muestran
@@ -87,46 +126,53 @@ public final class AnfitrionDashboardViewModel {
             if (hospedaje.fotos ?? []).isEmpty {
                 lista.append(RecomendacionAnfitrion(
                     icono: "photo.on.rectangle",
-                    texto: "Agrega fotos a “\(hospedaje.titulo)” — los hospedajes con fotos reciben más reservas."
+                    texto: "Agrega fotos a “\(hospedaje.titulo)” — los hospedajes con fotos reciben más reservas.",
+                    accion: .editar(hospedaje)
                 ))
             }
             if hospedaje.precioDia == nil {
                 lista.append(RecomendacionAnfitrion(
                     icono: "sun.max",
-                    texto: "Ofrece la opción de reservar por un solo día en “\(hospedaje.titulo)” para aparecer en más búsquedas."
+                    texto: "Ofrece la opción de reservar por un solo día en “\(hospedaje.titulo)” para aparecer en más búsquedas.",
+                    accion: .editar(hospedaje)
                 ))
             }
             if (hospedaje.descripcion?.count ?? 0) < 40 {
                 lista.append(RecomendacionAnfitrion(
                     icono: "text.alignleft",
-                    texto: "Cuenta más sobre “\(hospedaje.titulo)” — una descripción más completa genera más confianza."
+                    texto: "Cuenta más sobre “\(hospedaje.titulo)” — una descripción más completa genera más confianza.",
+                    accion: .editar(hospedaje)
                 ))
             }
             if (hospedaje.servicios ?? []).isEmpty {
                 lista.append(RecomendacionAnfitrion(
                     icono: "checklist",
-                    texto: "Agrega los servicios que ofreces en “\(hospedaje.titulo)” (paseos, alimentación, monitoreo…)."
+                    texto: "Agrega los servicios que ofreces en “\(hospedaje.titulo)” (paseos, alimentación, monitoreo…).",
+                    accion: .editar(hospedaje)
                 ))
             }
             if hospedaje.activo == false {
                 lista.append(RecomendacionAnfitrion(
                     icono: "pause.circle",
-                    texto: "“\(hospedaje.titulo)” está pausado — actívalo para volver a aparecer en Buscar."
+                    texto: "“\(hospedaje.titulo)” está pausado — actívalo para volver a aparecer en Buscar.",
+                    accion: .verHospedaje(hospedaje)
                 ))
             }
         }
 
-        if solicitudesPendientes > 0 {
+        for (hospedaje, cantidad) in pendientesPorHospedaje {
             lista.append(RecomendacionAnfitrion(
                 icono: "clock.badge.exclamationmark",
-                texto: "Tienes \(solicitudesPendientes) solicitud\(solicitudesPendientes == 1 ? "" : "es") pendiente\(solicitudesPendientes == 1 ? "" : "s") por aceptar o rechazar."
+                texto: "Tienes \(cantidad) solicitud\(cantidad == 1 ? "" : "es") pendiente\(cantidad == 1 ? "" : "s") en “\(hospedaje.titulo)”.",
+                accion: .verReservasRecibidas(hospedaje)
             ))
         }
 
         if hospedajes.isEmpty {
             lista.append(RecomendacionAnfitrion(
                 icono: "plus.circle",
-                texto: "Publica tu primer hospedaje para empezar a recibir huéspedes."
+                texto: "Publica tu primer hospedaje para empezar a recibir huéspedes.",
+                accion: .publicarHospedaje
             ))
         }
 
