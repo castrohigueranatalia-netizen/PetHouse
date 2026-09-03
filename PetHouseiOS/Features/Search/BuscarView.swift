@@ -1,0 +1,299 @@
+//
+//  BuscarView.swift
+//  Features/Search
+//
+
+import SwiftUI
+
+struct BuscarView: View {
+    @Environment(SessionStore.self) private var session
+    @State private var viewModel = BuscarViewModel()
+    @State private var favoritosViewModel = FavoritosViewModel()
+    @State private var mostrarBuscador = false
+    @State private var mostrarFiltros = false
+    @State private var mostrarMapa = false
+    @State private var mostrarNotificaciones = false
+    @State private var mostrarMisHospedajes = false
+    @State private var hospedajeSeleccionado: Hospedaje?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            encabezado
+
+            content
+        }
+        .background(PHColor.canvas)
+        // Sin texto: el saludo de `encabezado` ya cumple el rol de título de la pantalla
+        // (ver mockup "idea 6" de la barra de búsqueda) — un "Buscar" repetido justo encima
+        // sería redundante.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                // El logo es el botón de "inicio": ya estando en Buscar, vuelve al listado
+                // completo (cierra cualquier hospedaje abierto) — ver el `onChange` abajo.
+                Button { session.volverABuscar = true } label: {
+                    PHLogo(height: 28)
+                }
+                .accessibilityLabel("Ir al listado de hospedajes")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                PHIconButton(systemImage: "map", accessibilityLabel: "Ver en el mapa") {
+                    mostrarMapa = true
+                }
+            }
+            // Solo para cuentas con la capacidad de anfitrión activa (ver
+            // db/06-verificacion-anfitrion.sql) — acceso rápido a "Mis hospedajes" desde el
+            // inicio, sin tener que entrar a Perfil. NO es una pestaña propia a propósito
+            // (ver el comentario largo en App/RootView.swift sobre el bug de la pestaña
+            // "Más" de iOS con más de 4 pestañas).
+            if session.usuario?.esAnfitrion == true {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "house", accessibilityLabel: "Mis hospedajes") {
+                        mostrarMisHospedajes = true
+                    }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                PHCampanaNotificaciones(noLeidas: session.notificacionesNoLeidas) {
+                    mostrarNotificaciones = true
+                }
+            }
+        }
+        // `.fullScreenCover`, no `.sheet` — esta vista ya encadena tres `.sheet(isPresented:)`
+        // distintos (buscador, filtros, mapa); un cuarto ahí mismo cae en el mismo riesgo de
+        // presentación poco confiable que ya se vio antes en Perfil. `.fullScreenCover` es un
+        // mecanismo de presentación aparte, sin ese conflicto.
+        .fullScreenCover(isPresented: $mostrarNotificaciones) {
+            NotificacionesView()
+        }
+        // `.fullScreenCover`, no `.sheet` — mismo motivo que `mostrarNotificaciones` arriba
+        // (ya hay tres `.sheet(isPresented:)` encadenados en esta vista). `MisHospedajesView`
+        // no trae su propio `NavigationStack` (normalmente vive empujada dentro del de
+        // Perfil, ver PerfilView) — acá se le da uno propio, igual que con `MapaView`.
+        .fullScreenCover(isPresented: $mostrarMisHospedajes) {
+            NavigationStack {
+                MisHospedajesView()
+            }
+        }
+        .sheet(isPresented: $mostrarBuscador) {
+            BuscadorSheet(viewModel: viewModel) {
+                Task { await viewModel.buscar() }
+            }
+        }
+        .sheet(isPresented: $mostrarFiltros) {
+            FiltrosView(viewModel: viewModel) {
+                Task { await viewModel.buscar() }
+            }
+        }
+        .sheet(isPresented: $mostrarMapa) {
+            NavigationStack {
+                MapaView()
+            }
+        }
+        .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
+            HospedajeDetailView(hospedajeId: hospedaje.id)
+        }
+        .task {
+            if viewModel.resultados.isEmpty { await viewModel.buscar() }
+        }
+        // Consume la señal del botón de inicio (ver AppState.swift): cierra el hospedaje
+        // abierto y cualquier hoja modal, para que "volver" muestre de verdad el listado
+        // completo y no lo que hubiera quedado abierto en este stack.
+        .onChange(of: session.volverABuscar) { _, volver in
+            guard volver else { return }
+            hospedajeSeleccionado = nil
+            mostrarBuscador = false
+            mostrarFiltros = false
+            mostrarMapa = false
+            // El logo dentro de `MisHospedajesView` (ver su propio toolbar) también dispara
+            // esta misma señal — así tocarlo cierra este `fullScreenCover` de una vez, sin
+            // necesitar un botón "Cerrar" aparte que compitiera por el mismo lugar del
+            // toolbar con el logo que esa vista ya trae.
+            mostrarMisHospedajes = false
+            session.volverABuscar = false
+        }
+    }
+
+    /// Zona de cabecera completa: saludo + huella, barra de búsqueda, chips rápidos de
+    /// especie y contador de contexto, sobre un degradado sutil coral → blanco. Ver el
+    /// mockup "idea 6" de la barra de búsqueda (versión final acordada).
+    private var encabezado: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            saludo
+            barraBusqueda
+            chipsEspecie
+            contadorContexto
+        }
+        .background(
+            LinearGradient(
+                colors: [PHColor.primary.opacity(0.07), PHColor.primary.opacity(0)],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
+    }
+
+    /// "¡Hola, [nombre]! ¿Quién va a cuidar tu mascota hoy?" con una huella decorativa en
+    /// medallón — reemplaza el antiguo título plano "Buscar" por algo más cálido y propio
+    /// de la marca.
+    private var saludo: some View {
+        HStack(alignment: .top, spacing: PHSpacing.s12) {
+            ZStack {
+                Circle().fill(PHColor.primaryContainer)
+                Image(systemName: "pawprint.fill")
+                    .foregroundStyle(PHColor.primary)
+            }
+            .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(saludoTexto)
+                    .phText(PHFont.displaySM, color: PHColor.ink)
+                Text("¿Quién va a cuidar tu mascota hoy?")
+                    .phText(PHFont.bodySM, color: PHColor.muted)
+            }
+        }
+        .padding(.horizontal, PHSpacing.s20)
+        .padding(.top, PHSpacing.s16)
+        .padding(.bottom, PHSpacing.s16)
+    }
+
+    private var saludoTexto: String {
+        guard let primerNombre = session.usuario?.nombre.split(separator: " ").first else {
+            return "¡Hola!"
+        }
+        return "¡Hola, \(primerNombre)!"
+    }
+
+    /// Barra principal: localidad + fechas + convivencia, en un solo control tocable que abre
+    /// `BuscadorSheet` — mismo patrón que el buscador de Airbnb (un resumen colapsado que
+    /// se expande a un formulario completo), en vez de 3 campos sueltos compitiendo por
+    /// espacio en una sola fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
+    /// opciones secundarias.
+    private var barraBusqueda: some View {
+        HStack(spacing: PHSpacing.s8) {
+            Button {
+                mostrarBuscador = true
+            } label: {
+                HStack(spacing: PHSpacing.s8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(PHColor.primary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Buscar hospedaje")
+                            .phText(PHFont.captionSM, color: PHColor.muted)
+                        Text(viewModel.resumenBusqueda)
+                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, PHSpacing.s16)
+                .padding(.vertical, PHSpacing.s16)
+                .background(PHColor.canvas)
+                .clipShape(RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous))
+                .phShadow(PHShadow.level2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
+            .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
+
+            // Solo aparece si hay algo elegido (localidad/fechas/convivencia) — quita esa
+            // selección y vuelve a buscar en toda Bogotá sin tener que abrir el buscador.
+            if viewModel.hayBusquedaActiva {
+                PHIconButton(systemImage: "xmark.circle.fill", accessibilityLabel: "Quitar selección de búsqueda") {
+                    viewModel.limpiarFiltros()
+                    Task { await viewModel.buscar() }
+                }
+            }
+
+            PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
+                mostrarFiltros = true
+            }
+        }
+        .padding(.horizontal, PHSpacing.s20)
+    }
+
+    /// Chips rápidos de especie — filtro real (ver `BuscarViewModel.alternarEspecie`), no
+    /// decorativo: tocar uno vuelve a buscar contra el servidor filtrando por lo que el
+    /// anfitrión declaró cuidar. Se muestran los dos (a diferencia del mockup, que por ser
+    /// una imagen estática solo mostraba la opción ya elegida) para poder tocar el que no
+    /// está seleccionado y cambiar de especie.
+    private var chipsEspecie: some View {
+        HStack(spacing: PHSpacing.s8) {
+            ForEach(EspecieCuidado.allCases) { especie in
+                PHChip(especie.etiqueta, isSelected: viewModel.especie == especie) {
+                    viewModel.alternarEspecie(especie)
+                }
+            }
+        }
+        .padding(.horizontal, PHSpacing.s20)
+        .padding(.top, PHSpacing.s12)
+    }
+
+    /// "27 hospedajes en Bogotá" — contexto inmediato del tamaño del resultado, junto a la
+    /// barra de búsqueda en vez de solo al final del listado.
+    @ViewBuilder
+    private var contadorContexto: some View {
+        if !viewModel.isLoading {
+            Text(contadorTexto)
+                .phText(PHFont.captionSM, color: PHColor.muted)
+                .padding(.horizontal, PHSpacing.s20)
+                .padding(.top, PHSpacing.s12)
+                .padding(.bottom, PHSpacing.s8)
+        }
+    }
+
+    private var contadorTexto: String {
+        let cantidad = viewModel.totalCargados
+        let lugar = viewModel.localidad?.etiqueta ?? "Bogotá"
+        return "\(cantidad) hospedaje\(cantidad == 1 ? "" : "s") en \(lugar)"
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.isLoading && viewModel.resultados.isEmpty {
+            PHLoadingStateView(mensaje: "Buscando hospedajes…")
+        } else if let error = viewModel.error {
+            PHErrorStateView(error: error) {
+                Task { await viewModel.buscar() }
+            }
+        } else if viewModel.resultados.isEmpty {
+            PHEmptyStateView(
+                systemImage: "magnifyingglass",
+                titulo: "Sin resultados",
+                mensaje: "Prueba con otra localidad, tipo de hospedaje o quita algunos filtros.",
+                accionTitulo: "Limpiar filtros"
+            ) {
+                viewModel.limpiarFiltros()
+                Task { await viewModel.buscar() }
+            }
+        } else {
+            ScrollView {
+                LazyVStack(spacing: PHSpacing.s16) {
+                    ForEach(viewModel.resultados) { hospedaje in
+                        Button {
+                            hospedajeSeleccionado = hospedaje
+                        } label: {
+                            PHHospedajeCard(
+                                hospedaje,
+                                esFavorito: favoritosViewModel.esFavorito(hospedaje.id),
+                                mostrarPrecioDia: viewModel.busquedaMismoDia,
+                                onToggleFavorito: {
+                                    Task { await favoritosViewModel.alternar(hospedaje) }
+                                }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .onAppear { viewModel.cargarMasSiHaceFalta(elementoActual: hospedaje) }
+                    }
+
+                    if viewModel.cargandoMas {
+                        ProgressView()
+                            .padding(.vertical, PHSpacing.s16)
+                    }
+                }
+                .padding(PHSpacing.s16)
+            }
+            .refreshable { await viewModel.buscar() }
+        }
+    }
+}

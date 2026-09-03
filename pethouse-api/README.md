@@ -27,25 +27,55 @@ Probar: `curl http://localhost:3001/health`
 
 | Módulo | Rutas | Auth |
 |---|---|---|
-| **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` | login → JWT |
-| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/:id` · `POST /api/hospedajes` | crear: anfitrión |
-| **Reservas** | `POST /api/reservas` · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/plan` | ✅ |
+| **Auth** | `POST /api/auth/registro` · `POST /api/auth/login` · `POST /api/auth/refresh` · `POST /api/auth/logout` · `GET /api/auth/me` · `PATCH /api/auth/me` | login/editar → JWT |
+| **Hospedajes** | `GET /api/hospedajes` (filtros + radio) · `GET /api/hospedajes/localidades` · `GET /api/hospedajes/cerca` · `GET /api/hospedajes/mios` · `GET /api/hospedajes/:id` · `GET /api/hospedajes/:id/reservas` · `POST /api/hospedajes` | crear/mios/reservas: anfitrión |
+| **Reservas** | `POST /api/reservas` (nace `pendiente`, requiere `mascota_ids`) · `GET /api/reservas/mias` · `GET /api/reservas/:id` · `POST /api/reservas/:id/cancelar` · `POST /api/reservas/:id/aceptar` · `/rechazar` (anfitrión) · `POST /api/reservas/:id/resena-huesped` (anfitrión califica al huésped) · `GET /api/reservas/notificaciones/resueltas` · `POST /api/reservas/:id/notificado` · `POST /api/reservas/:id/plan` | ✅ |
+| ↳ Reservas vencidas | Sin job en segundo plano: `completarReservasVencidas()` (`lib/completarReservas.js`) corre al leer/tocar reservas y pasa `confirmada`→`completada` / `pendiente`→`rechazada` cuando `hasta` ya pasó (ver `db/16-completar-reservas-vencidas.sql`) | — |
 | **Actividades** | `GET /api/actividades?tipo=` · `POST /api/actividades` | crear: anfitrión |
-| **Reseñas** | `POST /api/hospedajes/:id/resenas` | ✅ (una por reserva) |
+| **Reseñas** | `POST /api/hospedajes/:id/resenas` (huésped califica el hospedaje) · `GET /api/usuarios/:id/resenas` (evaluación del huésped, la ve el anfitrión) | ✅ (una por reserva) |
 | **Chat** | `GET /api/conversaciones` · `POST /api/conversaciones` · `GET/POST /api/conversaciones/:id/mensajes` · `POST /api/conversaciones/:id/leidas` | ✅ |
-| **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública |
+| **Mascotas** | `POST /api/mascotas` · `PATCH /api/mascotas/:id` · `DELETE /api/mascotas/:id` | ✅ (dueño de la mascota) |
+| **Favoritos** | `GET /api/favoritos` · `POST /api/favoritos` · `DELETE /api/favoritos/:hospedajeId` | ✅ |
+| **Subidas** | `POST /api/subidas` (multipart, campo `archivo`, imagen o PDF) → `201 { url }`, servido desde `/uploads` | ✅ |
+| **Verificación anfitrión** | `POST/GET /api/anfitrion/verificacion` (nombre legal, cédula, certificado policial, referencias, fotos) — deja la solicitud en `pendiente`, ver Admin · `POST /api/anfitrion/verificacion/notificado` (marca vista la resolución, sin push notifications — ver Admin) | ✅ |
+| **Preferencias anfitrión** | `POST/GET /api/anfitrion/preferencias` (especies, modalidades días/horas, tamaños) | ✅ |
+| **Admin** | `GET /api/admin/solicitudes?estado=` · `POST /api/admin/solicitudes/:id/aprobar` (única forma de activar `es_anfitrion`) · `/rechazar` · `GET /api/admin/estadisticas` (usuarios, anfitriones, reservas, reservas por ciudad) | rol admin |
+| **IA** | `GET /api/ia/estado` · `POST /api/ia` (proxy Gemini, clave en `.env`) | pública (con rate limit) |
+
+Los módulos de Mascotas, Favoritos y Subidas, más `GET /api/hospedajes/mios`, `GET /api/hospedajes/:id/reservas`
+y `PATCH /api/auth/me`, se agregaron para cerrar los gaps documentados en
+[`../ARCHITECTURE_AUDIT.md`](../ARCHITECTURE_AUDIT.md) — el cliente iOS (`../PetHouseiOS/`) ya
+los consume, dejaron de responder 404 de "ruta no implementada".
 
 ### Búsqueda con filtros (igual que el buscador de la app)
 
+La app opera **solo en Bogotá**: `GET /api/hospedajes` y `GET /api/hospedajes/cerca` siempre
+filtran a `ciudad = 'Bogotá'` en el servidor (no es un parámetro, no se puede desactivar
+desde el cliente). La segmentación geográfica es por **localidad** (las 20 localidades
+oficiales del Distrito), no por una `ciudad` de texto libre.
+
 ```
-GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
+GET /api/hospedajes?localidad=Chapinero&tipo=guarderia&convivencia=compartida
                    &desde=2026-12-01&hasta=2026-12-05
                    &lat=4.711&lng=-74.072&radio=5000&q=guardería&orden=precio-asc
+                   &pagina=1&porPagina=20
 ```
 
+- `localidad` → coincidencia exacta con una de las 20 localidades (ver `LOCALIDADES_BOGOTA`
+  en `src/routes/hospedajes.js`, duplicada en `PetHouseiOS/Core/Models/Localidad.swift` y en
+  el `CHECK` de `hospedajes.localidad`, `db/08-localidades-bogota.sql`). Sin este parámetro,
+  la búsqueda es en toda Bogotá.
+- `GET /api/hospedajes/localidades` → `{ localidades: [{ localidad, hospedajes }, …] }`, las
+  20 localidades con el conteo de hospedajes activos en cada una (incluye las que tienen 0) —
+  lo usa el mapa/lista de la app para mostrar "Chapinero (3)", "Suba (2)", etc.
 - `lat+lng+radio` → búsqueda espacial con **índice GIST** (PostGIS).
 - `desde+hasta` → solo hospedajes sin reservas confirmadas solapadas.
 - `q` → búsqueda de texto (`to_tsvector` español).
+- `pagina` (default 1) + `porPagina` (default 20, máx 50) → paginación real contra la base
+  con `COUNT(*) OVER()` (total del filtro completo, no solo de la página) + `LIMIT/OFFSET`.
+  La respuesta es `{ total, pagina, porPagina, hospedajes }`. Reemplaza el `LIMIT 100` fijo
+  que existía antes (el cliente iOS hacía "paginación" revelando de a poco ese máximo ya
+  descargado — ver `MVP_SCOPE.md` #7); ahora pide páginas nuevas de verdad al hacer scroll.
 
 ## Seguridad implementada
 
@@ -54,6 +84,21 @@ GET /api/hospedajes?ciudad=Bogotá&tipo=guarderia&convivencia=compartida
 - SQL 100% parametrizado (sin inyección).
 - **Anti-doble-reserva**: transacción con `FOR UPDATE` + restricción EXCLUDE en la BD → 409.
 - La clave de Gemini solo vive en el servidor (`GEMINI_API_KEY`).
+- **`JWT_SECRET` obligatorio en producción**: el servidor no arranca si falta y
+  `NODE_ENV=production`. En desarrollo se genera uno aleatorio por ejecución si no se
+  configura (ver `src/config.js`) — nunca hay un secreto público conocido.
+- **CORS restringido** vía `ALLOWED_ORIGINS` (lista separada por coma). Sin configurar
+  queda abierto, solo aceptable en desarrollo.
+- **Rate limiting**: `/api/auth/*` (20 intentos/15min por IP) y `/api/ia` (30/15min por IP),
+  ver `src/middleware/rateLimit.js`.
+- **`usuarios.es_anfitrion` solo se activa completando la verificación de seguridad**
+  (`POST /api/anfitrion/verificacion`) — no existe ningún atajo/endpoint que lo active
+  directo. Datos sensibles (cédula, certificado de antecedentes) quedan en
+  `verificaciones_anfitrion` con estado `pendiente` (no hay panel de revisión todavía en
+  este MVP, ver `db/06-verificacion-anfitrion.sql`). **Antes de manejar estos datos en
+  producción real, revisar cumplimiento de la Ley 1581 de 2012 (protección de datos
+  personales en Colombia)** — cifrado en reposo, política de privacidad, retención, etc.
+  no están cubiertos por este MVP.
 
 ## Probar la API (test de integración)
 

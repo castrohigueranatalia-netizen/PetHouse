@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PetHouse · Panel de administración</title>
+<style>
+  :root {
+    --coral: #E23350;
+    --coral-dark: #C22440;
+    --bg: #FAF8F5;
+    --surface: #FFFFFF;
+    --surface-2: #F1ECE5;
+    --border: #E1D8CC;
+    --ink: #241E1B;
+    --muted: #6E6156;
+    --faint: #9C8F82;
+    --success: #147A52;
+    --success-bg: #E4F3EA;
+    --warning: #9C6208;
+    --warning-bg: #FBEED9;
+    --error: #B32323;
+    --error-bg: #FBE5E2;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(36,30,27,.04), 0 8px 24px -12px rgba(36,30,27,.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .oculto { display: none !important; }
+
+  /* ---- Login ---- */
+  #pantallaLogin {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .tarjetaLogin {
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 36px 32px;
+  }
+  .marca {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--coral);
+    margin-bottom: 4px;
+  }
+  .subtitulo { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+  label { display: block; font-size: .82rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  input[type=email], input[type=password] {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .95rem;
+    background: var(--bg);
+    color: var(--ink);
+    margin-bottom: 16px;
+  }
+  input:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+  }
+  .btnPrimario {
+    width: 100%;
+    background: var(--coral);
+    color: #fff;
+    font-weight: 700;
+    font-size: .95rem;
+    padding: 12px;
+    border-radius: 10px;
+    transition: background .15s ease;
+  }
+  .btnPrimario:hover { background: var(--coral-dark); }
+  .btnPrimario:disabled { opacity: .6; cursor: default; }
+  .errorLogin {
+    color: var(--error);
+    background: var(--error-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: .85rem;
+    margin-bottom: 16px;
+  }
+
+  /* ---- Dashboard ---- */
+  header.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  header.top .marca { margin: 0; font-size: 1.25rem; }
+  .btnSecundario {
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: .85rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .btnSecundario:hover { background: var(--border); }
+
+  .shell { display: flex; max-width: 1240px; margin: 0 auto; align-items: flex-start; }
+  .sidebar {
+    width: 190px;
+    flex-shrink: 0;
+    padding: 24px 14px;
+    position: sticky;
+    top: 65px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .navItem {
+    background: none;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .navItem:hover { background: var(--surface-2); color: var(--ink); }
+  .navItem.activo { background: var(--coral); color: #fff; }
+
+  main { flex: 1; min-width: 0; padding: 28px 28px 28px 0; }
+  .vista.oculto { display: none; }
+
+  .buscador {
+    width: 100%;
+    max-width: 320px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    margin-bottom: 16px;
+    font-family: inherit;
+  }
+  .buscador:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+  .filaClicable { cursor: pointer; }
+  .filaClicable:hover td { background: var(--surface-2); }
+
+  .modalFondo {
+    position: fixed;
+    inset: 0;
+    background: rgba(36,30,27,.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+  .modalCaja {
+    background: var(--surface);
+    border-radius: var(--radius);
+    max-width: 560px;
+    width: 100%;
+    padding: 28px 28px 32px;
+    position: relative;
+    box-shadow: var(--shadow);
+  }
+  .modalCerrar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--surface-2);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  .modalCerrar:hover { background: var(--border); }
+  .fichaTitulo { font-size: 1.2rem; font-weight: 800; margin: 0 0 2px; }
+  .fichaSub { color: var(--muted); font-size: .85rem; margin: 0 0 20px; }
+  .fichaSeccion { margin-bottom: 18px; }
+  .fichaSeccion h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 0 0 8px; }
+  .fichaFila { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: .88rem; border-bottom: 1px solid var(--surface-2); }
+  .fichaFila:last-child { border-bottom: none; }
+  .fichaFila span:first-child { color: var(--muted); }
+
+  /* ---- Formularios (Entidad legal, Soporte, etc.) ---- */
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .filaFechas { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+  .filaFechas .campo { margin-bottom: 0; }
+  .campo input[type=date] {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .campo input[type=date]:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+  /* ---- Fila de filtros combinados (ej. Reservas: anfitrión + mes + estado) ---- */
+  .filaFiltros { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filaFiltros .buscador { margin-bottom: 0; width: auto; flex: 1 1 200px; }
+  .filaFiltros input[type=month] {
+    flex: 1 1 200px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .88rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .filaFiltros input[type=month]:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+  .campo input[type=text], .campo input[type=email], .campo textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .9rem;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .campo textarea { min-height: 260px; resize: vertical; line-height: 1.5; font-family: ui-monospace, Menlo, monospace; font-size: .84rem; }
+  .campo input:focus, .campo textarea:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+  .filaCampos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  @media (max-width: 640px) { .filaCampos { grid-template-columns: 1fr; } }
+  .guardadoOk { color: var(--success); font-size: .82rem; margin-left: 10px; }
+
+  /* ---- Hilo de soporte (dentro del modal) ---- */
+  .hilo { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; max-height: 320px; overflow-y: auto; }
+  .burbuja { max-width: 85%; padding: 10px 13px; border-radius: 12px; font-size: .87rem; line-height: 1.4; }
+  .burbuja.usuario { background: var(--surface-2); align-self: flex-start; }
+  .burbuja.admin { background: var(--coral); color: #fff; align-self: flex-end; }
+  .burbuja .quien { display: block; font-size: .7rem; opacity: .7; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .cajaResponder { display: flex; gap: 8px; margin-top: 12px; }
+  .cajaResponder textarea { flex: 1; min-height: 60px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: .87rem; background: var(--bg); color: var(--ink); }
+  .cajaResponder textarea:focus { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+  .grid-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .stat .valor { font-size: 1.9rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat .etiqueta { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+
+  section.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 24px;
+  }
+  section.panel h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  section.panel .desc { color: var(--muted); font-size: .82rem; margin: 0 0 16px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th { text-align: left; color: var(--faint); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--surface-2); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .76rem; font-weight: 600; }
+  .pill.pendiente { background: var(--warning-bg); color: var(--warning); }
+  .pill.confirmada { background: var(--success-bg); color: var(--success); }
+  .pill.completada { background: var(--surface-2); color: var(--muted); }
+  .pill.cancelada, .pill.rechazada { background: var(--error-bg); color: var(--error); }
+  .pill.en_proceso { background: #E4ECF3; color: #1D5A94; }
+  .plazo { font-size: .82rem; }
+  .plazo.vencido { color: var(--error); font-weight: 700; }
+  .plazo.porVencer { color: var(--warning); font-weight: 700; }
+
+  .solicitud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .solicitud:last-child { border-bottom: none; }
+  .solicitud .info b { display: block; }
+  .solicitud .info span { color: var(--muted); font-size: .82rem; }
+  .acciones { display: flex; gap: 8px; flex-shrink: 0; }
+  .btnAprobar { background: var(--success); color: #fff; padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+  .btnRechazar { background: var(--surface-2); color: var(--error); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+
+  .solicitudIdentidad { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--surface-2); }
+  .solicitudIdentidad:last-child { border-bottom: none; }
+  .fotoCedula { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; flex-shrink: 0; }
+  .solicitudIdentidad .info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .solicitudIdentidad .info b { display: block; }
+  .solicitudIdentidad .info span { color: var(--muted); font-size: .82rem; }
+  .avisoSinCuenta { color: var(--error); font-size: .8rem; font-weight: 600; }
+
+  .denuncia { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--surface-2); }
+  .denuncia:last-child { border-bottom: none; }
+  .denuncia .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .denuncia .info span { color: var(--muted); font-size: .82rem; }
+  .denuncia .citado { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: .85rem; font-style: italic; }
+  .denuncia .notaAdmin { font-size: .82rem; color: var(--muted); }
+  .btnBloquear { background: var(--error-bg); color: var(--error); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+  .btnDesbloquear { background: var(--surface-2); color: var(--muted); padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600; }
+
+  .vacio { color: var(--faint); font-size: .88rem; padding: 8px 0; }
+  .cargando { color: var(--muted); font-size: .88rem; padding: 20px 0; text-align: center; }
+
+  /* ---- Tablas: siempre en un contenedor que puede desplazarse en horizontal en vez de
+     aplastar las columnas o partir el texto en varias líneas — pasa en cualquier pantalla
+     angosta, no solo celular (ej. la ventana de Xcode a un lado). ---- */
+  .tablaWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tablaWrap table td, .tablaWrap table th { white-space: nowrap; }
+
+  /* ---- Responsive: menú lateral se convierte en cajón (drawer) por debajo de 900px ---- */
+  .ladoIzquierdo { display: flex; align-items: center; gap: 10px; }
+  .btnMenu {
+    display: none;
+    background: var(--surface-2);
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    font-size: 1.15rem;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .btnMenu:hover { background: var(--border); }
+
+  .fondoSidebar {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(36,30,27,.4);
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .fondoSidebar.visible { opacity: 1; pointer-events: auto; }
+
+  @media (max-width: 900px) {
+    header.top { padding: 14px 16px; }
+    header.top .marca { font-size: 1.05rem; }
+    .btnMenu { display: flex; }
+    .fondoSidebar { display: block; }
+
+    .shell { max-width: none; display: block; }
+    main { padding: 20px 16px; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 250px;
+      max-width: 82vw;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 24px 14px;
+      margin: 0;
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      z-index: 30;
+      overflow-y: auto;
+    }
+    .sidebar.abierto { transform: translateX(0); }
+
+    /* Filas de acciones (Verificación, Recuperar contraseña): que los botones bajen debajo
+       de la info en vez de aplastarse contra el borde de una pantalla angosta. */
+    .solicitud, .solicitudIdentidad { flex-wrap: wrap; }
+    .acciones { width: 100%; justify-content: flex-start; }
+
+    .modalFondo { padding: 16px; }
+    .modalCaja { padding: 22px 18px 26px; }
+
+    .grid-stats { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .stat { padding: 14px 16px; }
+    .stat .valor { font-size: 1.5rem; }
+
+    section.panel { padding: 18px 16px; }
+  }
+
+  @media (max-width: 480px) {
+    .filaFechas { flex-direction: column; align-items: stretch; }
+    .filaFechas .campo, .filaFechas button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ============ LOGIN ============ -->
+  <div id="pantallaLogin">
+    <form class="tarjetaLogin" id="formLogin">
+      <div class="marca">PetHouse</div>
+      <div class="subtitulo">Panel de administración</div>
+      <div id="errorLogin" class="errorLogin oculto"></div>
+      <label for="campoEmail">Correo</label>
+      <input type="email" id="campoEmail" autocomplete="username" required>
+      <label for="campoPassword">Contraseña</label>
+      <input type="password" id="campoPassword" autocomplete="current-password" required>
+      <button type="submit" class="btnPrimario" id="btnLogin">Entrar</button>
+    </form>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div id="pantallaDashboard" class="oculto">
+    <header class="top">
+      <div class="ladoIzquierdo">
+        <button class="btnMenu" id="btnMenu" aria-label="Abrir menú">☰</button>
+        <div class="marca">PetHouse · Admin</div>
+      </div>
+      <button class="btnSecundario" id="btnLogout">Cerrar sesión</button>
+    </header>
+
+    <div class="fondoSidebar" id="fondoSidebar"></div>
+
+    <div class="shell">
+      <nav class="sidebar" id="sidebar">
+        <button class="navItem" data-vista="resumen">Resumen</button>
+        <button class="navItem" data-vista="usuarios">Usuarios</button>
+        <button class="navItem" data-vista="hospedajes">Hospedajes</button>
+        <button class="navItem" data-vista="reservas">Reservas</button>
+        <button class="navItem" data-vista="cancelaciones">Cancelaciones</button>
+        <button class="navItem" data-vista="verificacion">Verificación</button>
+        <button class="navItem" data-vista="identidad">Recuperar contraseña</button>
+        <button class="navItem" data-vista="soporte">Soporte</button>
+        <button class="navItem" data-vista="privacidad">Solicitudes de privacidad</button>
+        <button class="navItem" data-vista="denuncias">Denuncias</button>
+        <button class="navItem" data-vista="reportes">Reportes</button>
+        <button class="navItem" data-vista="legal">Entidad legal</button>
+      </nav>
+
+      <main>
+        <div id="cargandoDatos" class="cargando">Cargando…</div>
+
+        <div id="contenido" class="oculto">
+          <!-- ---- Resumen ---- -->
+          <section id="vistaResumen" class="vista">
+            <div class="grid-stats" id="gridStats"></div>
+
+            <section class="panel">
+              <h2>Reservas por estado</h2>
+              <p class="desc">Todas las reservas hechas en la app, agrupadas por su estado actual.</p>
+              <div class="tablaWrap"><table id="tablaEstados"></table></div>
+            </section>
+
+            <section class="panel">
+              <h2>Reservas por localidad</h2>
+              <p class="desc">En qué localidad de Bogotá se están haciendo reservas.</p>
+              <div class="tablaWrap"><table id="tablaLocalidades"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Usuarios ---- -->
+          <section id="vistaUsuarios" class="vista oculto">
+            <section class="panel">
+              <h2>Usuarios</h2>
+              <p class="desc">Clientes (con sus mascotas) y anfitriones. Toca una fila para ver el detalle.</p>
+              <input type="search" id="buscarUsuarios" class="buscador" placeholder="Buscar por nombre o correo…">
+              <div class="tablaWrap"><table id="tablaUsuarios"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Hospedajes ---- -->
+          <section id="vistaHospedajes" class="vista oculto">
+            <section class="panel">
+              <h2>Hospedajes</h2>
+              <p class="desc">Todos los hospedajes publicados, por ubicación y anfitrión.</p>
+              <div class="filaFiltros">
+                <select id="filtroLocalidadHospedajes" class="buscador">
+                  <option value="">Todas las localidades</option>
+                  <option value="Usaquén">Usaquén</option>
+                  <option value="Chapinero">Chapinero</option>
+                  <option value="Santa Fe">Santa Fe</option>
+                  <option value="San Cristóbal">San Cristóbal</option>
+                  <option value="Usme">Usme</option>
+                  <option value="Tunjuelito">Tunjuelito</option>
+                  <option value="Bosa">Bosa</option>
+                  <option value="Kennedy">Kennedy</option>
+                  <option value="Fontibón">Fontibón</option>
+                  <option value="Engativá">Engativá</option>
+                  <option value="Suba">Suba</option>
+                  <option value="Barrios Unidos">Barrios Unidos</option>
+                  <option value="Teusaquillo">Teusaquillo</option>
+                  <option value="Los Mártires">Los Mártires</option>
+                  <option value="Antonio Nariño">Antonio Nariño</option>
+                  <option value="Puente Aranda">Puente Aranda</option>
+                  <option value="La Candelaria">La Candelaria</option>
+                  <option value="Rafael Uribe Uribe">Rafael Uribe Uribe</option>
+                  <option value="Ciudad Bolívar">Ciudad Bolívar</option>
+                  <option value="Sumapaz">Sumapaz</option>
+                </select>
+              </div>
+              <div class="tablaWrap"><table id="tablaHospedajes"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Reservas ---- -->
+          <section id="vistaReservas" class="vista oculto">
+            <section class="panel">
+              <h2>Reservas</h2>
+              <p class="desc">Activas, cumplidas o canceladas, con su valor. Filtra por anfitrión y/o por mes de la estadía.</p>
+              <div class="filaFiltros">
+                <select id="filtroAnfitrionReservas" class="buscador">
+                  <option value="">Todos los anfitriones</option>
+                </select>
+                <input type="month" id="filtroMesReservas" title="Mes de la estadía (desde)">
+                <select id="filtroEstadoReservas" class="buscador">
+                  <option value="">Todos los estados</option>
+                  <option value="activa">Activas (pendiente + confirmada)</option>
+                  <option value="pendiente">Pendientes</option>
+                  <option value="confirmada">Confirmadas</option>
+                  <option value="completada">Completadas</option>
+                  <option value="cancelada">Canceladas</option>
+                  <option value="rechazada">Rechazadas</option>
+                </select>
+              </div>
+              <div class="tablaWrap"><table id="tablaReservas"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Cancelaciones ---- -->
+          <section id="vistaCancelaciones" class="vista oculto">
+            <section class="panel">
+              <h2>Cancelaciones</h2>
+              <p class="desc">Reservas que no se concretaron — canceladas por el huésped o rechazadas por el anfitrión.</p>
+              <div class="tablaWrap"><table id="tablaCancelaciones"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Verificación ---- -->
+          <section id="vistaVerificacion" class="vista oculto">
+            <section class="panel">
+              <h2>Solicitudes de anfitrión</h2>
+              <p class="desc">Revisa la cédula, el certificado de antecedentes y las fotos antes de aprobar o rechazar.</p>
+              <select id="filtroEstadoSolicitudes" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="aprobado">Aprobadas</option>
+                <option value="rechazado">Rechazadas</option>
+              </select>
+              <div id="listaSolicitudes"></div>
+            </section>
+          </section>
+
+          <!-- ---- Recuperar contraseña (verificación de identidad con cédula) ---- -->
+          <section id="vistaIdentidad" class="vista oculto">
+            <section class="panel">
+              <h2>Recuperar contraseña</h2>
+              <p class="desc">
+                Cuando a alguien no le llega el código por correo, puede subir una foto de su cédula desde la app.
+                Compara la foto con el nombre de la cuenta y aprueba o rechaza. Al aprobar se genera un PIN de 6
+                dígitos que tienes que copiar y pasarle tú mismo (llamada, WhatsApp, etc.) — el usuario lo escribe
+                en la misma pantalla del código de la app, y vence en 24 horas.
+              </p>
+              <select id="filtroEstadoIdentidad" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="aprobada">Aprobadas</option>
+                <option value="rechazada">Rechazadas</option>
+              </select>
+              <div id="listaIdentidad"></div>
+            </section>
+          </section>
+
+          <!-- ---- Soporte ---- -->
+          <section id="vistaSoporte" class="vista oculto">
+            <section class="panel">
+              <h2>Soporte</h2>
+              <p class="desc">Mensajes que los usuarios escriben desde la app. Toca uno para leer el hilo y responder.</p>
+              <select id="filtroEstadoSoporte" class="buscador">
+                <option value="abierto">Abiertos</option>
+                <option value="">Todos</option>
+                <option value="resuelto">Resueltos</option>
+              </select>
+              <div class="tablaWrap"><table id="tablaSoporte"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Solicitudes de privacidad ---- -->
+          <section id="vistaPrivacidad" class="vista oculto">
+            <section class="panel">
+              <h2>Solicitudes de privacidad</h2>
+              <p class="desc">
+                Lo que un usuario pide desde Perfil › Privacidad: conocer, corregir o eliminar sus datos, u otra
+                duda. Ordenadas por la más urgente primero — la fecha límite es un cálculo aproximado según la
+                Ley 1581 de 2012 (10 días hábiles para consultas, 15 para reclamos; no descuenta festivos).
+              </p>
+              <select id="filtroEstadoPrivacidad" class="buscador">
+                <option value="">Todas</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="en_proceso">En proceso</option>
+                <option value="resuelta">Resueltas</option>
+              </select>
+              <div class="tablaWrap"><table id="tablaPrivacidad"></table></div>
+            </section>
+          </section>
+
+          <!-- ---- Denuncias ---- -->
+          <section id="vistaDenuncias" class="vista oculto">
+            <section class="panel">
+              <h2>Denuncias</h2>
+              <p class="desc">
+                Reportes que un usuario hace desde la app: de un anfitrión, de cualquier usuario, o de un mensaje
+                puntual del chat. Al revisar una que sea grave puedes bloquear la cuenta denunciada directamente
+                desde aquí — no puede volver a iniciar sesión ni, si es anfitrión, seguir apareciendo en Buscar.
+              </p>
+              <select id="filtroEstadoDenuncias" class="buscador">
+                <option value="pendiente">Pendientes</option>
+                <option value="">Todas</option>
+                <option value="revisada">Revisadas</option>
+                <option value="descartada">Descartadas</option>
+              </select>
+              <div id="listaDenuncias"></div>
+            </section>
+          </section>
+
+          <!-- ---- Reportes ---- -->
+          <section id="vistaReportes" class="vista oculto">
+            <section class="panel">
+              <h2>Reportes</h2>
+              <p class="desc">Elige un rango de fechas (o déjalo vacío para ver todo) y descarga los datos en CSV, listos para abrir en Excel o Numbers.</p>
+              <div class="filaFechas">
+                <div class="campo">
+                  <label for="reporteDesde">Desde</label>
+                  <input type="date" id="reporteDesde">
+                </div>
+                <div class="campo">
+                  <label for="reporteHasta">Hasta</label>
+                  <input type="date" id="reporteHasta">
+                </div>
+                <button class="btnSecundario" id="btnAplicarReporte" style="align-self: flex-end; margin-bottom: 14px;">Aplicar</button>
+              </div>
+
+              <div class="grid-stats" id="gridReportes"></div>
+
+              <div style="display:flex; gap:10px; flex-wrap: wrap; margin-top: 8px;">
+                <button class="btnPrimario" id="btnDescargarReservas" style="width:auto; padding:10px 18px;">Descargar reservas (CSV)</button>
+                <button class="btnPrimario" id="btnDescargarUsuarios" style="width:auto; padding:10px 18px;">Descargar usuarios nuevos (CSV)</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <h2>Comisión por anfitrión</h2>
+              <p class="desc">
+                Cuánto le corresponde a PetHouse y cuánto le queda a cada anfitrión, sobre reservas confirmadas o
+                completadas en el rango de fechas de arriba. Solo informativo — la comisión no se cobra de verdad
+                todavía (falta conectar una pasarela de pagos).
+              </p>
+              <div class="tablaWrap"><table id="tablaComisionAnfitrion"></table></div>
+              <div style="margin-top: 14px;">
+                <button class="btnPrimario" id="btnDescargarComisiones" style="width:auto; padding:10px 18px;">Descargar comisión por anfitrión (CSV)</button>
+              </div>
+            </section>
+          </section>
+
+          <!-- ---- Entidad legal ---- -->
+          <section id="vistaLegal" class="vista oculto">
+            <section class="panel">
+              <h2>Datos de la empresa</h2>
+              <p class="desc">Se muestran en la política de privacidad y los términos de uso dentro de la app.</p>
+              <form id="formEntidad">
+                <div class="filaCampos">
+                  <div class="campo">
+                    <label for="legalNombre">Nombre legal</label>
+                    <input type="text" id="legalNombre" placeholder="Ej. PetHouse SAS">
+                  </div>
+                  <div class="campo">
+                    <label for="legalNit">NIT</label>
+                    <input type="text" id="legalNit" placeholder="Ej. 900123456-7">
+                  </div>
+                </div>
+                <div class="campo">
+                  <label for="legalDomicilio">Domicilio</label>
+                  <input type="text" id="legalDomicilio" placeholder="Ej. Bogotá, Colombia">
+                </div>
+                <div class="filaCampos">
+                  <div class="campo">
+                    <label for="legalCorreo">Correo de contacto</label>
+                    <input type="email" id="legalCorreo" placeholder="contacto@pethouse.co">
+                  </div>
+                  <div class="campo">
+                    <label for="legalTelefono">Teléfono de contacto</label>
+                    <input type="text" id="legalTelefono" placeholder="300 000 0000">
+                  </div>
+                </div>
+                <div class="campo" style="max-width: 220px;">
+                  <label for="legalComision">Comisión de PetHouse (%)</label>
+                  <input type="number" id="legalComision" min="0" max="100" step="0.1" placeholder="10">
+                </div>
+                <p class="desc" style="margin-top: -6px;">
+                  Solo informativo por ahora — todavía no hay pasarela de pagos conectada, así que no se cobra nada
+                  de verdad. Se usa para calcular los reportes de comisión/ganancia de cada anfitrión.
+                </p>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar datos</button>
+                <span class="guardadoOk oculto" id="okEntidad">✓ Guardado</span>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Política de privacidad</h2>
+              <p class="desc">La app la muestra tal cual la escribas acá (admite texto plano o Markdown simple).</p>
+              <form id="formPrivacidad">
+                <div class="campo"><textarea id="textoPrivacidad" placeholder="Escribe aquí la política de privacidad…"></textarea></div>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar</button>
+                <span class="guardadoOk oculto" id="okPrivacidad">✓ Guardado</span>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Términos de uso</h2>
+              <form id="formTerminos">
+                <div class="campo"><textarea id="textoTerminos" placeholder="Escribe aquí los términos de uso…"></textarea></div>
+                <button type="submit" class="btnPrimario" style="width:auto; padding:10px 20px;">Guardar</button>
+                <span class="guardadoOk oculto" id="okTerminos">✓ Guardado</span>
+              </form>
+            </section>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: detalle de usuario ============ -->
+  <div id="modalUsuario" class="modalFondo oculto">
+    <div class="modalCaja">
+      <button class="modalCerrar" id="btnCerrarModal" aria-label="Cerrar">✕</button>
+      <div id="modalContenido"></div>
+    </div>
+  </div>
+
+<script src="app.js"></script>
+</body>
+</html>

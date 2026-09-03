@@ -5,9 +5,39 @@
 #   docker compose up -d        → levanta la base con PostGIS
 #   docker compose down         → la detiene (conserva los datos)
 #
-# En el PRIMER arranque ejecuta automáticamente, en orden:
-#   01-esquema.sql  → estructura completa
-#   02-seed.sql     → datos de ejemplo (18 hospedajes reales)
+# En el PRIMER arranque ejecuta automáticamente, en orden (docker-entrypoint-initdb.d
+# corre los .sql montados en orden alfabético):
+#   01-esquema.sql          → estructura completa
+#   02-seed.sql             → datos de ejemplo (18 hospedajes reales)
+#   04-perfil-mvp-ios.sql   → columna usuarios.foto_url (editar perfil, MVP iOS)
+#   05-multi-rol.sql        → columna usuarios.es_anfitrion (una cuenta puede ser
+#                              cliente Y anfitrión a la vez, no roles exclusivos)
+#   06-verificacion-anfitrion.sql → tablas verificaciones_anfitrion + preferencias_anfitrion
+#   07-admin-seed.sql       → cuenta admin@pethouse.co / demo123 (rol admin)
+#   08-localidades-bogota.sql → columna hospedajes.localidad + hospedajes nuevos: la app
+#                              opera solo en Bogotá, segmentada por las 20 localidades
+#   09-index-localidad.sql  → índice para hospedajes.localidad (optimización)
+#   10-notificacion-verificacion.sql → columna verificaciones_anfitrion.notificado: aviso
+#                              en la app cuando el admin aprueba/rechaza una solicitud
+#   11-reservas-pendientes-mascotas.sql → reservas nacen 'pendiente' (el anfitrión acepta o
+#                              rechaza), tabla reserva_mascotas (qué mascotas concretas van)
+#   12-notificacion-reserva-resuelta.sql → columna reservas.notificado: aviso en la app
+#                              cuando el anfitrión acepta o rechaza una solicitud
+#   13-ficha-mascota.sql    → columnas mascotas.edad/tamano/necesita_medicamentos: ficha
+#                              completa que el anfitrión ve para evaluar una solicitud
+#   14-fotos-mascota.sql    → columna mascotas.fotos: fotos de la mascota en su ficha
+#   15-resenas-huesped.sql  → usuarios.rating/num_resenas + tabla resenas_usuario: el
+#                              anfitrión también califica al huésped, igual que al revés
+#   16-completar-reservas-vencidas.sql → índices para que las reservas 'confirmada'/
+#                              'pendiente' vencidas pasen solas a 'completada'/'rechazada'
+# (03-consultas.sql NO se monta aquí a propósito: son consultas de ejemplo para correr
+# manualmente, no una migración — ver db/README.md)
+#
+# Si ya tenías la base levantada de ANTES de que existiera alguno de estos archivos, no
+# se re-ejecutan solos (initdb.d solo corre en el primer arranque, con el volumen vacío).
+# Lo más simple en desarrollo es recrearla: `docker compose down -v && docker compose up -d`
+# (borra los datos y los vuelve a cargar ya con todo). Para aplicar uno a mano sin perder
+# datos: `psql "postgres://pethouse:pethouse@localhost:5432/pethouse" -f 05-multi-rol.sql`
 #
 # Conexión:
 #   Host: localhost  ·  Puerto: 5432
@@ -28,9 +58,22 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Los .sql de esta carpeta se ejecutan solos en el primer arranque
+      # Los .sql de esta carpeta se ejecutan solos en el primer arranque, en orden alfabético
       - ./01-esquema.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro
       - ./02-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./04-perfil-mvp-ios.sql:/docker-entrypoint-initdb.d/04-perfil-mvp-ios.sql:ro
+      - ./05-multi-rol.sql:/docker-entrypoint-initdb.d/05-multi-rol.sql:ro
+      - ./06-verificacion-anfitrion.sql:/docker-entrypoint-initdb.d/06-verificacion-anfitrion.sql:ro
+      - ./07-admin-seed.sql:/docker-entrypoint-initdb.d/07-admin-seed.sql:ro
+      - ./08-localidades-bogota.sql:/docker-entrypoint-initdb.d/08-localidades-bogota.sql:ro
+      - ./09-index-localidad.sql:/docker-entrypoint-initdb.d/09-index-localidad.sql:ro
+      - ./10-notificacion-verificacion.sql:/docker-entrypoint-initdb.d/10-notificacion-verificacion.sql:ro
+      - ./11-reservas-pendientes-mascotas.sql:/docker-entrypoint-initdb.d/11-reservas-pendientes-mascotas.sql:ro
+      - ./12-notificacion-reserva-resuelta.sql:/docker-entrypoint-initdb.d/12-notificacion-reserva-resuelta.sql:ro
+      - ./13-ficha-mascota.sql:/docker-entrypoint-initdb.d/13-ficha-mascota.sql:ro
+      - ./14-fotos-mascota.sql:/docker-entrypoint-initdb.d/14-fotos-mascota.sql:ro
+      - ./15-resenas-huesped.sql:/docker-entrypoint-initdb.d/15-resenas-huesped.sql:ro
+      - ./16-completar-reservas-vencidas.sql:/docker-entrypoint-initdb.d/16-completar-reservas-vencidas.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pethouse -d pethouse"]
       interval: 10s
