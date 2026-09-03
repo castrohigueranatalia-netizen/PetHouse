@@ -1,0 +1,101 @@
+//
+//  AnfitrionDashboardView.swift
+//  Features/Anfitrion
+//
+//  Se abre desde el toolbar de MisHospedajesView — resume, en toda la cuenta de anfitrión
+//  (no un hospedaje a la vez), cuántas mascotas ha hospedado, cuánto ha ganado, y qué
+//  mejorar en sus publicaciones para recibir más reservas.
+//
+
+import SwiftUI
+
+struct AnfitrionDashboardView: View {
+    @State private var viewModel = AnfitrionDashboardViewModel()
+
+    var body: some View {
+        content
+            .navigationTitle("Tu panel")
+            .navigationBarTitleDisplayMode(.inline)
+            .task { await viewModel.cargar() }
+            .refreshable { await viewModel.cargar() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.isLoading && viewModel.historial.isEmpty && viewModel.hospedajes.isEmpty {
+            PHLoadingStateView(mensaje: "Calculando tus números…")
+        } else if let error = viewModel.error, viewModel.historial.isEmpty && viewModel.hospedajes.isEmpty {
+            PHErrorStateView(error: error) { Task { await viewModel.cargar() } }
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: PHSpacing.s24) {
+                    seccionEstadisticas
+                    seccionRecomendaciones
+                }
+                .padding(PHSpacing.s16)
+            }
+        }
+    }
+
+    private var seccionEstadisticas: some View {
+        HStack(spacing: PHSpacing.s12) {
+            tarjetaEstadistica(
+                valor: "\(viewModel.totalMascotasHospedadas)",
+                titulo: "Mascotas hospedadas",
+                icono: "pawprint.fill"
+            )
+            tarjetaEstadistica(
+                valor: PHFormato.precio(viewModel.totalGanado),
+                titulo: "Total ganado",
+                icono: "dollarsign.circle.fill"
+            )
+        }
+    }
+
+    private func tarjetaEstadistica(valor: String, titulo: String, icono: String) -> some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            Image(systemName: icono)
+                .font(.system(size: 20))
+                .foregroundStyle(PHColor.primary)
+            Text(valor)
+                .phText(PHFont.displaySM, color: PHColor.ink)
+            Text(titulo)
+                .phText(PHFont.captionSM, color: PHColor.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(PHSpacing.s16)
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+    }
+
+    private var seccionRecomendaciones: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s12) {
+            Text("Qué puedes mejorar")
+                .phText(PHFont.titleMD, color: PHColor.ink)
+
+            if viewModel.recomendaciones.isEmpty {
+                HStack(spacing: PHSpacing.s8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(PHColor.success)
+                    Text("Tus hospedajes están completos — no tenemos más sugerencias por ahora.")
+                        .phText(PHFont.bodySM, color: PHColor.muted)
+                }
+            } else {
+                VStack(spacing: PHSpacing.s8) {
+                    ForEach(viewModel.recomendaciones) { recomendacion in
+                        HStack(alignment: .top, spacing: PHSpacing.s12) {
+                            Image(systemName: recomendacion.icono)
+                                .foregroundStyle(PHColor.primary)
+                                .frame(width: 20)
+                            Text(recomendacion.texto)
+                                .phText(PHFont.bodySM, color: PHColor.body)
+                            Spacer()
+                        }
+                        .padding(PHSpacing.s12)
+                        .background(PHColor.surfaceSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+}

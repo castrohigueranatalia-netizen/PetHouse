@@ -14,6 +14,11 @@
 //       (reservas hechas POR OTROS usuarios EN este hospedaje, incluye usuario_nombre;
 //       requiere ser el anfitrión dueño del hospedaje)
 //
+//   GET /api/hospedajes/mios/reservas     → 200 { reservas: [Reserva] }
+//       (TODAS las reservas de TODOS los hospedajes propios, en cualquier estado — a
+//       diferencia de GET /:id/reservas, que es de un solo hospedaje. Usada por
+//       AnfitrionDashboardViewModel para calcular mascotas hospedadas y total ganado.)
+//
 
 import Foundation
 
@@ -22,5 +27,9 @@ public struct MisHospedajesResponse: Codable {
 }
 
 public struct ReservasRecibidasResponse: Decodable {
+    public let reservas: [Reserva]
+}
+
+public struct HistorialReservasResponse: Decodable {
     public let reservas: [Reserva]
 }

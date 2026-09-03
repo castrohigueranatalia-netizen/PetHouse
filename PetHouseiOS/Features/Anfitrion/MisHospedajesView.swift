@@ -5,11 +5,42 @@
 
 import SwiftUI
 
+/// UN SOLO `.navigationDestination` para los dos destinos posibles desde esta pantalla —
+/// ver `destino` abajo. Dos `.navigationDestination` distintos en la misma vista es un bug ya
+/// visto varias veces en esta versión de SwiftUI (LoginView/NotificacionesView/
+/// MisReservasView): solo el primero dispara de forma confiable.
+private enum DestinoMisHospedajes: Hashable {
+    case hospedaje(Hospedaje)
+    case dashboard
+}
+
 struct MisHospedajesView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = MisHospedajesViewModel()
     @State private var mostrarPublicar = false
+    @State private var mostrarDashboard = false
     @State private var hospedajeSeleccionado: Hospedaje?
+
+    private var destino: Binding<DestinoMisHospedajes?> {
+        Binding(
+            get: {
+                if let hospedajeSeleccionado { return .hospedaje(hospedajeSeleccionado) }
+                if mostrarDashboard { return .dashboard }
+                return nil
+            },
+            set: { nuevo in
+                switch nuevo {
+                case .none:
+                    hospedajeSeleccionado = nil
+                    mostrarDashboard = false
+                case .hospedaje(let hospedaje):
+                    hospedajeSeleccionado = hospedaje
+                case .dashboard:
+                    mostrarDashboard = true
+                }
+            }
+        )
+    }
 
     var body: some View {
         content
@@ -20,6 +51,11 @@ struct MisHospedajesView: View {
                         PHLogo(height: 28)
                     }
                     .accessibilityLabel("Ir al listado de hospedajes")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    PHIconButton(systemImage: "chart.bar.fill", accessibilityLabel: "Tu panel — mascotas hospedadas, ganancias y recomendaciones") {
+                        mostrarDashboard = true
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     PHIconButton(systemImage: "plus", accessibilityLabel: "Publicar hospedaje") {
@@ -34,9 +70,14 @@ struct MisHospedajesView: View {
                     viewModel.guardarLocal(guardado)
                 }
             }
-            .navigationDestination(item: $hospedajeSeleccionado) { hospedaje in
-                HospedajeDetailView(hospedajeId: hospedaje.id, esPropio: true) { editado in
-                    viewModel.guardarLocal(editado)
+            .navigationDestination(item: destino) { destino in
+                switch destino {
+                case .hospedaje(let hospedaje):
+                    HospedajeDetailView(hospedajeId: hospedaje.id, esPropio: true) { editado in
+                        viewModel.guardarLocal(editado)
+                    }
+                case .dashboard:
+                    AnfitrionDashboardView()
                 }
             }
     }
