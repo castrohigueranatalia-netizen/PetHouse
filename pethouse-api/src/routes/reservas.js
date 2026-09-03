@@ -257,12 +257,22 @@ r.get('/mias', auth, async (req, res, next) => {
     const { rows } = await pool.query(
       // hospedaje_id + anfitrion_id: antes no venían, así que el cliente no tenía forma de
       // abrir el detalle del hospedaje ni de escribirle al anfitrión desde "Mis reservas".
+      // actualizaciones_count/ultima_actualizacion: para que "Mis reservas" pueda mostrar de
+      // un vistazo "Cómo va tu mascota" sin tener que abrir cada reserva a pedir su propio
+      // GET /:id/actualizaciones (ver db/38-actualizaciones-reserva.sql) — LATERAL en vez de
+      // un JOIN + GROUP BY normal para no tener que agrupar por todas las demás columnas
+      // seleccionadas (MASCOTAS_DETALLE_SQL incluida).
       `SELECT rs.id, rs.codigo, rs.desde::text, rs.hasta::text, rs.noches, rs.mismo_dia, rs.mascotas, rs.total, rs.estado,
               rs.hora_entrega::text, rs.hora_recogida::text,
               rs.hospedaje_id, h.anfitrion_id,
               h.titulo AS hospedaje_titulo, h.ciudad, h.barrio, h.tipo, h.fotos,
+              act.cantidad AS actualizaciones_count, act.ultima AS ultima_actualizacion,
               ${MASCOTAS_DETALLE_SQL}
          FROM reservas rs JOIN hospedajes h ON h.id = rs.hospedaje_id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS cantidad, MAX(creado_en) AS ultima
+             FROM actualizaciones_reserva ar WHERE ar.reserva_id = rs.id
+         ) act ON true
         WHERE rs.usuario_id = $1 AND NOT rs.oculta_por_usuario
         ORDER BY rs.creado_en DESC`,
       [req.usuario.id]

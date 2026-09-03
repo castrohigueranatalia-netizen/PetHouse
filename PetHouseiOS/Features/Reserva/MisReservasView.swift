@@ -183,6 +183,10 @@ struct MisReservasView: View {
                             .phText(PHFont.captionSM, color: PHColor.muted)
                         }
 
+                        if reserva.estado == .confirmada || reserva.estado == .completada {
+                            filaComoVaTuMascota(reserva)
+                        }
+
                         Text("Código \(reserva.codigo)")
                             .phText(PHFont.micro, color: PHColor.mutedSoft)
                     }
@@ -227,6 +231,41 @@ struct MisReservasView: View {
         .background(PHColor.canvas)
         .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         .phShadow(PHShadow.level1)
+    }
+
+    /// Adelanto de las actualizaciones que el anfitrión publicó durante la estadía (ver
+    /// db/38-actualizaciones-reserva.sql) — solo para 'confirmada'/'completada', que son los
+    /// únicos estados donde puede haber alguna. `actualizacionesCount`/`ultimaActualizacion`
+    /// vienen ya calculados en GET /api/reservas/mias, así la lista no tiene que pedir cada
+    /// reserva por separado solo para saber si hay algo nuevo. Va DENTRO del botón grande de
+    /// la tarjeta (no es su propio botón): tocarlo abre el mismo detalle de la reserva, donde
+    /// ya se ve la sección completa (ver ReservaDetailView.seccionActualizaciones).
+    @ViewBuilder
+    private func filaComoVaTuMascota(_ reserva: Reserva) -> some View {
+        HStack(spacing: PHSpacing.s8) {
+            Image(systemName: "pawprint.fill")
+                .foregroundStyle(PHColor.primary)
+            if let cantidad = reserva.actualizacionesCount, cantidad > 0 {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Cómo va tu mascota")
+                        .phText(PHFont.captionSM.weight(.semibold), color: PHColor.ink)
+                    if let ultima = reserva.ultimaActualizacion {
+                        Text("\(cantidad) actualización\(cantidad == 1 ? "" : "es") · \(PHDate.displayRelative(ultima))")
+                            .phText(PHFont.micro, color: PHColor.muted)
+                    }
+                }
+            } else {
+                Text("Cómo va tu mascota — aún no hay actualizaciones")
+                    .phText(PHFont.captionSM, color: PHColor.muted)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(PHColor.mutedSoft)
+        }
+        .padding(PHSpacing.s8)
+        .background(PHColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.sm, style: .continuous))
     }
 
     private func estadoBadge(_ estado: EstadoReserva) -> some View {

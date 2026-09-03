@@ -99,8 +99,18 @@ public struct Reserva: Decodable, Identifiable, Hashable {
     public let tipo: TipoHospedaje?
     public let fotos: [String]?
 
+    /// Cuántas actualizaciones de la estadía publicó el anfitrión (ver
+    /// db/38-actualizaciones-reserva.sql) y cuándo fue la más reciente — solo presentes en
+    /// `GET /api/reservas/mias`, para que "Mis reservas" pueda mostrar "Cómo va tu mascota"
+    /// sin pedir cada reserva por separado. `nil` en el resto de respuestas: tratar como "sin
+    /// datos" (no como "cero actualizaciones" — ahí sí sería `0`).
+    public let actualizacionesCount: Int?
+    public let ultimaActualizacion: String?
+
     enum CodingKeys: String, CodingKey {
         case id, codigo, estado, desde, hasta, noches, mascotas, total
+        case actualizacionesCount = "actualizaciones_count"
+        case ultimaActualizacion = "ultima_actualizacion"
         case horaEntrega = "hora_entrega"
         case horaRecogida = "hora_recogida"
         case precioNoche = "precio_noche"
@@ -135,7 +145,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         anfitrionId: String?, hospedajeTitulo: String?, usuarioNombre: String? = nil,
         usuarioRating: Double? = nil, usuarioNumResenas: Int? = nil,
         mascotasDetalle: [Mascota]? = nil,
-        ciudad: String?, barrio: String?, tipo: TipoHospedaje?, fotos: [String]?
+        ciudad: String?, barrio: String?, tipo: TipoHospedaje?, fotos: [String]?,
+        actualizacionesCount: Int? = nil, ultimaActualizacion: String? = nil
     ) {
         self.id = id
         self.codigo = codigo
@@ -168,6 +179,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         self.barrio = barrio
         self.tipo = tipo
         self.fotos = fotos
+        self.actualizacionesCount = actualizacionesCount
+        self.ultimaActualizacion = ultimaActualizacion
     }
 
     public init(from decoder: Decoder) throws {
@@ -203,6 +216,8 @@ public struct Reserva: Decodable, Identifiable, Hashable {
         barrio = try c.decodeIfPresent(String.self, forKey: .barrio)
         tipo = try c.decodeIfPresent(TipoHospedaje.self, forKey: .tipo)
         fotos = try c.decodeIfPresent([String].self, forKey: .fotos)
+        actualizacionesCount = try c.decodeIfPresent(Int.self, forKey: .actualizacionesCount)
+        ultimaActualizacion = try c.decodeIfPresent(String.self, forKey: .ultimaActualizacion)
     }
 
     /// `mismoDia` es `Bool?` porque no todas las respuestas lo traen — acá se trata la
