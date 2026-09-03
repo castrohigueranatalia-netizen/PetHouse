@@ -42,6 +42,9 @@ struct PetHouseApp: App {
                     AppDelegate.onTokenRecibido = { token in
                         Task { @MainActor in store.registrarTokenPush(token) }
                     }
+                    AppDelegate.onRecordatorioTocado = { reservaId in
+                        Task { @MainActor in store.reservaIdParaPublicarActualizacion = reservaId }
+                    }
                     await sessionStore.iniciar()
                 }
         }

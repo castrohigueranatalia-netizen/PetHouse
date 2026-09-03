@@ -96,6 +96,14 @@ public final class SessionStore {
     /// `abrirVerificacionAlEntrar`.
     public var reservaRecibidaParaAbrir: Reserva?
 
+    /// `!= nil` justo después de que el anfitrión toca el recordatorio local de las 2 horas
+    /// (ver Core/Utils/RecordatoriosEstadia.swift y `AppDelegate.onRecordatorioTocado`) —
+    /// `MainTabView` lo consume abriendo `ActualizacionesReservaView` directo para esa
+    /// reserva, sin pasar por "Reservas recibidas" primero. Mismo mecanismo de "señal +
+    /// consumo" que `reservaRecibidaParaAbrir`, pero solo con el id (la notificación local no
+    /// trae más datos de la reserva) — quien la consume arma un `Reserva` mínimo.
+    public var reservaIdParaPublicarActualizacion: String?
+
     private let authService: AuthServicing
     private let keychain: KeychainStoring
     private let chatService: ChatServicing

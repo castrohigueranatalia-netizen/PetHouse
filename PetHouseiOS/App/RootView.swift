@@ -100,6 +100,27 @@ struct MainTabView: View {
         // preguntar si el usuario ya respondió antes, así que repetirlo en cada apertura de
         // esta vista (cada vez que se pasa de invitado a autenticado) es seguro.
         .task { await session.solicitarPermisoPush() }
+        // Tocar el recordatorio local de las 2 horas (ver Core/Utils/RecordatoriosEstadia.swift
+        // y AppDelegate.onRecordatorioTocado) abre esta pantalla directo, sin importar en qué
+        // pestaña esté el anfitrión — por eso vive acá, en la raíz de las pestañas, no dentro
+        // de una tab específica (a diferencia de `reservaRecibidaParaAbrir`, que sí necesita
+        // saltar primero a la pestaña Reservas). `ActualizacionesReservaView` solo usa
+        // `reserva.id`, así que un `Reserva` mínimo con eso alcanza — la notificación local no
+        // trae más datos (mismo patrón que el placeholder de NotificacionesView.abrir(_:)).
+        .fullScreenCover(isPresented: Binding(
+            get: { session.reservaIdParaPublicarActualizacion != nil },
+            set: { sigueAbierto in if !sigueAbierto { session.reservaIdParaPublicarActualizacion = nil } }
+        )) {
+            if let reservaId = session.reservaIdParaPublicarActualizacion {
+                ActualizacionesReservaView(reserva: Reserva(
+                    id: reservaId, codigo: "", estado: .confirmada, desde: nil, hasta: nil,
+                    noches: nil, mascotas: nil, total: nil, precioNoche: nil, limpieza: nil,
+                    servicio: nil, creadoEn: nil, usuarioId: nil, hospedajeId: nil,
+                    anfitrionId: nil, hospedajeTitulo: nil,
+                    ciudad: nil, barrio: nil, tipo: nil, fotos: nil
+                ))
+            }
+        }
         .onChange(of: session.abrirVerificacionAlEntrar) { _, abrir in
             if abrir { pestanaSeleccionada = .perfil }
         }
