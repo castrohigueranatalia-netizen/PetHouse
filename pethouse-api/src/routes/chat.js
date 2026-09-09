@@ -103,6 +103,12 @@ r.post('/:id/mensajes', auth, async (req, res, next) => {
 // ---- Marcar mensajes como leídos ----
 r.post('/:id/leidas', auth, async (req, res, next) => {
   try {
+    const { rows: c } = await pool.query(
+      'SELECT id FROM conversaciones WHERE id = $1 AND (usuario_id = $2 OR anfitrion_id = $2)',
+      [req.params.id, req.usuario.id]
+    )
+    if (!c.length) return res.status(403).json({ error: 'No perteneces a esta conversación.' })
+
     const { rowCount } = await pool.query(
       `UPDATE mensajes SET leido = TRUE
         WHERE conversacion_id = $1 AND remitente_id <> $2`,
