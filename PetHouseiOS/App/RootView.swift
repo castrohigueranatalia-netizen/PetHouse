@@ -4,8 +4,7 @@
 //
 //  Único punto de bifurcación entre "sesión iniciada" (TabView de la app) y "sin sesión"
 //  (flujo de auth). El onboarding es corto a propósito: login/registro sin fricción, y de
-//  ahí directo a Reservas (ver `MainTabView.pestanaSeleccionada`) — el cliente entra
-//  directo a ver el estado de sus reservas en vez de a la búsqueda.
+//  ahí directo a Buscar (ver system prompt del MVP — "ir directo a buscar tras login").
 //
 
 import SwiftUI
@@ -49,7 +48,7 @@ private enum Pestana: Hashable {
 
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
-    @State private var pestanaSeleccionada: Pestana = .reservas
+    @State private var pestanaSeleccionada: Pestana = .buscar
 
     // SOLO 4 pestañas, siempre — a propósito, nunca condicionadas a rol. Con más de 5
     // pestañas, iOS deja de mostrarlas todas y agrupa el resto adentro de una pestaña "Más"
