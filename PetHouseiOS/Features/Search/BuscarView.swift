@@ -115,9 +115,20 @@ struct BuscarView: View {
                 .accessibilityLabel("Ir al listado de hospedajes")
             }
             ToolbarItem(placement: .topBarTrailing) {
-                PHIconButton(systemImage: "mappin.and.ellipse", accessibilityLabel: "Ver en el mapa") {
+                // Emoji "📍" a color tal cual, no el ícono monocromo de siempre — mismo
+                // tamaño/círculo que `PHIconButton`, pero ese componente solo admite un
+                // SF Symbol (que sale siempre en `PHColor.ink`), así que este botón va
+                // aparte en vez de forzarlo a aceptar algo que no es.
+                Button {
                     mostrarMapa = true
+                } label: {
+                    Text("📍")
+                        .font(.system(size: 18))
+                        .frame(width: 40, height: 40)
+                        .background(PHColor.surfaceSoft)
+                        .clipShape(Circle())
                 }
+                .accessibilityLabel("Ver en el mapa")
             }
             // Solo para cuentas con la capacidad de anfitrión activa (ver
             // db/06-verificacion-anfitrion.sql) — acceso rápido a "Mis hospedajes" desde el
