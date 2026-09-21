@@ -55,6 +55,7 @@ struct CalendarioHospedajeView: View {
                     PHErrorStateView(error: error) { Task { await viewModel.cargar() } }
                 } else {
                     selectorMes
+                    ocupacionDelMes
                     grilla
                     leyenda
                 }
@@ -99,6 +100,31 @@ struct CalendarioHospedajeView: View {
             PHIconButton(systemImage: "chevron.right", accessibilityLabel: "Mes siguiente") {
                 viewModel.mesSiguiente()
             }
+        }
+    }
+
+    /// Barra de "% ocupado" del mes que se está viendo (ver
+    /// `CalendarioHospedajeViewModel.porcentajeOcupado`) — un resumen de un vistazo, en vez
+    /// de tener que contar círculos de colores en la grilla de abajo.
+    private var ocupacionDelMes: some View {
+        VStack(alignment: .leading, spacing: PHSpacing.s4) {
+            HStack {
+                Text("Ocupación este mes")
+                    .phText(PHFont.bodySM, color: PHColor.muted)
+                Spacer()
+                Text("\(viewModel.porcentajeOcupado)%")
+                    .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous)
+                        .fill(PHColor.surfaceStrong)
+                    RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous)
+                        .fill(PHColor.primary)
+                        .frame(width: geo.size.width * CGFloat(viewModel.porcentajeOcupado) / 100)
+                }
+            }
+            .frame(height: 8)
         }
     }
 

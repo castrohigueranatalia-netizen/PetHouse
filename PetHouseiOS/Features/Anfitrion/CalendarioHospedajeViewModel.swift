@@ -104,4 +104,19 @@ public final class CalendarioHospedajeViewModel {
         let diaTexto = PHDate.toAPIDateOnly(dia)
         return fechasBloqueadas.first { diaTexto >= $0.desde && diaTexto < $0.hasta }
     }
+
+    /// % de días del mes visible que ya están reservados (confirmada o pendiente) o
+    /// bloqueados a mano — cuenta solo días reales del mes, no los de relleno antes/después
+    /// que completan la grilla de 42 casilleros. Redondeado al entero más cercano.
+    public var porcentajeOcupado: Int {
+        guard let rango = calendario.range(of: .day, in: .month, for: mesMostrado) else { return 0 }
+        let totalDias = rango.count
+        guard totalDias > 0 else { return 0 }
+        var ocupados = 0
+        for offset in 0..<totalDias {
+            guard let dia = calendario.date(byAdding: .day, value: offset, to: mesMostrado) else { continue }
+            if reserva(en: dia) != nil || bloqueo(en: dia) != nil { ocupados += 1 }
+        }
+        return Int((Double(ocupados) / Double(totalDias) * 100).rounded())
+    }
 }
