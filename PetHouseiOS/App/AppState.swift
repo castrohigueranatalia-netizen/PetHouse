@@ -29,6 +29,20 @@ public final class SessionStore {
         case invitado
     }
 
+    /// Las 4 pestañas de `MainTabView` (ver App/RootView.swift — son SOLO 4 a propósito).
+    public enum Pestana: Hashable {
+        case buscar, reservas, mensajes, perfil
+    }
+
+    /// Qué pestaña está abierta. Vive ACÁ y no como `@State` dentro de `MainTabView` porque
+    /// en la práctica SwiftUI no siempre reconstruye esa vista al volver de `.invitado` a
+    /// `.autenticado` (cerrar sesión y volver a entrar): su `@State` sobrevivía al cambio de
+    /// sesión y la app reabría en la pestaña donde se había quedado la sesión ANTERIOR, en vez
+    /// de en Buscar. Acá el reinicio lo hacen `iniciar()`/`login()`/`registro()`/
+    /// `cerrarSesion()`, que sí corren siempre — la pestaña deja de depender de un detalle del
+    /// ciclo de vida de las vistas.
+    public var pestanaActiva: Pestana = .buscar
+
     public private(set) var estado: Estado = .verificando
     public private(set) var usuario: Usuario?
     public private(set) var mascotas: [Mascota] = []
@@ -146,6 +160,7 @@ public final class SessionStore {
         do {
             let respuesta = try await authService.me()
             aplicarPerfil(respuesta.usuario, mascotas: respuesta.mascotas, desdeCache: false)
+            pestanaActiva = .buscar
             estado = .autenticado
             await actualizarContadores()
             await revisarResolucionVerificacion()
@@ -186,6 +201,7 @@ public final class SessionStore {
         // caché con datos más completos (mascotas reales) apenas unos milisegundos después,
         // así que no hace falta guardar dos veces.
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false, guardarEnCache: false)
+        pestanaActiva = .buscar
         estado = .autenticado
         Task {
             await refrescarPerfilCompleto()
@@ -207,6 +223,7 @@ public final class SessionStore {
         )
         try guardarTokens(respuesta)
         aplicarPerfil(respuesta.usuario, mascotas: [], desdeCache: false, guardarEnCache: false)
+        pestanaActiva = .buscar
         estado = .autenticado
         Task {
             await refrescarPerfilCompleto()
@@ -244,6 +261,7 @@ public final class SessionStore {
         reservaRecibidaParaAbrir = nil
         reservaIdParaPublicarActualizacion = nil
         volverABuscar = false
+        pestanaActiva = .buscar
         estado = .invitado
         borrarCache()
     }
@@ -259,6 +277,10 @@ public final class SessionStore {
         resolucionVerificacion = nil
         resolucionesReserva = []
         solicitudesNuevasAnfitrion = []
+        abrirVerificacionAlEntrar = false
+        reservaRecibidaParaAbrir = nil
+        reservaIdParaPublicarActualizacion = nil
+        pestanaActiva = .buscar
         estado = .invitado
     }
 

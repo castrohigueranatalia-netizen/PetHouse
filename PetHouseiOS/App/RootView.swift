@@ -42,13 +42,10 @@ private struct AuthFlowView: View {
     }
 }
 
-private enum Pestana: Hashable {
-    case buscar, reservas, mensajes, perfil
-}
+private typealias Pestana = SessionStore.Pestana
 
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
-    @State private var pestanaSeleccionada: Pestana = .buscar
 
     // SOLO 4 pestañas, siempre — a propósito, nunca condicionadas a rol. Con más de 5
     // pestañas, iOS deja de mostrarlas todas y agrupa el resto adentro de una pestaña "Más"
@@ -61,7 +58,12 @@ struct MainTabView: View {
     // pestañas propias — así el total nunca puede superar 4, sin importar la combinación de
     // roles que tenga la cuenta.
     var body: some View {
-        TabView(selection: $pestanaSeleccionada) {
+        // `@Bindable` para poder pasarle a `TabView` un binding a `session.pestanaActiva`
+        // (la pestaña vive en `SessionStore`, no en un `@State` de esta vista — ver el
+        // comentario de `SessionStore.pestanaActiva`).
+        @Bindable var session = session
+
+        return TabView(selection: $session.pestanaActiva) {
             NavigationStack {
                 BuscarView()
             }
@@ -88,25 +90,12 @@ struct MainTabView: View {
             .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
-        // Reinicia la pestaña activa cada vez que `session.estado` pasa a `.autenticado` — NO
-        // solo la primera vez que `MainTabView` aparece en pantalla. Se probó primero con
-        // `.task { ... }` (que solo corre cuando la vista se monta de cero), pero un cierre y
-        // reingreso de sesión mostró en la práctica que la pestaña quedaba pegada en donde
-        // haya quedado la sesión anterior — indicio de que, al volver a `.autenticado` después
-        // de pasar por `.invitado`, SwiftUI no siempre reconstruye `MainTabView` desde cero
-        // (reutiliza la instancia y su `@State`), así que ese `.task` no volvía a correr.
-        // `.onChange(of: session.estado)` no depende de que la vista se remonte — reacciona al
-        // VALOR, así que dispara siempre que `estado` cambia de verdad, sin importar si SwiftUI
-        // decidió reciclar la vista o no. `initial: true` hace que también corra la primera vez.
+        // Ojo: el reinicio de la pestaña a Buscar al empezar una sesión NO se hace acá. Se
+        // intentó con `.task` y con `.onChange(of: session.estado)` y ninguno de los dos
+        // resultó confiable al cerrar sesión y volver a entrar. Hoy lo hacen directamente
+        // `iniciar()`/`login()`/`registro()`/`cerrarSesion()` en `SessionStore`, poniendo
+        // `pestanaActiva = .buscar` — ver el comentario de esa propiedad.
         //
-        // Justo después de un registro con "También quiero ofrecer hospedaje" marcado (ver
-        // SessionStore.abrirVerificacionAlEntrar): salta a la pestaña Perfil en vez de Buscar,
-        // que a su vez empuja VerificacionAnfitrionView al ver la misma señal en `true`.
-        .onChange(of: session.estado, initial: true) { _, nuevo in
-            print("🟢 DEBUG onChange(session.estado) — nuevo: \(nuevo), abrirVerificacionAlEntrar: \(session.abrirVerificacionAlEntrar)")
-            guard nuevo == .autenticado else { return }
-            pestanaSeleccionada = session.abrirVerificacionAlEntrar ? .perfil : .buscar
-        }
         // Pide el permiso de notificaciones push acá, no en PetHouseApp — para cuando esto
         // corre, la ventana ya está completamente visible (mismo principio que el resto de
         // permisos del proyecto: justo antes de usarse, nunca al abrir la app). Pedirlo antes
@@ -137,14 +126,14 @@ struct MainTabView: View {
             }
         }
         .onChange(of: session.abrirVerificacionAlEntrar) { _, abrir in
-            if abrir { pestanaSeleccionada = .perfil }
+            if abrir { session.pestanaActiva = .perfil }
         }
         // El logo en cada pestaña funciona como botón de inicio (ver SessionStore.
         // volverABuscar): salta a la pestaña Buscar. BuscarView, además, reacciona a la
         // misma señal para cerrar cualquier hospedaje que hubiera quedado abierto en su
         // propio stack — ver el comentario largo en AppState.swift.
         .onChange(of: session.volverABuscar) { _, volver in
-            if volver { pestanaSeleccionada = .buscar }
+            if volver { session.pestanaActiva = .buscar }
         }
         // Aviso de "tu solicitud de anfitrión/reserva se resolvió" o "te llegó una
         // solicitud nueva" (ver SessionStore.revisarResolucionVerificacion/
@@ -188,7 +177,7 @@ struct MainTabView: View {
                    let solicitud = session.solicitudesNuevasAnfitrion.first {
                     Button("Ver reserva") {
                         session.reservaRecibidaParaAbrir = solicitud
-                        pestanaSeleccionada = .reservas
+                        session.pestanaActiva = .reservas
                     }
                 }
                 // Sin trabajo propio a propósito: cerrar el aviso ya dispara el `set` de
