@@ -21,6 +21,13 @@ struct FichaMascotaView: View {
     var onEditar: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var fotoVisor: FotoVisorItem?
+    /// Historial de estadías de ESTA mascota — solo se pide con `onEditar != nil` (el dueño
+    /// viendo su propia mascota, ver el comentario de arriba): `GET /api/reservas/mias` solo
+    /// trae las reservas de la cuenta que llama, así que solo tiene sentido cuando el dueño
+    /// de la mascota es quien está mirando. Cuando el anfitrión ve la ficha de la mascota de
+    /// un huésped, no hay forma de pedir el historial de OTRA cuenta.
+    @State private var reservasDeEstaMascota: [Reserva] = []
+    private let reservasService: ReservasServicing = ReservasService()
 
     var body: some View {
         NavigationStack {
@@ -39,6 +46,8 @@ struct FichaMascotaView: View {
                     if let notas = mascota.notas, !notas.isEmpty {
                         seccionNotas(notas)
                     }
+
+                    seccionHistorial
                 }
                 .padding(PHSpacing.s16)
             }
@@ -58,6 +67,54 @@ struct FichaMascotaView: View {
             .fullScreenCover(item: $fotoVisor) { item in
                 PHVisorFotos(urls: item.urls, indiceInicial: item.indiceInicial)
             }
+            .task {
+                guard onEditar != nil else { return }
+                if let respuesta = try? await reservasService.mias() {
+                    reservasDeEstaMascota = respuesta.reservas.filter { reserva in
+                        (reserva.mascotasDetalle ?? []).contains { $0.id == mascota.id }
+                    }
+                }
+            }
+        }
+    }
+
+    private var estadiasCompletadas: [Reserva] {
+        reservasDeEstaMascota.filter { $0.estado == .completada }
+    }
+
+    /// Cuántas veces se hospedó esta mascota y dónde — solo aparece cuando el dueño ve su
+    /// propia mascota y tiene al menos una estadía completada (ver `reservasDeEstaMascota`).
+    @ViewBuilder
+    private var seccionHistorial: some View {
+        if onEditar != nil, !estadiasCompletadas.isEmpty {
+            VStack(alignment: .leading, spacing: PHSpacing.s12) {
+                Text("Historial de estadías")
+                    .phText(PHFont.titleMD, color: PHColor.ink)
+                Text("\(mascota.nombre) se ha hospedado \(estadiasCompletadas.count) vez\(estadiasCompletadas.count == 1 ? "" : "es").")
+                    .phText(PHFont.bodySM, color: PHColor.muted)
+                VStack(spacing: PHSpacing.s8) {
+                    ForEach(estadiasCompletadas.prefix(5)) { reserva in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(reserva.hospedajeTitulo ?? "Hospedaje")
+                                    .phText(PHFont.bodySM.weight(.medium), color: PHColor.ink)
+                                    .lineLimit(1)
+                                if let desde = reserva.desde {
+                                    Text(PHDate.displayFromAPIDateOnly(desde))
+                                        .phText(PHFont.captionSM, color: PHColor.mutedSoft)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(PHSpacing.s12)
+                        .background(PHColor.canvas)
+                        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                    }
+                }
+            }
+            .padding(PHSpacing.s16)
+            .background(PHColor.surfaceSoft)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         }
     }
 
