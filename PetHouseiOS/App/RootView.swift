@@ -88,12 +88,24 @@ struct MainTabView: View {
             .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
-        // Justo después de un registro con "También quiero ofrecer hospedaje" marcado
-        // (ver SessionStore.abrirVerificacionAlEntrar): salta a la pestaña Perfil, que a su
-        // vez empuja VerificacionAnfitrionView al ver la misma señal en `true`.
-        .task {
-            print("🟢 DEBUG MainTabView apareció — pestanaSeleccionada inicial: \(pestanaSeleccionada), abrirVerificacionAlEntrar: \(session.abrirVerificacionAlEntrar)")
-            if session.abrirVerificacionAlEntrar { pestanaSeleccionada = .perfil }
+        // Reinicia la pestaña activa cada vez que `session.estado` pasa a `.autenticado` — NO
+        // solo la primera vez que `MainTabView` aparece en pantalla. Se probó primero con
+        // `.task { ... }` (que solo corre cuando la vista se monta de cero), pero un cierre y
+        // reingreso de sesión mostró en la práctica que la pestaña quedaba pegada en donde
+        // haya quedado la sesión anterior — indicio de que, al volver a `.autenticado` después
+        // de pasar por `.invitado`, SwiftUI no siempre reconstruye `MainTabView` desde cero
+        // (reutiliza la instancia y su `@State`), así que ese `.task` no volvía a correr.
+        // `.onChange(of: session.estado)` no depende de que la vista se remonte — reacciona al
+        // VALOR, así que dispara siempre que `estado` cambia de verdad, sin importar si SwiftUI
+        // decidió reciclar la vista o no. `initial: true` hace que también corra la primera vez.
+        //
+        // Justo después de un registro con "También quiero ofrecer hospedaje" marcado (ver
+        // SessionStore.abrirVerificacionAlEntrar): salta a la pestaña Perfil en vez de Buscar,
+        // que a su vez empuja VerificacionAnfitrionView al ver la misma señal en `true`.
+        .onChange(of: session.estado, initial: true) { _, nuevo in
+            print("🟢 DEBUG onChange(session.estado) — nuevo: \(nuevo), abrirVerificacionAlEntrar: \(session.abrirVerificacionAlEntrar)")
+            guard nuevo == .autenticado else { return }
+            pestanaSeleccionada = session.abrirVerificacionAlEntrar ? .perfil : .buscar
         }
         // Pide el permiso de notificaciones push acá, no en PetHouseApp — para cuando esto
         // corre, la ventana ya está completamente visible (mismo principio que el resto de
