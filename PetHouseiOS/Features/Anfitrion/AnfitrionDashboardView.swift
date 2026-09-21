@@ -9,6 +9,7 @@
 //  a buscar qué tocar.
 //
 
+import Charts
 import SwiftUI
 
 /// Los dos destinos que se PUSHean sobre el stack de navegación — unificados en un solo
@@ -91,6 +92,9 @@ struct AnfitrionDashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: PHSpacing.s24) {
                     seccionEstadisticas
+                    seccionTip
+                    seccionIngresosPorMes
+                    seccionCompararHospedajes
                     seccionRecomendaciones
                 }
                 .padding(PHSpacing.s16)
@@ -110,6 +114,98 @@ struct AnfitrionDashboardView: View {
                 titulo: "Total ganado",
                 icono: "dollarsign.circle.fill"
             )
+            tarjetaEstadistica(
+                valor: "\(viewModel.totalEstadias)",
+                titulo: "Estadías",
+                icono: "checkmark.seal.fill"
+            )
+        }
+    }
+
+    /// Consejo rotativo — ver `AnfitrionDashboardViewModel.tipDelDia`.
+    private var seccionTip: some View {
+        HStack(alignment: .top, spacing: PHSpacing.s12) {
+            Image(systemName: "lightbulb.fill")
+                .foregroundStyle(PHColor.warning)
+            Text(viewModel.tipDelDia)
+                .phText(PHFont.bodySM, color: PHColor.body)
+        }
+        .padding(PHSpacing.s16)
+        .background(PHColor.warningContainer)
+        .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+    }
+
+    /// Gráfica de barras de ingresos por mes (ver `AnfitrionDashboardViewModel.ingresosPorMes`)
+    /// — solo tiene sentido con al menos una estadía completada; sin eso, `seccionEstadisticas`
+    /// ya deja claro que todavía no hay nada que graficar.
+    @ViewBuilder
+    private var seccionIngresosPorMes: some View {
+        if !viewModel.ingresosPorMes.isEmpty {
+            VStack(alignment: .leading, spacing: PHSpacing.s12) {
+                Text("Ingresos por mes")
+                    .phText(PHFont.titleMD, color: PHColor.ink)
+                Chart(viewModel.ingresosPorMes) { punto in
+                    BarMark(
+                        x: .value("Mes", punto.mes, unit: .month),
+                        y: .value("Ingreso", punto.monto)
+                    )
+                    .foregroundStyle(PHColor.primary)
+                    .cornerRadius(6)
+                }
+                .frame(height: 160)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { _ in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+            }
+            .padding(PHSpacing.s16)
+            .background(PHColor.surfaceSoft)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+        }
+    }
+
+    /// Comparación por hospedaje (ver `AnfitrionDashboardViewModel.resumenPorHospedaje`) —
+    /// solo aparece con más de un hospedaje propio, donde de verdad tiene sentido comparar.
+    @ViewBuilder
+    private var seccionCompararHospedajes: some View {
+        if viewModel.resumenPorHospedaje.count > 1 {
+            VStack(alignment: .leading, spacing: PHSpacing.s12) {
+                Text("Tus hospedajes")
+                    .phText(PHFont.titleMD, color: PHColor.ink)
+                VStack(spacing: PHSpacing.s8) {
+                    ForEach(viewModel.resumenPorHospedaje) { resumen in
+                        HStack(spacing: PHSpacing.s12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(resumen.hospedaje.titulo)
+                                    .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                                    .lineLimit(1)
+                                HStack(spacing: PHSpacing.s4) {
+                                    Image(systemName: "star.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(PHColor.warning)
+                                    Text(String(format: "%.1f", resumen.hospedaje.rating))
+                                        .phText(PHFont.captionSM, color: PHColor.muted)
+                                    Text("· \(resumen.estadias) estadía\(resumen.estadias == 1 ? "" : "s")")
+                                        .phText(PHFont.captionSM, color: PHColor.muted)
+                                }
+                            }
+                            Spacer()
+                            Text(PHFormato.precio(resumen.ganado))
+                                .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.primary)
+                        }
+                        .padding(PHSpacing.s12)
+                        .background(PHColor.canvas)
+                        .clipShape(RoundedRectangle(cornerRadius: PHRadius.md, style: .continuous))
+                    }
+                }
+            }
+            .padding(PHSpacing.s16)
+            .background(PHColor.surfaceSoft)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
         }
     }
 

@@ -11,6 +11,22 @@
 
 import Foundation
 
+/// Un punto de la gráfica de "Ingresos por mes" (ver `AnfitrionDashboardViewModel.ingresosPorMes`).
+public struct IngresoMensual: Identifiable {
+    public var id: Date { mes }
+    public let mes: Date
+    public let monto: Double
+}
+
+/// Una fila de "Tus hospedajes" (ver `AnfitrionDashboardViewModel.resumenPorHospedaje`) —
+/// solo se muestra cuando hay más de uno, para comparar cuál rinde mejor.
+public struct ResumenHospedaje: Identifiable {
+    public let id: String
+    public let hospedaje: Hospedaje
+    public let estadias: Int
+    public let ganado: Double
+}
+
 /// A dónde lleva tocar una recomendación — cada regla en `recomendaciones` sabe exactamente
 /// qué corrige y elige la acción que va DIRECTO a esa solución, no a una pantalla genérica:
 ///  - `.editar`: el dato que falta (fotos, precio de día, descripción, servicios) se llena
@@ -100,6 +116,54 @@ public final class AnfitrionDashboardViewModel {
     }
 
     public var totalEstadias: Int { completadas.count }
+
+    /// Ingresos agrupados por mes de llegada (`desde`), para la gráfica de barras del
+    /// dashboard — se muestran los últimos 6 meses con al menos una estadía completada, en
+    /// orden cronológico. Usa `desde` (no `creadoEn`) porque es cuándo de verdad ocurrió la
+    /// estadía que generó ese ingreso, no cuándo se hizo la reserva.
+    public var ingresosPorMes: [IngresoMensual] {
+        var acumulado: [Date: Double] = [:]
+        let calendario = Calendar.current
+        for reserva in completadas {
+            guard let desde = reserva.desde, let fecha = PHDate.apiDateOnly.date(from: desde) else { continue }
+            guard let inicioMes = calendario.date(from: calendario.dateComponents([.year, .month], from: fecha)) else { continue }
+            acumulado[inicioMes, default: 0] += reserva.montoAnfitrion ?? reserva.total ?? 0
+        }
+        return acumulado
+            .sorted { $0.key < $1.key }
+            .suffix(6)
+            .map { IngresoMensual(mes: $0.key, monto: $0.value) }
+    }
+
+    /// Una fila por hospedaje propio, con cuánto ha ganado y cuántas estadías completó cada
+    /// uno — para comparar cuál rinde mejor cuando el anfitrión tiene más de uno. Ordenados
+    /// de mayor a menor ganancia.
+    public var resumenPorHospedaje: [ResumenHospedaje] {
+        hospedajes.map { hospedaje in
+            let propias = completadas.filter { $0.hospedajeId == hospedaje.id }
+            let ganado = propias.reduce(0) { $0 + ($1.montoAnfitrion ?? $1.total ?? 0) }
+            return ResumenHospedaje(id: hospedaje.id, hospedaje: hospedaje, estadias: propias.count, ganado: ganado)
+        }
+        .sorted { $0.ganado > $1.ganado }
+    }
+
+    /// Consejo del día, rotando entre unos pocos fijos — sin backend de analítica de qué le
+    /// falta específicamente a la cuenta (eso ya lo cubren `recomendaciones`), así que son
+    /// generales pero reales: cosas que de verdad ayudan a recibir más reservas. Se elige
+    /// por el día del año (no al azar en cada apertura) para que no cambie cada vez que se
+    /// entra al dashboard el mismo día.
+    public var tipDelDia: String {
+        let tips = [
+            "Los hospedajes con fotos reciben más reservas que los que no tienen ninguna.",
+            "Responder rápido en el chat genera más confianza en quien te está escribiendo.",
+            "Ofrecer la opción de reservar por un solo día te hace aparecer en más búsquedas.",
+            "Una descripción completa y honesta genera más confianza que una corta.",
+            "Mantener tu calendario de fechas bloqueadas al día evita solicitudes para fechas que no puedes recibir.",
+            "Las fotos con buena luz natural transmiten más confianza que las oscuras."
+        ]
+        let dia = Calendar.current.ordinality(of: .day, in: .year, for: .now) ?? 0
+        return tips[dia % tips.count]
+    }
 
     /// Solicitudes 'pendiente' agrupadas por hospedaje — cada grupo se convierte en UNA
     /// recomendación tocable que lleva directo a resolver las de ESE hospedaje (ver
