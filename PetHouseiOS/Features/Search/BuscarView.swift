@@ -164,52 +164,83 @@ struct BuscarView: View {
         return "¡Hola, \(primerNombre)!"
     }
 
-    /// Barra principal: localidad + fechas + convivencia, en un solo control tocable que abre
-    /// `BuscadorSheet` — mismo patrón que el buscador de Airbnb (un resumen colapsado que
-    /// se expande a un formulario completo), en vez de 3 campos sueltos compitiendo por
-    /// espacio en una sola fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
-    /// opciones secundarias.
+    /// Barra principal: localidad + fechas + convivencia, como 3 filas SIEMPRE visibles
+    /// dentro de una misma tarjeta — mismo espíritu que el buscador de Airbnb (Dónde/Fechas/
+    /// Quién a la vista desde el principio, no escondidos detrás de un resumen colapsado que
+    /// hay que abrir para saber qué dice). En escritorio Airbnb las pone una al lado de la
+    /// otra porque tiene ancho de sobra; en un iPhone no entran así, así que acá van
+    /// apiladas — se ve todo igual, solo que hacia abajo en vez de hacia los lados. Tocar
+    /// cualquier fila abre `BuscadorSheet`, que ya tiene los 3 campos juntos — no hace falta
+    /// un selector propio por fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
+    /// opciones secundarias, igual que antes.
     private var barraBusqueda: some View {
-        HStack(spacing: PHSpacing.s8) {
-            Button {
-                mostrarBuscador = true
-            } label: {
-                HStack(spacing: PHSpacing.s8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(PHColor.primary)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Buscar hospedaje")
-                            .phText(PHFont.captionSM, color: PHColor.muted)
-                        Text(viewModel.resumenBusqueda)
-                            .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
-                            .lineLimit(1)
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            HStack {
+                Spacer()
+                // Solo aparece si hay algo elegido (localidad/fechas/convivencia) — quita esa
+                // selección y vuelve a buscar en toda Bogotá sin tener que abrir el buscador.
+                if viewModel.hayBusquedaActiva {
+                    PHIconButton(systemImage: "xmark.circle.fill", accessibilityLabel: "Quitar selección de búsqueda") {
+                        viewModel.limpiarFiltros()
+                        Task { await viewModel.buscar() }
                     }
-                    Spacer()
                 }
-                .padding(.horizontal, PHSpacing.s16)
-                .padding(.vertical, PHSpacing.s16)
-                .background(PHColor.canvas)
-                .clipShape(RoundedRectangle(cornerRadius: PHRadius.full, style: .continuous))
-                .phShadow(PHShadow.level2)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
-            .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
-
-            // Solo aparece si hay algo elegido (localidad/fechas/convivencia) — quita esa
-            // selección y vuelve a buscar en toda Bogotá sin tener que abrir el buscador.
-            if viewModel.hayBusquedaActiva {
-                PHIconButton(systemImage: "xmark.circle.fill", accessibilityLabel: "Quitar selección de búsqueda") {
-                    viewModel.limpiarFiltros()
-                    Task { await viewModel.buscar() }
+                PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
+                    mostrarFiltros = true
                 }
             }
 
-            PHIconButton(systemImage: "line.3.horizontal.decrease.circle", accessibilityLabel: "Más filtros") {
-                mostrarFiltros = true
+            VStack(spacing: 0) {
+                filaBusqueda(
+                    icono: "mappin.and.ellipse", etiqueta: "Dónde",
+                    valor: viewModel.localidad?.etiqueta ?? "Toda Bogotá"
+                )
+                Divider().padding(.leading, PHSpacing.s48)
+                filaBusqueda(
+                    icono: "calendar", etiqueta: "Fechas",
+                    valor: viewModel.usarFechas
+                        ? "\(PHDate.displayShort.string(from: viewModel.desde)) – \(PHDate.displayShort.string(from: viewModel.hasta))"
+                        : "Cualquier fecha"
+                )
+                Divider().padding(.leading, PHSpacing.s48)
+                filaBusqueda(
+                    icono: "pawprint", etiqueta: "Con quién más",
+                    valor: (viewModel.convivencia ?? .cualquiera).etiqueta
+                )
             }
+            .background(PHColor.canvas)
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+            .phShadow(PHShadow.level2)
         }
         .padding(.horizontal, PHSpacing.s20)
+    }
+
+    /// Una fila de `barraBusqueda` — icono + etiqueta chica arriba, valor actual abajo.
+    /// Todas abren el mismo `BuscadorSheet` (tiene los 3 campos juntos, ver su comentario).
+    private func filaBusqueda(icono: String, etiqueta: String, valor: String) -> some View {
+        Button {
+            mostrarBuscador = true
+        } label: {
+            HStack(spacing: PHSpacing.s12) {
+                Image(systemName: icono)
+                    .foregroundStyle(PHColor.primary)
+                    .frame(width: PHSpacing.s20)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(etiqueta)
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                    Text(valor)
+                        .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, PHSpacing.s16)
+            .padding(.vertical, PHSpacing.s12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(etiqueta): \(valor)")
+        .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
     }
 
     /// Chips rápidos de especie — filtro real (ver `BuscarViewModel.alternarEspecie`), no
