@@ -113,7 +113,11 @@ struct PerfilView: View {
         }
         .confirmationDialog("¿Cerrar sesión?", isPresented: $mostrarConfirmacionLogout, titleVisibility: .visible) {
             Button("Cerrar sesión", role: .destructive) {
-                Task { await session.cerrarSesion() }
+                print("🟡 DEBUG botón Cerrar sesión tocado")
+                Task {
+                    await session.cerrarSesion()
+                    print("🟡 DEBUG Task de cerrarSesion() terminó")
+                }
             }
             Button("Cancelar", role: .cancel) {}
         }

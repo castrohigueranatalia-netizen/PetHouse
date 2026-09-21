@@ -219,6 +219,7 @@ public final class SessionStore {
     }
 
     public func cerrarSesion() async {
+        print("🔴 DEBUG cerrarSesion() INICIO — estado actual: \(estado), abrirVerificacionAlEntrar: \(abrirVerificacionAlEntrar)")
         // La revocación del refresh token en el servidor se dispara sin esperarla: si la red
         // está lenta o caída, `cerrarSesion()` no debe quedarse colgada — la sesión local ya
         // se cerró de todas formas, y `try?` en RegistroViewModel/APIClient ya ignora el error
@@ -246,6 +247,7 @@ public final class SessionStore {
         volverABuscar = false
         estado = .invitado
         borrarCache()
+        print("🔴 DEBUG cerrarSesion() FIN — estado nuevo: \(estado), abrirVerificacionAlEntrar: \(abrirVerificacionAlEntrar)")
     }
 
     /// Llamado por `APIClient` cuando un refresh de token falla definitivamente.
