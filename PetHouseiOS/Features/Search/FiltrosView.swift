@@ -4,8 +4,9 @@
 //
 //  Filtros SECUNDARIOS: palabra clave, tipo de hospedaje, orden y "cerca de mí" (lat/lng
 //  vía `LocationProvider`). Localidad, fechas y convivencia son los 3 campos PRIMARIOS y
-//  viven en `BuscadorSheet` (la barra de búsqueda principal, ver BuscarView) — a propósito
-//  no se repiten aquí, para no tener el mismo dato editable en dos lugares distintos.
+//  viven en la barra de búsqueda principal de BuscarView, cada uno con su propio selector
+//  (SelectorLocalidadSheet/SelectorFechasBusquedaSheet/SelectorConvivenciaSheet) — a
+//  propósito no se repiten aquí, para no tener el mismo dato editable en dos lugares.
 //
 
 import SwiftUI

@@ -28,8 +28,8 @@ public struct PHSelectorRangoFechas: View {
     /// falta confirmar la salida (`false` — el primer toque ya deja una `hasta` tentativa al
     /// día siguiente, pero eso no es lo mismo que el huésped haya elegido de verdad cuándo se
     /// va). Con `soloUnDia` siempre es `true`, un solo toque alcanza. Quien use este selector
-    /// decide qué hacer con eso (ver `BuscadorSheet`, que no deja confirmar la búsqueda "Por
-    /// noches" sin una salida real).
+    /// decide qué hacer con eso (ver `SelectorFechasBusquedaSheet`, que no deja confirmar la
+    /// búsqueda "Por noches" sin una salida real).
     var onCambio: ((Bool) -> Void)? = nil
 
     @State private var mesMostrado: Date

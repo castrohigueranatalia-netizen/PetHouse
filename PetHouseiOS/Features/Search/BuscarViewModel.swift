@@ -43,7 +43,7 @@ public final class BuscarViewModel {
     public var orden: Orden = .relevancia
     public var cercaDeMi = false
 
-    /// Barra de búsqueda principal (ver BuscarView/BuscadorSheet): localidad + fechas +
+    /// Barra de búsqueda principal (ver BuscarView): localidad + fechas +
     /// convivencia — los 3 campos prominentes que arman el filtro principal, junto con las
     /// fechas, que antes no se usaban en la búsqueda para nada (solo en el flujo de
     /// reserva). `usarFechas` es explícito: sin fechas es una búsqueda válida ("cualquier

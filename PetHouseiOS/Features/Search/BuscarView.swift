@@ -5,22 +5,77 @@
 
 import SwiftUI
 
+/// Mide dónde termina `encabezado` respecto al `ScrollView` que lo contiene (ver
+/// `BuscarView.body`) — cuando ese borde inferior sube más allá de `distanciaCompacta`,
+/// el encabezado grande (saludo + tarjeta de búsqueda + chips) ya no se ve, así que se
+/// cambia a la barra compacta fija arriba. `defaultValue` alto a propósito: antes de la
+/// primera medición real (un instante, al aparecer la vista) no debe parpadear a "compacta".
+private struct DesplazamientoEncabezadoKey: PreferenceKey {
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct BuscarView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = BuscarViewModel()
     @State private var favoritosViewModel = FavoritosViewModel()
-    @State private var mostrarBuscador = false
+    @State private var mostrarSelectorLocalidad = false
+    @State private var mostrarSelectorFechas = false
+    @State private var mostrarSelectorConvivencia = false
     @State private var mostrarFiltros = false
     @State private var mostrarMapa = false
     @State private var mostrarNotificaciones = false
     @State private var mostrarMisHospedajes = false
     @State private var hospedajeSeleccionado: Hospedaje?
+    /// `true` en cuanto `encabezado` deja de verse por scroll — activa `barraCompacta` (ver
+    /// `.onPreferenceChange` abajo). Empieza en `false`: recién entrando a la pantalla (o
+    /// apenas se inicia sesión) siempre se ve el encabezado completo primero.
+    @State private var mostrarBarraCompacta = false
+
+    /// Distancia (desde arriba del `ScrollView`) a la que el encabezado se considera "ya no
+    /// visible" — un pequeño margen en vez de 0 para que la barra compacta aparezca justo
+    /// cuando el encabezado grande termina de salir, no un instante después.
+    private let distanciaCompacta: CGFloat = PHSpacing.s24
+    private let anclaEncabezado = "encabezado"
 
     var body: some View {
-        VStack(spacing: 0) {
-            encabezado
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    encabezado
+                        .id(anclaEncabezado)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: DesplazamientoEncabezadoKey.self,
+                                    value: geo.frame(in: .named("buscarScroll")).maxY
+                                )
+                            }
+                        )
 
-            content
+                    contenido
+                }
+            }
+            .coordinateSpace(name: "buscarScroll")
+            .refreshable { await viewModel.buscar() }
+            .onPreferenceChange(DesplazamientoEncabezadoKey.self) { maxY in
+                let compacta = maxY < distanciaCompacta
+                guard compacta != mostrarBarraCompacta else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { mostrarBarraCompacta = compacta }
+            }
+            // Barra compacta fija arriba, SOLO mientras el encabezado grande no se ve — al
+            // tocarla, sube de nuevo hasta el encabezado (en vez de abrir un selector propio,
+            // que sería una cuarta forma más de buscar además de las 3 filas de abajo).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if mostrarBarraCompacta {
+                    barraCompacta {
+                        withAnimation { proxy.scrollTo(anclaEncabezado, anchor: .top) }
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
         }
         .background(PHColor.canvas)
         // Sin texto: el saludo de `encabezado` ya cumple el rol de título de la pantalla
@@ -60,24 +115,36 @@ struct BuscarView: View {
                 }
             }
         }
-        // `.fullScreenCover`, no `.sheet` — esta vista ya encadena tres `.sheet(isPresented:)`
-        // distintos (buscador, filtros, mapa); un cuarto ahí mismo cae en el mismo riesgo de
-        // presentación poco confiable que ya se vio antes en Perfil. `.fullScreenCover` es un
-        // mecanismo de presentación aparte, sin ese conflicto.
+        // `.fullScreenCover`, no `.sheet` — esta vista ya encadena varios `.sheet(isPresented:)`
+        // distintos (localidad, fechas, convivencia, filtros, mapa); uno más ahí mismo cae en
+        // el mismo riesgo de presentación poco confiable que ya se vio antes en Perfil.
+        // `.fullScreenCover` es un mecanismo de presentación aparte, sin ese conflicto.
         .fullScreenCover(isPresented: $mostrarNotificaciones) {
             NotificacionesView()
         }
-        // `.fullScreenCover`, no `.sheet` — mismo motivo que `mostrarNotificaciones` arriba
-        // (ya hay tres `.sheet(isPresented:)` encadenados en esta vista). `MisHospedajesView`
-        // no trae su propio `NavigationStack` (normalmente vive empujada dentro del de
-        // Perfil, ver PerfilView) — acá se le da uno propio, igual que con `MapaView`.
+        // `.fullScreenCover`, no `.sheet` — mismo motivo que `mostrarNotificaciones` arriba.
+        // `MisHospedajesView` no trae su propio `NavigationStack` (normalmente vive empujada
+        // dentro del de Perfil, ver PerfilView) — acá se le da uno propio, igual que con
+        // `MapaView`.
         .fullScreenCover(isPresented: $mostrarMisHospedajes) {
             NavigationStack {
                 MisHospedajesView()
             }
         }
-        .sheet(isPresented: $mostrarBuscador) {
-            BuscadorSheet(viewModel: viewModel) {
+        // Cada fila de `barraBusqueda` abre su PROPIO selector — no un formulario combinado
+        // con los 3 campos juntos — para llegar directo a elegir sin un paso intermedio.
+        .sheet(isPresented: $mostrarSelectorLocalidad) {
+            SelectorLocalidadSheet(viewModel: viewModel) {
+                Task { await viewModel.buscar() }
+            }
+        }
+        .sheet(isPresented: $mostrarSelectorFechas) {
+            SelectorFechasBusquedaSheet(viewModel: viewModel) {
+                Task { await viewModel.buscar() }
+            }
+        }
+        .sheet(isPresented: $mostrarSelectorConvivencia) {
+            SelectorConvivenciaSheet(viewModel: viewModel) {
                 Task { await viewModel.buscar() }
             }
         }
@@ -103,7 +170,9 @@ struct BuscarView: View {
         .onChange(of: session.volverABuscar) { _, volver in
             guard volver else { return }
             hospedajeSeleccionado = nil
-            mostrarBuscador = false
+            mostrarSelectorLocalidad = false
+            mostrarSelectorFechas = false
+            mostrarSelectorConvivencia = false
             mostrarFiltros = false
             mostrarMapa = false
             // El logo dentro de `MisHospedajesView` (ver su propio toolbar) también dispara
@@ -117,7 +186,9 @@ struct BuscarView: View {
 
     /// Zona de cabecera completa: saludo + huella, barra de búsqueda, chips rápidos de
     /// especie y contador de contexto, sobre un degradado sutil coral → blanco. Ver el
-    /// mockup "idea 6" de la barra de búsqueda (versión final acordada).
+    /// mockup "idea 6" de la barra de búsqueda (versión final acordada). Vive DENTRO del
+    /// `ScrollView` (no fija arriba) a propósito — así se puede medir cuándo deja de verse
+    /// para mostrar `barraCompacta` en su lugar (ver `body`).
     private var encabezado: some View {
         VStack(alignment: .leading, spacing: 0) {
             saludo
@@ -166,19 +237,19 @@ struct BuscarView: View {
 
     /// Barra principal: localidad + fechas + convivencia, como 3 filas SIEMPRE visibles
     /// dentro de una misma tarjeta — mismo espíritu que el buscador de Airbnb (Dónde/Fechas/
-    /// Quién a la vista desde el principio, no escondidos detrás de un resumen colapsado que
-    /// hay que abrir para saber qué dice). En escritorio Airbnb las pone una al lado de la
+    /// Quién a la vista desde el principio). En escritorio Airbnb las pone una al lado de la
     /// otra porque tiene ancho de sobra; en un iPhone no entran así, así que acá van
-    /// apiladas — se ve todo igual, solo que hacia abajo en vez de hacia los lados. Tocar
-    /// cualquier fila abre `BuscadorSheet`, que ya tiene los 3 campos juntos — no hace falta
-    /// un selector propio por fila. "Filtros" (tipo, orden, cerca de mí) queda aparte, como
-    /// opciones secundarias, igual que antes.
+    /// apiladas. Cada fila lleva DIRECTO a su propio selector (`SelectorLocalidadSheet`,
+    /// `SelectorFechasBusquedaSheet`, `SelectorConvivenciaSheet`) — tocar "Dónde" muestra
+    /// solo la lista de localidades, tocar "Fechas" abre el calendario de una, y tocar "Con
+    /// quién más" muestra solo esas opciones, sin pasar por un formulario combinado. "Filtros"
+    /// (tipo, orden, cerca de mí) queda aparte, como opciones secundarias, igual que antes.
     private var barraBusqueda: some View {
         VStack(alignment: .leading, spacing: PHSpacing.s8) {
             HStack {
                 Spacer()
                 // Solo aparece si hay algo elegido (localidad/fechas/convivencia) — quita esa
-                // selección y vuelve a buscar en toda Bogotá sin tener que abrir el buscador.
+                // selección y vuelve a buscar en toda Bogotá sin tener que abrir nada.
                 if viewModel.hayBusquedaActiva {
                     PHIconButton(systemImage: "xmark.circle.fill", accessibilityLabel: "Quitar selección de búsqueda") {
                         viewModel.limpiarFiltros()
@@ -194,19 +265,25 @@ struct BuscarView: View {
                 filaBusqueda(
                     icono: "mappin.and.ellipse", etiqueta: "Dónde",
                     valor: viewModel.localidad?.etiqueta ?? "Toda Bogotá"
-                )
+                ) {
+                    mostrarSelectorLocalidad = true
+                }
                 Divider().padding(.leading, PHSpacing.s48)
                 filaBusqueda(
                     icono: "calendar", etiqueta: "Fechas",
                     valor: viewModel.usarFechas
                         ? "\(PHDate.displayShort.string(from: viewModel.desde)) – \(PHDate.displayShort.string(from: viewModel.hasta))"
                         : "Cualquier fecha"
-                )
+                ) {
+                    mostrarSelectorFechas = true
+                }
                 Divider().padding(.leading, PHSpacing.s48)
                 filaBusqueda(
                     icono: "pawprint", etiqueta: "Con quién más",
                     valor: (viewModel.convivencia ?? .cualquiera).etiqueta
-                )
+                ) {
+                    mostrarSelectorConvivencia = true
+                }
             }
             .background(PHColor.canvas)
             .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
@@ -216,11 +293,9 @@ struct BuscarView: View {
     }
 
     /// Una fila de `barraBusqueda` — icono + etiqueta chica arriba, valor actual abajo.
-    /// Todas abren el mismo `BuscadorSheet` (tiene los 3 campos juntos, ver su comentario).
-    private func filaBusqueda(icono: String, etiqueta: String, valor: String) -> some View {
-        Button {
-            mostrarBuscador = true
-        } label: {
+    /// `accion` abre el selector específico de ese campo (ver `barraBusqueda`).
+    private func filaBusqueda(icono: String, etiqueta: String, valor: String, accion: @escaping () -> Void) -> some View {
+        Button(action: accion) {
             HStack(spacing: PHSpacing.s12) {
                 Image(systemName: icono)
                     .foregroundStyle(PHColor.primary)
@@ -240,7 +315,34 @@ struct BuscarView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(etiqueta): \(valor)")
-        .accessibilityHint("Abre el buscador de localidad, fechas y convivencia")
+    }
+
+    /// Barra fija que reemplaza a `encabezado` mientras se hace scroll hacia abajo (ver
+    /// `mostrarBarraCompacta`) — solo una lupa y el resumen de la búsqueda actual, para no
+    /// perder toda esa altura mientras se mira la lista. Tocarla sube de nuevo hasta el
+    /// encabezado completo en vez de abrir un selector — las 3 filas de ahí arriba siguen
+    /// siendo la única forma de cambiar Dónde/Fechas/Con quién.
+    private func barraCompacta(alTocar: @escaping () -> Void) -> some View {
+        Button(action: alTocar) {
+            HStack(spacing: PHSpacing.s8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(PHColor.primary)
+                Text(viewModel.resumenBusqueda)
+                    .phText(PHFont.bodySM.weight(.semibold), color: PHColor.ink)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, PHSpacing.s20)
+            .padding(.vertical, PHSpacing.s12)
+            .background(PHColor.canvas)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .accessibilityLabel("Buscar hospedaje: \(viewModel.resumenBusqueda)")
+        .accessibilityHint("Sube hasta el buscador completo")
     }
 
     /// Chips rápidos de especie — filtro real (ver `BuscarViewModel.alternarEspecie`), no
@@ -279,8 +381,11 @@ struct BuscarView: View {
         return "\(cantidad) hospedaje\(cantidad == 1 ? "" : "s") en \(lugar)"
     }
 
+    /// Ya NO trae su propio `ScrollView` — vive dentro del `ScrollView` único de `body`,
+    /// justo debajo de `encabezado`, para que ambos compartan el mismo scroll (necesario
+    /// para medir cuándo `encabezado` deja de verse, ver `DesplazamientoEncabezadoKey`).
     @ViewBuilder
-    private var content: some View {
+    private var contenido: some View {
         if viewModel.isLoading && viewModel.resultados.isEmpty {
             PHLoadingStateView(mensaje: "Buscando hospedajes…")
         } else if let error = viewModel.error {
@@ -298,33 +403,30 @@ struct BuscarView: View {
                 Task { await viewModel.buscar() }
             }
         } else {
-            ScrollView {
-                LazyVStack(spacing: PHSpacing.s16) {
-                    ForEach(viewModel.resultados) { hospedaje in
-                        Button {
-                            hospedajeSeleccionado = hospedaje
-                        } label: {
-                            PHHospedajeCard(
-                                hospedaje,
-                                esFavorito: favoritosViewModel.esFavorito(hospedaje.id),
-                                mostrarPrecioDia: viewModel.busquedaMismoDia,
-                                onToggleFavorito: {
-                                    Task { await favoritosViewModel.alternar(hospedaje) }
-                                }
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear { viewModel.cargarMasSiHaceFalta(elementoActual: hospedaje) }
+            LazyVStack(spacing: PHSpacing.s16) {
+                ForEach(viewModel.resultados) { hospedaje in
+                    Button {
+                        hospedajeSeleccionado = hospedaje
+                    } label: {
+                        PHHospedajeCard(
+                            hospedaje,
+                            esFavorito: favoritosViewModel.esFavorito(hospedaje.id),
+                            mostrarPrecioDia: viewModel.busquedaMismoDia,
+                            onToggleFavorito: {
+                                Task { await favoritosViewModel.alternar(hospedaje) }
+                            }
+                        )
                     }
-
-                    if viewModel.cargandoMas {
-                        ProgressView()
-                            .padding(.vertical, PHSpacing.s16)
-                    }
+                    .buttonStyle(.plain)
+                    .onAppear { viewModel.cargarMasSiHaceFalta(elementoActual: hospedaje) }
                 }
-                .padding(PHSpacing.s16)
+
+                if viewModel.cargandoMas {
+                    ProgressView()
+                        .padding(.vertical, PHSpacing.s16)
+                }
             }
-            .refreshable { await viewModel.buscar() }
+            .padding(PHSpacing.s16)
         }
     }
 }
