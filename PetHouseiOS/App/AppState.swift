@@ -219,8 +219,12 @@ public final class SessionStore {
     }
 
     public func cerrarSesion() async {
+        // La revocación del refresh token en el servidor se dispara sin esperarla: si la red
+        // está lenta o caída, `cerrarSesion()` no debe quedarse colgada — la sesión local ya
+        // se cerró de todas formas, y `try?` en RegistroViewModel/APIClient ya ignora el error
+        // de esa llamada cuando sí llega a completarse.
         if let refresh = keychain.leer(.refreshToken) {
-            try? await authService.logout(refreshToken: refresh)
+            Task { try? await authService.logout(refreshToken: refresh) }
         }
         keychain.borrarTodo()
         usuario = nil
@@ -232,6 +236,14 @@ public final class SessionStore {
         resolucionVerificacion = nil
         resolucionesReserva = []
         solicitudesNuevasAnfitrion = []
+        // Señales de "una sola vez" (ver sus comentarios más arriba) — si quedaran encendidas,
+        // la PRÓXIMA sesión (de esta u otra cuenta, en el mismo dispositivo) heredaría un salto
+        // de pantalla que no le corresponde, por ejemplo entrar directo a Perfil en vez de
+        // Buscar por una verificación de anfitrión de la sesión anterior ya resuelta.
+        abrirVerificacionAlEntrar = false
+        reservaRecibidaParaAbrir = nil
+        reservaIdParaPublicarActualizacion = nil
+        volverABuscar = false
         estado = .invitado
         borrarCache()
     }
