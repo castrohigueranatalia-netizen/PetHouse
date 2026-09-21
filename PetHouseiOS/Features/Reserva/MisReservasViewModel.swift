@@ -27,6 +27,17 @@ public final class MisReservasViewModel {
         self.service = service
     }
 
+    /// La reserva 'confirmada' más próxima a empezar (hoy o en el futuro) — para el aviso
+    /// de cuenta regresiva arriba de la lista (ver `MisReservasView`). `nil` si no hay
+    /// ninguna confirmada por venir. Ordena por `desde` en vez de tomar la primera del
+    /// arreglo porque el servidor no garantiza ningún orden particular por fecha.
+    public var proximaEstadia: Reserva? {
+        let hoy = PHDate.toAPIDateOnly(.now)
+        return reservas
+            .filter { $0.estado == .confirmada && ($0.desde ?? "") >= hoy }
+            .min { ($0.desde ?? "") < ($1.desde ?? "") }
+    }
+
     public func cargar(modelContext: ModelContext) async {
         isLoading = true
         error = nil

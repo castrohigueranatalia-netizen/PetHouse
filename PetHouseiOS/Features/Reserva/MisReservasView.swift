@@ -119,6 +119,11 @@ struct MisReservasView: View {
                     PHBadge("Mostrando datos guardados sin conexión", style: .warning)
                         .padding(.top, PHSpacing.s8)
                 }
+                if let proxima = viewModel.proximaEstadia {
+                    cuentaRegresiva(proxima)
+                        .padding(.horizontal, PHSpacing.s16)
+                        .padding(.top, PHSpacing.s8)
+                }
                 LazyVStack(spacing: PHSpacing.s12) {
                     ForEach(viewModel.reservas) { reserva in
                         reservaFila(reserva)
@@ -127,6 +132,53 @@ struct MisReservasView: View {
                 .padding(PHSpacing.s16)
             }
         }
+    }
+
+    /// Aviso de cuenta regresiva a la próxima estadía confirmada (ver
+    /// `MisReservasViewModel.proximaEstadia`) — tocarlo abre el mismo detalle que tocar su
+    /// tarjeta en la lista de abajo.
+    private func cuentaRegresiva(_ reserva: Reserva) -> some View {
+        Button {
+            reservaSeleccionada = reserva
+        } label: {
+            HStack(spacing: PHSpacing.s12) {
+                ZStack {
+                    Circle().fill(PHColor.primaryContainer)
+                    Image(systemName: "hourglass")
+                        .foregroundStyle(PHColor.primary)
+                }
+                .frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(textoCuentaRegresiva(diasHasta(reserva)))
+                        .phText(PHFont.bodyMD.weight(.semibold), color: PHColor.ink)
+                    Text(reserva.hospedajeTitulo ?? "Hospedaje")
+                        .phText(PHFont.captionSM, color: PHColor.muted)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(PHColor.mutedSoft)
+                    .font(.caption)
+            }
+            .padding(PHSpacing.s16)
+            .background(PHColor.primaryContainer.opacity(0.35))
+            .clipShape(RoundedRectangle(cornerRadius: PHRadius.lg, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func diasHasta(_ reserva: Reserva) -> Int {
+        guard let desdeTexto = reserva.desde, let desde = PHDate.apiDateOnly.date(from: desdeTexto) else { return 0 }
+        let calendario = Calendar.current
+        return calendario.dateComponents(
+            [.day], from: calendario.startOfDay(for: .now), to: calendario.startOfDay(for: desde)
+        ).day ?? 0
+    }
+
+    private func textoCuentaRegresiva(_ dias: Int) -> String {
+        if dias <= 0 { return "¡Tu mascota se hospeda hoy!" }
+        if dias == 1 { return "Mañana empieza tu próxima estadía" }
+        return "Faltan \(dias) días para tu próxima estadía"
     }
 
     /// Reservas ya resueltas — el huésped las puede quitar del panel con la "x" (no se
