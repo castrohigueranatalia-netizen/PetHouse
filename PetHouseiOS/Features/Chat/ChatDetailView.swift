@@ -48,6 +48,9 @@ struct ChatDetailView: View {
                 }
             }
 
+            if session.usuario?.esAnfitrion == true {
+                respuestasRapidas
+            }
             entrada
         }
         .navigationTitle(conversacion.otroNombre ?? "Chat")
@@ -139,6 +142,34 @@ struct ChatDetailView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(esMio ? "Tú" : (conversacion.otroNombre ?? "Otro usuario")): \(mensaje.texto ?? "foto")")
+    }
+
+    /// Mensajes predefinidos para lo que los huéspedes preguntan siempre — solo para
+    /// cuentas anfitrión (ver `esAnfitrion` arriba). Tocar uno lo pone en el campo de texto
+    /// para revisarlo/editarlo antes de enviar, no lo envía directo — sigue siendo el
+    /// anfitrión quien decide qué manda.
+    private static let respuestasSugeridas = [
+        "¡Hola! Sí, tengo espacio disponible esas fechas 🐾",
+        "Sí, acepto cachorros y gatitos pequeños.",
+        "Tengo patio/espacio al aire libre para que juegue.",
+        "¿Qué vacunas tiene tu mascota al día?",
+        "Perfecto, acabo de aceptar tu solicitud."
+    ]
+
+    private var respuestasRapidas: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: PHSpacing.s8) {
+                ForEach(Self.respuestasSugeridas, id: \.self) { respuesta in
+                    PHChip(respuesta, isSelected: false) {
+                        viewModel.texto = respuesta
+                        campoActivo = true
+                    }
+                }
+            }
+            .padding(.horizontal, PHSpacing.s12)
+        }
+        .padding(.top, PHSpacing.s8)
+        .background(.ultraThinMaterial)
     }
 
     private var entrada: some View {
