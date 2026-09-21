@@ -5,13 +5,12 @@
 
 import SwiftUI
 
-/// Mide dónde termina `encabezado` respecto al `ScrollView` que lo contiene (ver
-/// `BuscarView.body`) — cuando ese borde inferior sube más allá de `distanciaCompacta`,
-/// el encabezado grande (saludo + tarjeta de búsqueda + chips) ya no se ve, así que se
-/// cambia a la barra compacta fija arriba. `defaultValue` alto a propósito: antes de la
-/// primera medición real (un instante, al aparecer la vista) no debe parpadear a "compacta".
-private struct DesplazamientoEncabezadoKey: PreferenceKey {
-    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+/// Mide cuánto se ha bajado en el `ScrollView` que contiene `encabezado` (ver
+/// `BuscarView.body`) — un marcador de altura cero justo antes del encabezado, y se lee
+/// su posición vertical relativa al scroll. En reposo vale 0; baja a números negativos a
+/// medida que se hace scroll (mismo valor absoluto que lo que se ha bajado en puntos).
+private struct DesplazamientoScrollKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
@@ -29,53 +28,70 @@ struct BuscarView: View {
     @State private var mostrarNotificaciones = false
     @State private var mostrarMisHospedajes = false
     @State private var hospedajeSeleccionado: Hospedaje?
-    /// `true` en cuanto `encabezado` deja de verse por scroll — activa `barraCompacta` (ver
+    /// `true` apenas se ha bajado lo suficiente — activa `barraCompacta` (ver
     /// `.onPreferenceChange` abajo). Empieza en `false`: recién entrando a la pantalla (o
-    /// apenas se inicia sesión) siempre se ve el encabezado completo primero.
+    /// apenas se inicia sesión) siempre se ve el encabezado completo primero, sin nada
+    /// superpuesto.
     @State private var mostrarBarraCompacta = false
+    /// Referencia al scroll para poder subir hasta arriba al tocar la barra compacta (ver
+    /// `barraCompacta`) — se guarda apenas `ScrollViewReader` la entrega, no se puede leer
+    /// directo desde otra parte del árbol de vistas.
+    @State private var scrollProxy: ScrollViewProxy?
 
-    /// Distancia (desde arriba del `ScrollView`) a la que el encabezado se considera "ya no
-    /// visible" — un pequeño margen en vez de 0 para que la barra compacta aparezca justo
-    /// cuando el encabezado grande termina de salir, no un instante después.
-    private let distanciaCompacta: CGFloat = PHSpacing.s24
+    /// Cuánto hay que bajar (en puntos) antes de que aparezca la barra compacta — un valor
+    /// chico a propósito: la idea es que se sienta como que la búsqueda "se encoge" apenas
+    /// empiezas a bajar, no que primero desaparezca todo y recién después, al final, salga
+    /// la lupa. No depende de la altura real del encabezado.
+    private let umbralCompacta: CGFloat = PHSpacing.s64
     private let anclaEncabezado = "encabezado"
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    encabezado
-                        .id(anclaEncabezado)
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.preference(
-                                    key: DesplazamientoEncabezadoKey.self,
-                                    value: geo.frame(in: .named("buscarScroll")).maxY
-                                )
-                            }
-                        )
+        // `ZStack`, no `.safeAreaInset` — `barraCompacta` va SUPERPUESTA arriba del scroll
+        // (no reserva su propio espacio fijo empujando el contenido hacia abajo). Con
+        // `.safeAreaInset` cada vez que aparecía/desaparecía cambiaba el alto disponible del
+        // `ScrollView` y el scroll daba un salto brusco justo al mismo tiempo que se intentaba
+        // mostrar algo — se sentía como que "todo desaparecía" en vez de encogerse. Superpuesta,
+        // el listado de hospedajes sigue subiendo por detrás/debajo de ella sin ningún salto.
+        ZStack(alignment: .top) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .frame(height: 0)
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: DesplazamientoScrollKey.self,
+                                        value: geo.frame(in: .named("buscarScroll")).minY
+                                    )
+                                }
+                            )
 
-                    contenido
-                }
-            }
-            .coordinateSpace(name: "buscarScroll")
-            .refreshable { await viewModel.buscar() }
-            .onPreferenceChange(DesplazamientoEncabezadoKey.self) { maxY in
-                let compacta = maxY < distanciaCompacta
-                guard compacta != mostrarBarraCompacta else { return }
-                withAnimation(.easeInOut(duration: 0.2)) { mostrarBarraCompacta = compacta }
-            }
-            // Barra compacta fija arriba, SOLO mientras el encabezado grande no se ve — al
-            // tocarla, sube de nuevo hasta el encabezado (en vez de abrir un selector propio,
-            // que sería una cuarta forma más de buscar además de las 3 filas de abajo).
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if mostrarBarraCompacta {
-                    barraCompacta {
-                        withAnimation { proxy.scrollTo(anclaEncabezado, anchor: .top) }
+                        encabezado
+                            .id(anclaEncabezado)
+
+                        contenido
                     }
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
+                .coordinateSpace(name: "buscarScroll")
+                .refreshable { await viewModel.buscar() }
+                .onAppear { scrollProxy = proxy }
             }
+
+            if mostrarBarraCompacta {
+                // Tocarla sube de nuevo hasta el encabezado (en vez de abrir un selector
+                // propio, que sería una cuarta forma más de buscar además de las 3 filas del
+                // encabezado).
+                barraCompacta {
+                    withAnimation { scrollProxy?.scrollTo(anclaEncabezado, anchor: .top) }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .onPreferenceChange(DesplazamientoScrollKey.self) { minY in
+            let compacta = minY < -umbralCompacta
+            guard compacta != mostrarBarraCompacta else { return }
+            withAnimation(.easeInOut(duration: 0.2)) { mostrarBarraCompacta = compacta }
         }
         .background(PHColor.canvas)
         // Sin texto: el saludo de `encabezado` ya cumple el rol de título de la pantalla
@@ -83,6 +99,12 @@ struct BuscarView: View {
         // sería redundante.
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // Sin esto, la barra de navegación (donde están el logo y la campana) pinta su
+        // propio fondo blanco/opaco encima del degradado coral de `encabezado`, y se ve una
+        // línea marcando dónde termina uno y empieza el otro. Ocultando su fondo, el
+        // degradado (que se extiende hasta arriba del todo, ver `encabezado`) se ve
+        // continuo por detrás de ella, sin ese corte de color.
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 // El logo es el botón de "inicio": ya estando en Buscar, vuelve al listado
@@ -201,6 +223,10 @@ struct BuscarView: View {
                 colors: [PHColor.primary.opacity(0.07), PHColor.primary.opacity(0)],
                 startPoint: .top, endPoint: .bottom
             )
+            // Sube el degradado por detrás de la barra de navegación (que ahora tiene el
+            // fondo oculto, ver `.toolbarBackground` en `body`) para que se vea un solo
+            // color continuo desde arriba del todo, sin corte entre la barra y el saludo.
+            .ignoresSafeArea(edges: .top)
         )
     }
 
@@ -383,7 +409,7 @@ struct BuscarView: View {
 
     /// Ya NO trae su propio `ScrollView` — vive dentro del `ScrollView` único de `body`,
     /// justo debajo de `encabezado`, para que ambos compartan el mismo scroll (necesario
-    /// para medir cuándo `encabezado` deja de verse, ver `DesplazamientoEncabezadoKey`).
+    /// para medir cuánto se ha bajado, ver `DesplazamientoScrollKey`).
     @ViewBuilder
     private var contenido: some View {
         if viewModel.isLoading && viewModel.resultados.isEmpty {
