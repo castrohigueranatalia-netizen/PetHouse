@@ -115,7 +115,7 @@ struct BuscarView: View {
                 .accessibilityLabel("Ir al listado de hospedajes")
             }
             ToolbarItem(placement: .topBarTrailing) {
-                PHIconButton(systemImage: "map", accessibilityLabel: "Ver en el mapa") {
+                PHIconButton(systemImage: "mappin.and.ellipse", accessibilityLabel: "Ver en el mapa") {
                     mostrarMapa = true
                 }
             }
