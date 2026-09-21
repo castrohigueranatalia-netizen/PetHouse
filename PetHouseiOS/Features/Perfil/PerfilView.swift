@@ -35,6 +35,7 @@ struct PerfilView: View {
     /// sheet nuevo mientras el anterior todavía se está cerrando puede fallar en silencio.
     @State private var mascotaPendienteParaEditar: Mascota?
     @State private var mostrarConfirmacionLogout = false
+    @State private var confirmoCerrarSesion = false
     @State private var mostrarVerificacion = false
     @State private var fotoVisor: FotoVisorItem?
     @State private var mostrarNotificaciones = false
@@ -111,15 +112,25 @@ struct PerfilView: View {
                 })
             }
         }
+        // El cierre de sesión de verdad (session.cerrarSesion(), que hace que RootView
+        // reemplace TODA esta jerarquía de vistas por la de login) NO se dispara adentro del
+        // botón del diálogo — se dispara en `.onChange` de abajo, una vez que
+        // `mostrarConfirmacionLogout` ya terminó de bajar a `false`. Si se dispara adentro del
+        // botón, compite con la propia animación de cierre del diálogo del sistema (una
+        // action sheet) justo en el momento en que SwiftUI también está reemplazando la
+        // pantalla completa por detrás — esa carrera es la que se sentía como "se queda
+        // congelado" y obligaba a tocar "Cerrar sesión" una segunda vez para que por fin se
+        // viera el cambio (el estado ya había cambiado en la primera, solo no se veía).
         .confirmationDialog("¿Cerrar sesión?", isPresented: $mostrarConfirmacionLogout, titleVisibility: .visible) {
             Button("Cerrar sesión", role: .destructive) {
-                print("🟡 DEBUG botón Cerrar sesión tocado")
-                Task {
-                    await session.cerrarSesion()
-                    print("🟡 DEBUG Task de cerrarSesion() terminó")
-                }
+                confirmoCerrarSesion = true
             }
             Button("Cancelar", role: .cancel) {}
+        }
+        .onChange(of: mostrarConfirmacionLogout) { _, sigueAbierto in
+            guard !sigueAbierto, confirmoCerrarSesion else { return }
+            confirmoCerrarSesion = false
+            Task { await session.cerrarSesion() }
         }
         // UN SOLO `.navigationDestination` para las DOS formas de entrar a la verificación de
         // anfitrión, no dos modificadores separados: (1) el botón "Conviértete en anfitrión"
