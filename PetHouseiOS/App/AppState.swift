@@ -442,17 +442,19 @@ public final class SessionStore {
         try? await reservasService.marcarNotificadaAnfitrion(id: primera.id)
     }
 
-    /// Sincroniza los recordatorios locales de "publica una actualización" (ver
-    /// RecordatoriosEstadia) contra TODAS las reservas del anfitrión — se llama en los
-    /// mismos momentos que el resto de los avisos (arrancar/loguearse/registrarse) y también
-    /// cada vez que se abre "Reservas recibidas" (ver ReservasRecibidasView), para que una
-    /// reserva recién aceptada empiece a recordarse sin esperar al próximo arranque de la
-    /// app. Sale de inmediato si la cuenta no es anfitrión — un huésped normal no tiene
-    /// reservas propias que recordar.
+    /// Sincroniza los DOS recordatorios locales del anfitrión — "publica una actualización"
+    /// mientras la estadía está en curso (ver RecordatoriosEstadia) y "mañana te llega una
+    /// mascota" la tarde anterior a que empiece (ver RecordatorioPreEstadia) — contra TODAS
+    /// las reservas del anfitrión. Se llama en los mismos momentos que el resto de los
+    /// avisos (arrancar/loguearse/registrarse) y también cada vez que se abre "Reservas
+    /// recibidas" (ver ReservasRecibidasView), para que una reserva recién aceptada empiece
+    /// a recordarse sin esperar al próximo arranque de la app. Sale de inmediato si la
+    /// cuenta no es anfitrión — un huésped normal no tiene reservas propias que recordar.
     public func sincronizarRecordatoriosEstadia() async {
         guard usuario?.esAnfitrion == true else { return }
         guard let historial = try? await anfitrionService.historial() else { return }
         await RecordatoriosEstadia.sincronizar(historial)
+        await RecordatorioPreEstadia.sincronizar(historial)
     }
 
     // MARK: - Privado
