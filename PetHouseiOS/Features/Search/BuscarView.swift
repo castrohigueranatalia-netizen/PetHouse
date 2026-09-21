@@ -316,7 +316,7 @@ struct BuscarView: View {
                 }
                 Divider().padding(.leading, PHSpacing.s48)
                 filaBusqueda(
-                    icono: "pawprint", etiqueta: "Con quién más",
+                    icono: "pawprint", etiqueta: "¿Comparte con otras mascotas?",
                     valor: (viewModel.convivencia ?? .cualquiera).etiqueta
                 ) {
                     mostrarSelectorConvivencia = true

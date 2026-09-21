@@ -2,9 +2,9 @@
 //  SelectorConvivenciaSheet.swift
 //  Features/Search
 //
-//  Entrada directa desde la fila "Con quién más" de BuscarView — SOLO las opciones de
-//  convivencia (ver Core/Models/Hospedaje.swift → Convivencia), sin pasar por un
-//  formulario con más campos. Elegir una busca de una vez y cierra.
+//  Entrada directa desde la fila "¿Comparte con otras mascotas?" de BuscarView — SOLO
+//  las opciones de convivencia (ver Core/Models/Hospedaje.swift → Convivencia), sin
+//  pasar por un formulario con más campos. Elegir una busca de una vez y cierra.
 //
 //  "Cualquiera" se guarda como `nil` (no como `Convivencia.cualquiera`) para que
 //  `BuscarViewModel.hayBusquedaActiva` siga significando "hay un filtro real elegido" —
@@ -30,7 +30,7 @@ struct SelectorConvivenciaSheet: View {
                     }
                 }
             }
-            .navigationTitle("Con quién más")
+            .navigationTitle("¿Comparte con otras mascotas?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
