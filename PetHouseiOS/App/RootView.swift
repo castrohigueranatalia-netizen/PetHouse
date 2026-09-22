@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 struct RootView: View {
     @Environment(SessionStore.self) private var session
@@ -47,16 +46,6 @@ private typealias Pestana = SessionStore.Pestana
 
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
-    /// Foto de perfil YA RECORTADA en círculo, al tamaño final exacto — un `UIImage`
-    /// (Core Graphics puro, `imagenCircular(_:ladoPt:)`), no algo que SwiftUI recorte con
-    /// `.clipShape`. Dos intentos anteriores rompieron LA BARRA ENTERA (los 4 íconos, no
-    /// solo el de Perfil): uno con una vista que cargaba la imagen sola dentro del
-    /// `.tabItem`, y otro cargándola por fuera pero aplicándole `.resizable()`/
-    /// `.clipShape(Circle())` de SwiftUI antes de mostrarla ahí. Esta vez `iconoPerfil` NO
-    /// le aplica ningún modificador — es literalmente `Image(uiImage:)` con la imagen ya
-    /// lista, para descartar que el problema sea justo esa combinación de modificadores
-    /// dentro de un ícono de pestaña.
-    @State private var fotoPerfilTab: UIImage?
 
     // SOLO 4 pestañas, siempre — a propósito, nunca condicionadas a rol. Con más de 5
     // pestañas, iOS deja de mostrarlas todas y agrupa el resto adentro de una pestaña "Más"
@@ -97,7 +86,7 @@ struct MainTabView: View {
             NavigationStack {
                 PerfilView()
             }
-            .tabItem { Label { Text("Perfil") } icon: { iconoPerfil } }
+            .tabItem { Label("Perfil", systemImage: "person.circle") }
             .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
@@ -115,7 +104,6 @@ struct MainTabView: View {
         // preguntar si el usuario ya respondió antes, así que repetirlo en cada apertura de
         // esta vista (cada vez que se pasa de invitado a autenticado) es seguro.
         .task { await session.solicitarPermisoPush() }
-        .task(id: session.usuario?.fotoUrl) { await cargarFotoPerfilTab() }
         // Tocar el recordatorio local de las 2 horas (ver Core/Utils/RecordatoriosEstadia.swift
         // y AppDelegate.onRecordatorioTocado) abre esta pantalla directo, sin importar en qué
         // pestaña esté el anfitrión — por eso vive acá, en la raíz de las pestañas, no dentro
@@ -198,57 +186,6 @@ struct MainTabView: View {
             },
             message: { Text(mensajeAviso) }
         )
-    }
-
-    /// Ícono de la pestaña Perfil — SIN ningún modificador sobre la imagen (ver el
-    /// comentario de `fotoPerfilTab`): ya viene recortada en círculo al tamaño final.
-    @ViewBuilder
-    private var iconoPerfil: some View {
-        if let fotoPerfilTab {
-            Image(uiImage: fotoPerfilTab)
-        } else {
-            Image(systemName: "person.circle")
-        }
-    }
-
-    /// Resuelve `fotoPerfilTab`: cache compartido si ya está (normalmente sí, ver
-    /// `AppState.precargarFotosPerfil`), si no la baja directo — y en los dos casos la pasa
-    /// por `imagenCircular(_:)` antes de guardarla, para que `iconoPerfil` no tenga que
-    /// tocarla más.
-    @MainActor
-    private func cargarFotoPerfilTab() async {
-        guard let urlString = MediaURL.resolver(session.usuario?.fotoUrl), let url = URL(string: urlString) else {
-            fotoPerfilTab = nil
-            return
-        }
-        if let cache = PHImageCache.shared.image(for: url) {
-            fotoPerfilTab = imagenCircular(cache)
-            return
-        }
-        guard let (datos, _) = try? await URLSession.shared.data(from: url), let imagen = UIImage(data: datos) else {
-            return
-        }
-        PHImageCache.shared.insert(imagen, for: url)
-        fotoPerfilTab = imagenCircular(imagen)
-    }
-
-    /// Recorta y escala `original` a un círculo de `ladoPt` puntos, con Core Graphics puro
-    /// (`UIGraphicsImageRenderer`) — no `.clipShape`/`.resizable` de SwiftUI. El resultado
-    /// ya es del tamaño y la forma final, listo para `Image(uiImage:)` sin más ajustes.
-    private func imagenCircular(_ original: UIImage, ladoPt: CGFloat = 26) -> UIImage {
-        let formato = UIGraphicsImageRendererFormat()
-        formato.scale = UIScreen.main.scale
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: ladoPt, height: ladoPt), format: formato)
-        return renderer.image { _ in
-            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: ladoPt, height: ladoPt)).addClip()
-            let escala = max(ladoPt / original.size.width, ladoPt / original.size.height)
-            let anchoEscalado = original.size.width * escala
-            let altoEscalado = original.size.height * escala
-            original.draw(in: CGRect(
-                x: (ladoPt - anchoEscalado) / 2, y: (ladoPt - altoEscalado) / 2,
-                width: anchoEscalado, height: altoEscalado
-            ))
-        }
     }
 
     private var hayAvisoPendiente: Bool {
