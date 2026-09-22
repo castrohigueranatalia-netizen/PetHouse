@@ -22,13 +22,15 @@ import SwiftUI
 
 public enum PHColor {
 
-    // MARK: - Marca / acento (coral) — la identidad no cambia entre claro y oscuro,
-    // solo se aclaran los estados interactivos para mantener contraste sobre fondo oscuro.
-    public static let primary = Color.dynamic(light: "FB3F57", dark: "FF5C71")
-    public static let primaryHover = Color.dynamic(light: "E5324A", dark: "FF7A8C")
-    public static let primaryActive = Color.dynamic(light: "CF2A40", dark: "FF98A6")
-    public static let primaryContainer = Color.dynamic(light: "FFDEE3", dark: "4B111C")
-    public static let onPrimaryContainer = Color.dynamic(light: "4B0E1A", dark: "FFD3DA")
+    // MARK: - Marca / acento (verde salvia — "Verde Hogar", ver rediseño de sep/2026) — la
+    // identidad no cambia entre claro y oscuro, solo se aclaran los estados interactivos
+    // para mantener contraste sobre fondo oscuro. Antes era coral (FB3F57); el corazón del
+    // logo (Resources/Assets.xcassets/Logo.imageset) ya se recoloreó a este mismo verde.
+    public static let primary = Color.dynamic(light: "4A7A5F", dark: "6FA483")
+    public static let primaryHover = Color.dynamic(light: "3D6750", dark: "85B694")
+    public static let primaryActive = Color.dynamic(light: "325644", dark: "9CC7A9")
+    public static let primaryContainer = Color.dynamic(light: "E3EEE4", dark: "1C2E23")
+    public static let onPrimaryContainer = Color.dynamic(light: "1F3327", dark: "C8E6D2")
 
     // MARK: - Texto
     public static let ink = Color.dynamic(light: "2A2F35", dark: "F2F3F5")
@@ -36,14 +38,15 @@ public enum PHColor {
     public static let muted = Color.dynamic(light: "6A6A6A", dark: "9A9EA6")
     public static let mutedSoft = Color.dynamic(light: "929292", dark: "6E7279")
 
-    // MARK: - Fondos
-    public static let canvas = Color.dynamic(light: "FFFFFF", dark: "16181C")
-    public static let surfaceSoft = Color.dynamic(light: "F7F7F7", dark: "1E2125")
-    public static let surfaceStrong = Color.dynamic(light: "F2F2F2", dark: "26292E")
+    // MARK: - Fondos — crema cálido en vez de blanco puro, para que se sienta más
+    // "hogareño" y menos clínico (parte del mismo rediseño que el verde de marca).
+    public static let canvas = Color.dynamic(light: "FFFCF6", dark: "181915")
+    public static let surfaceSoft = Color.dynamic(light: "F4F1E7", dark: "202219")
+    public static let surfaceStrong = Color.dynamic(light: "EFEAD9", dark: "282B20")
 
-    // MARK: - Bordes
-    public static let hairline = Color.dynamic(light: "DDDDDD", dark: "33363B")
-    public static let hairlineSoft = Color.dynamic(light: "EBEBEB", dark: "2A2D31")
+    // MARK: - Bordes — grises con un ligero sesgo cálido, a tono con los fondos crema.
+    public static let hairline = Color.dynamic(light: "DCD5C4", dark: "37392E")
+    public static let hairlineSoft = Color.dynamic(light: "EAE4D5", dark: "2C2E24")
 
     // MARK: - Estado
     public static let error = Color.dynamic(light: "C13515", dark: "FF6B57")
