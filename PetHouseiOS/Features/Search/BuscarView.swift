@@ -93,17 +93,32 @@ struct BuscarView: View {
             guard compacta != mostrarBarraCompacta else { return }
             withAnimation(.easeInOut(duration: 0.2)) { mostrarBarraCompacta = compacta }
         }
-        .background(PHColor.canvas)
+        // El degradado coral vive ACÁ, como fondo de TODA la pantalla ignorando el área
+        // segura, no como `.background` de `encabezado`. Puesto en el encabezado (que vive
+        // adentro del `ScrollView`) no alcanzaba a subir por detrás de la barra de
+        // navegación: quedaba blanco arriba del logo/campana y rosado justo debajo, con una
+        // línea marcando el corte. Desde acá el color arranca en el borde de arriba de la
+        // pantalla y baja de forma continua, sin corte — la barra de navegación, con su
+        // fondo oculto (ver `.toolbarBackground` abajo), lo deja ver por detrás.
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                PHColor.canvas
+                LinearGradient(
+                    colors: [PHColor.primary.opacity(0.07), PHColor.primary.opacity(0)],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 320)
+            }
+            .ignoresSafeArea()
+        }
         // Sin texto: el saludo de `encabezado` ya cumple el rol de título de la pantalla
         // (ver mockup "idea 6" de la barra de búsqueda) — un "Buscar" repetido justo encima
         // sería redundante.
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         // Sin esto, la barra de navegación (donde están el logo y la campana) pinta su
-        // propio fondo blanco/opaco encima del degradado coral de `encabezado`, y se ve una
-        // línea marcando dónde termina uno y empieza el otro. Ocultando su fondo, el
-        // degradado (que se extiende hasta arriba del todo, ver `encabezado`) se ve
-        // continuo por detrás de ella, sin ese corte de color.
+        // propio fondo blanco/opaco, tapando el degradado de arriba y volviendo a marcar el
+        // corte de color que este arreglo justamente elimina.
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -218,10 +233,12 @@ struct BuscarView: View {
     }
 
     /// Zona de cabecera completa: saludo + huella, barra de búsqueda, chips rápidos de
-    /// especie y contador de contexto, sobre un degradado sutil coral → blanco. Ver el
-    /// mockup "idea 6" de la barra de búsqueda (versión final acordada). Vive DENTRO del
-    /// `ScrollView` (no fija arriba) a propósito — así se puede medir cuándo deja de verse
-    /// para mostrar `barraCompacta` en su lugar (ver `body`).
+    /// especie y contador de contexto. Ver el mockup "idea 6" de la barra de búsqueda
+    /// (versión final acordada). Vive DENTRO del `ScrollView` (no fija arriba) a propósito —
+    /// así se puede medir cuándo deja de verse para mostrar `barraCompacta` en su lugar (ver
+    /// `body`). SIN fondo propio: el degradado coral lo pinta el fondo de toda la pantalla
+    /// (ver el `.background` de `body`), para que arranque arriba del todo y no se vea un
+    /// corte de color justo debajo de la barra de navegación.
     private var encabezado: some View {
         VStack(alignment: .leading, spacing: 0) {
             saludo
@@ -229,16 +246,6 @@ struct BuscarView: View {
             chipsEspecie
             contadorContexto
         }
-        .background(
-            LinearGradient(
-                colors: [PHColor.primary.opacity(0.07), PHColor.primary.opacity(0)],
-                startPoint: .top, endPoint: .bottom
-            )
-            // Sube el degradado por detrás de la barra de navegación (que ahora tiene el
-            // fondo oculto, ver `.toolbarBackground` en `body`) para que se vea un solo
-            // color continuo desde arriba del todo, sin corte entre la barra y el saludo.
-            .ignoresSafeArea(edges: .top)
-        )
     }
 
     /// "¡Hola, [nombre]! ¿Quién va a cuidar tu mascota hoy?" con una huella decorativa en
