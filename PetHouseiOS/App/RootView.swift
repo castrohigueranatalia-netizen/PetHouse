@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(SessionStore.self) private var session
@@ -46,6 +47,13 @@ private typealias Pestana = SessionStore.Pestana
 
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
+    /// Foto de perfil YA CARGADA como `UIImage` simple, para el ícono de la pestaña Perfil
+    /// (ver `iconoPerfil`). Se resuelve ACÁ, fuera del `.tabItem`, a propósito — la barra de
+    /// pestañas de iOS espera algo simple y ya listo para dibujar; ponerle directo una vista
+    /// que carga la imagen por su cuenta (como `PHCachedAsyncImage`) rompía la barra entera
+    /// (los 4 íconos, no solo el de Perfil) — ver el commit que lo revirtió. `nil` mientras
+    /// no hay foto o todavía no terminó de cargar: el ícono usa el genérico de siempre.
+    @State private var fotoPerfilTab: UIImage?
 
     // SOLO 4 pestañas, siempre — a propósito, nunca condicionadas a rol. Con más de 5
     // pestañas, iOS deja de mostrarlas todas y agrupa el resto adentro de una pestaña "Más"
@@ -86,7 +94,7 @@ struct MainTabView: View {
             NavigationStack {
                 PerfilView()
             }
-            .tabItem { Label("Perfil", systemImage: "person.circle") }
+            .tabItem { Label { Text("Perfil") } icon: { iconoPerfil } }
             .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
@@ -104,6 +112,10 @@ struct MainTabView: View {
         // preguntar si el usuario ya respondió antes, así que repetirlo en cada apertura de
         // esta vista (cada vez que se pasa de invitado a autenticado) es seguro.
         .task { await session.solicitarPermisoPush() }
+        // Carga la foto de perfil para el ícono de la pestaña — ver `fotoPerfilTab`. `id:`
+        // hace que se repita si la foto cambia (ej. el usuario la edita en Perfil), no solo
+        // la primera vez.
+        .task(id: session.usuario?.fotoUrl) { await cargarFotoPerfilTab() }
         // Tocar el recordatorio local de las 2 horas (ver Core/Utils/RecordatoriosEstadia.swift
         // y AppDelegate.onRecordatorioTocado) abre esta pantalla directo, sin importar en qué
         // pestaña esté el anfitrión — por eso vive acá, en la raíz de las pestañas, no dentro
@@ -186,6 +198,47 @@ struct MainTabView: View {
             },
             message: { Text(mensajeAviso) }
         )
+    }
+
+    /// Ícono de la pestaña Perfil: la foto de perfil si ya se cargó (ver `fotoPerfilTab` y
+    /// `cargarFotoPerfilTab()`), el ícono genérico si no. Devuelve SIEMPRE una `Image` simple
+    /// — nunca una vista con su propia carga en vivo, eso es justo lo que rompía la barra
+    /// (ver el comentario de `fotoPerfilTab`).
+    private var iconoPerfil: some View {
+        Group {
+            if let fotoPerfilTab {
+                Image(uiImage: fotoPerfilTab)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 26, height: 26)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle")
+            }
+        }
+    }
+
+    /// Resuelve `fotoPerfilTab` — primero mira el cache compartido (`PHImageCache`, ver
+    /// PHCachedAsyncImage.swift), donde normalmente YA está gracias a
+    /// `AppState.precargarFotosPerfil` (se precarga apenas se conoce el perfil, no hay que
+    /// esperar a que el usuario entre a Perfil). Si por algo no está ahí todavía, la baja
+    /// directo — sin el downsample de `PHCachedAsyncImage` (ese método es privado a ese
+    /// archivo), aceptable acá porque el resultado se ve en 26pt, no en un avatar grande.
+    @MainActor
+    private func cargarFotoPerfilTab() async {
+        guard let urlString = MediaURL.resolver(session.usuario?.fotoUrl), let url = URL(string: urlString) else {
+            fotoPerfilTab = nil
+            return
+        }
+        if let cache = PHImageCache.shared.image(for: url) {
+            fotoPerfilTab = cache
+            return
+        }
+        guard let (datos, _) = try? await URLSession.shared.data(from: url), let imagen = UIImage(data: datos) else {
+            return
+        }
+        PHImageCache.shared.insert(imagen, for: url)
+        fotoPerfilTab = imagen
     }
 
     private var hayAvisoPendiente: Bool {
