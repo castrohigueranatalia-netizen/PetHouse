@@ -86,7 +86,7 @@ struct MainTabView: View {
             NavigationStack {
                 PerfilView()
             }
-            .tabItem { Label { Text("Perfil") } icon: { iconoPerfil } }
+            .tabItem { Label("Perfil", systemImage: "person.circle") }
             .tag(Pestana.perfil)
         }
         .tint(PHColor.primary)
@@ -186,25 +186,6 @@ struct MainTabView: View {
             },
             message: { Text(mensajeAviso) }
         )
-    }
-
-    /// Ícono de la pestaña Perfil: la foto de perfil del usuario si tiene una (misma URL y
-    /// mismo cache que usa PerfilView, ver PHCachedAsyncImage — normalmente ya está
-    /// precargada apenas se conoce el perfil, ver AppState.precargarFotosPerfil, así que
-    /// suele mostrarse sin demora). Sin foto, se queda el ícono genérico de siempre.
-    private var iconoPerfil: some View {
-        let urlString = MediaURL.resolver(session.usuario?.fotoUrl)
-        return Group {
-            if urlString != nil {
-                PHCachedAsyncImage(urlString: urlString) {
-                    Image(systemName: "person.circle")
-                }
-                .frame(width: 26, height: 26)
-                .clipShape(Circle())
-            } else {
-                Image(systemName: "person.circle")
-            }
-        }
     }
 
     private var hayAvisoPendiente: Bool {
