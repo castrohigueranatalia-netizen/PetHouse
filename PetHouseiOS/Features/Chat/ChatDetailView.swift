@@ -15,6 +15,7 @@ struct ChatDetailView: View {
     @State private var mensajeAReportar: Mensaje?
     @State private var fotoSeleccionada: PhotosPickerItem?
     @State private var fotoAmpliada: FotoVisorItem?
+    @State private var mostrarMasRespuestas = false
 
     init(conversacion: Conversacion) {
         self.conversacion = conversacion
@@ -157,19 +158,45 @@ struct ChatDetailView: View {
     ]
 
     private var respuestasRapidas: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: PHSpacing.s8) {
-                ForEach(Self.respuestasSugeridas, id: \.self) { respuesta in
-                    PHChip(respuesta, isSelected: false) {
-                        viewModel.texto = respuesta
-                        campoActivo = true
+        VStack(alignment: .leading, spacing: PHSpacing.s8) {
+            ForEach(Self.respuestasSugeridas.prefix(3), id: \.self) { respuesta in
+                chipRespuesta(respuesta)
+            }
+            if Self.respuestasSugeridas.count > 3 {
+                if mostrarMasRespuestas {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: PHSpacing.s8) {
+                            ForEach(Self.respuestasSugeridas.dropFirst(3), id: \.self) { respuesta in
+                                chipRespuesta(respuesta)
+                            }
+                        }
                     }
+                } else {
+                    Button {
+                        withAnimation { mostrarMasRespuestas = true }
+                    } label: {
+                        Text("⋯")
+                            .font(PHFont.bodySM.weight(.bold))
+                            .padding(.horizontal, PHSpacing.s16)
+                            .padding(.vertical, PHSpacing.s8)
+                            .foregroundStyle(PHColor.ink)
+                            .background(PHColor.surfaceSoft)
+                            .clipShape(Capsule())
+                    }
+                    .accessibilityLabel("Ver más respuestas sugeridas")
                 }
             }
-            .padding(.horizontal, PHSpacing.s12)
         }
+        .padding(.horizontal, PHSpacing.s12)
         .padding(.top, PHSpacing.s8)
         .background(.ultraThinMaterial)
+    }
+
+    private func chipRespuesta(_ respuesta: String) -> some View {
+        PHChip(respuesta, isSelected: false) {
+            viewModel.texto = respuesta
+            campoActivo = true
+        }
     }
 
     private var entrada: some View {
