@@ -13,10 +13,16 @@ export async function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     const { rows } = await pool.query(
-      'SELECT id, nombre, email, rol, verificado FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, email, telefono, rol, verificado, foto_url, es_anfitrion, bloqueado FROM usuarios WHERE id = $1',
       [payload.uid]
     )
     if (!rows.length) return res.status(401).json({ error: 'Sesión inválida.' })
+    // Se revisa en CADA petición autenticada, no solo al loguearse: si un admin bloquea a
+    // alguien mientras ya tiene una sesión abierta, el access token que le queda (hasta 15
+    // min, ver JWT_SECRET/expira) igual deja de servir de inmediato — no hay que esperar a
+    // que expire solo. `POST /admin/usuarios/:id/bloquear` además revoca sus refresh tokens
+    // (tabla `sesiones`), así que tampoco puede renovar uno nuevo.
+    if (rows[0].bloqueado) return res.status(401).json({ error: 'Tu cuenta fue bloqueada.' })
     req.usuario = rows[0]
     next()
   } catch {
@@ -25,9 +31,21 @@ export async function auth(req, res, next) {
 }
 
 // ---- Solo anfitriones ----
+// `es_anfitrion` es una CAPACIDAD (no un rol exclusivo — una cuenta puede reservar Y
+// publicar hospedajes a la vez) que solo un admin activa al aprobar
+// POST /api/admin/verificaciones/:id/aprobar (ver routes/admin.js). `rol` se conserva
+// solo como intención/display; 'admin' sigue con acceso total.
 export function soloAnfitrion(req, res, next) {
-  if (req.usuario?.rol !== 'anfitrion' && req.usuario?.rol !== 'admin') {
-    return res.status(403).json({ error: 'Solo los anfitriones pueden hacer esto.' })
+  if (!req.usuario?.es_anfitrion && req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ error: 'Necesitas activar el modo anfitrión para hacer esto.' })
+  }
+  next()
+}
+
+// ---- Solo administradores ----
+export function soloAdmin(req, res, next) {
+  if (req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ error: 'Solo un administrador puede hacer esto.' })
   }
   next()
 }

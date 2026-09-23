@@ -1,3 +1,8 @@
 node_modules/
 .env
 *.log
+# Archivos subidos por POST /api/subidas (ver src/routes/subidas.js) — no son código, no se versionan.
+uploads/
+# Fotos de verificación de anfitrión (cédula, antecedentes, persona, vivienda) — nunca se
+# versionan, y menos que las públicas de uploads/ (ver lib/urlsPrivadas.js).
+uploads-privado/
