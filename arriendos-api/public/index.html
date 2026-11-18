@@ -178,6 +178,7 @@
   .kpi-naranja .kpi-valor { color: #d97706; }
   .tarjeta-dash { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
   .tarjeta-dash h3 { margin: 0 0 14px; font-size: 15px; }
+  .dash-subtitulo { margin: 4px 0 12px; font-size: 15px; }
   .dash-fila { display: grid; grid-template-columns: 160px 1fr 48px 110px 110px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
   .dash-fila:last-child { border-bottom: none; }
   .dash-fila-nombre { font-weight: 600; }
@@ -366,6 +367,14 @@
     <div class="tarjeta-dash">
       <h3>Ingresos por canal</h3>
       <div id="dash-fuentes"></div>
+    </div>
+
+    <h3 class="dash-subtitulo">🧹 Limpieza</h3>
+    <div class="kpi-row" id="dash-kpis-limpieza"></div>
+
+    <div class="tarjeta-dash">
+      <h3>Aseos por niña este mes</h3>
+      <div id="dash-limpieza-personal"></div>
     </div>
   </section>
 </div>
@@ -1491,7 +1500,11 @@ function nochesEnRango(checkin, checkout, desde, hasta) {
 async function cargarDashboard() {
   const desde = fechaISO(estado.mesDashboard);
   const hastaDate = new Date(Date.UTC(estado.mesDashboard.getFullYear(), estado.mesDashboard.getMonth() + 1, 1));
-  const { reservas } = await api('/reservas?' + new URLSearchParams({ desde, hasta: fechaISO(hastaDate) }));
+  const [{ reservas }] = await Promise.all([
+    api('/reservas?' + new URLSearchParams({ desde, hasta: fechaISO(hastaDate) })),
+    cargarTareasLimpieza(),
+    cargarPersonalLimpieza(true)
+  ]);
   estado.reservasDashboard = reservas;
 }
 
@@ -1558,6 +1571,32 @@ function renderDashboard() {
   document.getElementById('dash-fuentes').innerHTML = fuentesOrdenadas.length
     ? fuentesOrdenadas.map(([f, monto]) => `<div class="dash-fuente-fila"><span class="badge f-${f}">${NOMBRE_FUENTE[f]}</span><span>${pesos(monto)}</span></div>`).join('')
     : '<div class="dash-vacio">No hay reservas (confirmadas o pagadas) este mes.</div>';
+
+  // ---- Limpieza del mes ----
+  const mesLimpieza = limitesMes(estado.mesDashboard);
+  const statsMesLimpieza = statsLimpieza('', mesLimpieza.desde, mesLimpieza.hasta);
+  const pendientesMes = estado.tareasLimpieza.filter((t) =>
+    t.estado === 'pendiente' && fechaISO(t.fecha) >= mesLimpieza.desde && fechaISO(t.fecha) <= mesLimpieza.hasta
+  ).length;
+
+  document.getElementById('dash-kpis-limpieza').innerHTML = `
+    <div class="kpi"><div class="kpi-valor">${statsMesLimpieza.cantidad}</div><div class="kpi-label">Limpiezas hechas</div></div>
+    <div class="kpi kpi-naranja"><div class="kpi-valor">${pendientesMes}</div><div class="kpi-label">Limpiezas pendientes</div></div>
+    <div class="kpi"><div class="kpi-valor">${pesos(statsMesLimpieza.leCorresponde)}</div><div class="kpi-label">Pagado a las niñas (30%)</div></div>
+    <div class="kpi kpi-verde"><div class="kpi-valor">${pesos(statsMesLimpieza.gananciaNeta)}</div><div class="kpi-label">Ganancia neta de limpieza</div></div>
+  `;
+
+  const porNiña = estado.personalLimpieza
+    .map((p) => ({ p, s: statsLimpieza(p.id, mesLimpieza.desde, mesLimpieza.hasta) }))
+    .filter((x) => x.s.cantidad > 0)
+    .sort((a, b) => b.s.cantidad - a.s.cantidad);
+
+  document.getElementById('dash-limpieza-personal').innerHTML = porNiña.length ? porNiña.map((x) => `
+    <div class="dash-fuente-fila">
+      <span>${esc(x.p.nombre)} · ${x.s.cantidad} aseo${x.s.cantidad === 1 ? '' : 's'}</span>
+      <span>${pesos(x.s.valorTotal)} <span style="color:var(--gris);font-weight:400;">(le corresponde ${pesos(x.s.leCorresponde)})</span></span>
+    </div>
+  `).join('') : '<div class="dash-vacio">No hay limpiezas hechas este mes.</div>';
 }
 
 // ---------------- Notificaciones push ----------------
