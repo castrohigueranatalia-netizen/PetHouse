@@ -5,6 +5,7 @@ import cron from 'node-cron'
 import app from './app.js'
 import { PORT, SYNC_INTERVAL_MIN, pool } from './config.js'
 import { sincronizarTodos } from './services/icalSync.js'
+import { asegurarEsquema } from './lib/migrar.js'
 
 async function iniciar() {
   // Comprueba la conexión a la base al arrancar
@@ -14,6 +15,13 @@ async function iniciar() {
   } catch (err) {
     console.error('✗ No se pudo conectar a la base de datos:', err.message)
     console.error('  Verifica DATABASE_URL (ver ../db/docker-compose.yml)')
+    process.exit(1)
+  }
+
+  try {
+    await asegurarEsquema()
+  } catch (err) {
+    console.error('✗ No se pudo crear el esquema inicial:', err.message)
     process.exit(1)
   }
 
