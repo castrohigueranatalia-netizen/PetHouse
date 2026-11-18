@@ -42,6 +42,7 @@
     width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
   }
   .campo label .noches-info { font-weight: 400; color: var(--gris); font-size: 12px; }
+  .ayuda-campo { display: block; font-size: 11px; color: var(--gris); margin-top: 4px; }
   .campo-dinero { display: flex; align-items: center; border: 1px solid var(--borde); border-radius: 8px; background: #fff; overflow: hidden; }
   .campo-dinero span { padding: 10px 0 10px 12px; color: var(--gris); }
   .campo-dinero input { border: none !important; padding: 10px 12px 10px 4px !important; border-radius: 0 !important; }
@@ -981,11 +982,37 @@ async function cargarPersonalLimpieza(todos = false) {
   estado.personalLimpieza = personal;
 }
 
+// Se cargan SIEMPRE todas las tareas (pendientes y listas, de cualquier
+// fecha): además de mostrarlas en la tabla (filtradas según el checkbox),
+// se usan para calcular qué niñas están ocupadas al elegir fecha/hora.
 async function cargarTareasLimpieza() {
-  const params = new URLSearchParams();
-  if (!estado.limpiezaMostrarListas) params.set('estado', 'pendiente');
-  const { tareas } = await api('/tareas-limpieza?' + params.toString());
+  const { tareas } = await api('/tareas-limpieza');
   estado.tareasLimpieza = tareas;
+}
+
+// ---- Disponibilidad: bloquea a una niña si tiene otra limpieza el mismo
+// día a menos de 2 horas de diferencia (necesita tiempo para desplazarse). ----
+function minutosDeHora(hora) {
+  if (!hora) return null;
+  const [h, m] = String(hora).slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+function calcularOcupados(fecha, hora, idTareaExcluir) {
+  const ocupados = new Set();
+  const minCandidata = minutosDeHora(hora);
+  if (!fecha || minCandidata == null) return ocupados; // sin hora no se puede calcular
+  const fechaCandidata = fechaISO(fecha);
+  estado.tareasLimpieza.forEach((t) => {
+    if (!t.personal_id || t.id === idTareaExcluir) return;
+    if (fechaISO(t.fecha) !== fechaCandidata) return;
+    const minExistente = minutosDeHora(t.hora);
+    if (minExistente == null) return;
+    // Bloqueada si la nueva hora cae dentro de las 2 horas antes o después
+    // de esa otra limpieza (tiempo para desplazarse y terminar bien).
+    if (Math.abs(minExistente - minCandidata) <= 2 * 60) ocupados.add(t.personal_id);
+  });
+  return ocupados;
 }
 
 async function abrirTabLimpieza() {
@@ -996,26 +1023,38 @@ async function abrirTabLimpieza() {
   } catch (err) { toast(err.message); }
 }
 
-function opcionesResponsable(personalIdSeleccionado) {
+function opcionesResponsable(personalIdSeleccionado, ocupados = new Set()) {
   // Incluye inactivas solo si son la responsable ya asignada (para no perder
   // la asignación al editar una tarea vieja cuya niña ya no está activa).
   const visibles = estado.personalLimpieza.filter((p) => p.activo || p.id === personalIdSeleccionado);
   return '<option value="">Sin asignar</option>' +
-    visibles.map((p) => `<option value="${p.id}" ${p.id === personalIdSeleccionado ? 'selected' : ''}>${esc(p.nombre)}${p.activo ? '' : ' (inactiva)'}</option>`).join('');
+    visibles.map((p) => {
+      const esActual = p.id === personalIdSeleccionado;
+      const estaOcupada = ocupados.has(p.id);
+      const etiquetas = [!p.activo ? 'inactiva' : null, estaOcupada ? 'ocupada a esa hora' : null].filter(Boolean);
+      const sufijo = etiquetas.length ? ` (${etiquetas.join(', ')})` : '';
+      return `<option value="${p.id}" ${esActual ? 'selected' : ''} ${estaOcupada && !esActual ? 'disabled' : ''}>${esc(p.nombre)}${sufijo}</option>`;
+    }).join('');
 }
 
 function renderTareasLimpieza() {
   const cuerpo = document.getElementById('cuerpo-limpieza');
-  if (!estado.tareasLimpieza.length) {
+  const filas = estado.limpiezaMostrarListas
+    ? estado.tareasLimpieza
+    : estado.tareasLimpieza.filter((t) => t.estado !== 'lista');
+
+  if (!filas.length) {
     cuerpo.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--gris);padding:20px;">No hay tareas de limpieza${estado.limpiezaMostrarListas ? '' : ' pendientes'}.</td></tr>`;
     return;
   }
-  cuerpo.innerHTML = estado.tareasLimpieza.map((t) => `
+  cuerpo.innerHTML = filas.map((t) => {
+    const ocupados = calcularOcupados(t.fecha, t.hora, t.id);
+    return `
     <tr class="${t.mismo_dia_entrada ? 'urgente' : ''}" data-id="${t.id}">
       <td>${esc(t.apartamento_nombre)}</td>
       <td>${t.mismo_dia_entrada ? '⚠️ ' : ''}${fechaBonita(t.fecha)}</td>
       <td>${t.hora ? String(t.hora).slice(0, 5) : '—'}</td>
-      <td><select class="select-responsable" data-campo="personal_id">${opcionesResponsable(t.personal_id)}</select></td>
+      <td><select class="select-responsable" data-campo="personal_id">${opcionesResponsable(t.personal_id, ocupados)}</select></td>
       <td><span class="badge-limpieza ${t.estado}">${t.estado === 'lista' ? 'Lista' : 'Pendiente'}</span></td>
       <td>${esc(t.notas) || '—'}</td>
       <td class="acciones">
@@ -1024,7 +1063,8 @@ function renderTareasLimpieza() {
         <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   cuerpo.querySelectorAll('tr[data-id]').forEach((fila) => {
     const id = fila.dataset.id;
@@ -1058,9 +1098,8 @@ function renderTareasLimpieza() {
   });
 }
 
-document.getElementById('limpieza-mostrar-listas').addEventListener('change', async (e) => {
+document.getElementById('limpieza-mostrar-listas').addEventListener('change', (e) => {
   estado.limpiezaMostrarListas = e.target.checked;
-  await cargarTareasLimpieza();
   renderTareasLimpieza();
 });
 
@@ -1078,9 +1117,13 @@ function abrirFormularioTareaLimpieza(tarea) {
       <div class="campo"><label>Apartamento</label><select id="tl-apartamento" required>${opcionesApto}</select></div>
       <div class="fila-2">
         <div class="campo"><label>Fecha</label><input type="date" id="tl-fecha" value="${v.fecha ? fechaISO(v.fecha) : ''}" required></div>
-        <div class="campo"><label>Hora</label><input type="time" id="tl-hora" value="${v.hora ? String(v.hora).slice(0, 5) : ''}"></div>
+        <div class="campo"><label>Hora</label><input type="time" id="tl-hora" value="${v.hora ? String(v.hora).slice(0, 5) : ''}" required></div>
       </div>
-      <div class="campo"><label>Responsable</label><select id="tl-responsable">${opcionesResponsable(v.personal_id)}</select></div>
+      <div class="campo">
+        <label>Responsable</label>
+        <select id="tl-responsable"></select>
+        <span class="ayuda-campo">Se bloquean las que ya tienen otra limpieza a menos de 2 horas de esa hora.</span>
+      </div>
       <div class="campo"><label>Notas</label><input id="tl-notas" value="${esc(v.notas)}" placeholder="Ej. dejar toallas extra"></div>
       <div class="acciones">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -1088,6 +1131,19 @@ function abrirFormularioTareaLimpieza(tarea) {
       </div>
     </form>
   `);
+
+  const selectResponsable = document.getElementById('tl-responsable');
+  const inputFecha = document.getElementById('tl-fecha');
+  const inputHora = document.getElementById('tl-hora');
+
+  function actualizarDisponibilidad() {
+    const seleccionActual = selectResponsable.value || v.personal_id || '';
+    const ocupados = calcularOcupados(inputFecha.value, inputHora.value, esEdicion ? tarea.id : null);
+    selectResponsable.innerHTML = opcionesResponsable(seleccionActual, ocupados);
+  }
+  inputFecha.addEventListener('input', actualizarDisponibilidad);
+  inputHora.addEventListener('input', actualizarDisponibilidad);
+  actualizarDisponibilidad();
 
   document.getElementById('form-tarea-limpieza').addEventListener('submit', async (e) => {
     e.preventDefault();
