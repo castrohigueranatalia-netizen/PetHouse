@@ -70,7 +70,7 @@
   .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borde); }
   .mes-nav { display: flex; align-items: center; gap: 6px; font-weight: 600; }
   .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 6px; width: 28px; height: 28px; }
-  .barra-filtros select { padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+  .barra-filtros select, .barra-filtros input[type="text"] { padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; }
   .barra-filtros .spacer { flex: 1; }
 
   /* Calendario tipo cuadrícula (filas = apartamentos, columnas = días) */
@@ -376,6 +376,9 @@
       <h3>Aseos por niña este mes</h3>
       <div id="dash-limpieza-personal"></div>
     </div>
+
+    <h3 class="dash-subtitulo">🧺 Lavandería</h3>
+    <div class="kpi-row" id="dash-kpis-lavanderia"></div>
   </section>
 </div>
 
@@ -411,13 +414,17 @@
       <label class="chk-mostrar-listas">
         <input type="checkbox" id="lavanderia-mostrar-entregados"> Mostrar entregados
       </label>
+      <input type="text" id="lavanderia-buscar" placeholder="Buscar por cliente o teléfono...">
       <div class="spacer"></div>
       <button class="btn btn-primario" id="btn-nuevo-pedido-lavanderia">+ Nuevo pedido</button>
     </div>
     <div class="tabla-wrap">
       <table class="reservas">
         <thead>
-          <tr><th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Ingreso</th><th>Entrega</th><th>Valor</th><th>Estado</th><th></th></tr>
+          <tr>
+            <th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Tipo</th><th>Ingreso</th><th>Entrega</th>
+            <th>Valor</th><th>Atendido por</th><th>Estado</th><th></th>
+          </tr>
         </thead>
         <tbody id="cuerpo-pedidos-lavanderia"></tbody>
       </table>
@@ -453,6 +460,13 @@ const ESTADOS_RESERVA = ['confirmada','pagada','pendiente','cancelada'];
 const NOMBRE_ESTADO = { confirmada:'Confirmada (falta pago)', pagada:'Pagada', pendiente:'Pendiente', cancelada:'Cancelada' };
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['D','L','M','X','J','V','S']; // índice = Date#getUTCDay() (0 = domingo)
+
+// Tipos de servicio de lavandería, con un precio por prenda de referencia
+// (solo para sugerir el valor al escribir las prendas; siempre se puede
+// editar a mano si el cobro real es distinto).
+const TIPOS_SERVICIO_LAVANDERIA = ['lavado', 'planchado', 'lavado_y_planchado'];
+const NOMBRE_TIPO_SERVICIO = { lavado: 'Lavado', planchado: 'Planchado', lavado_y_planchado: 'Lavado y planchado' };
+const PRECIO_UNITARIO_SERVICIO = { lavado: 3000, planchado: 2000, lavado_y_planchado: 4500 };
 
 // ---------------- Festivos de Colombia (Ley Emiliani incluida) ----------------
 function calcularPascua(year) {
@@ -1604,12 +1618,20 @@ function renderResumenPedidosLavanderia() {
 function renderPedidosLavanderia() {
   renderResumenPedidosLavanderia();
   const cuerpo = document.getElementById('cuerpo-pedidos-lavanderia');
-  const filas = estado.lavanderiaMostrarEntregados
+  const busqueda = document.getElementById('lavanderia-buscar').value.trim().toLowerCase();
+
+  let filas = estado.lavanderiaMostrarEntregados
     ? estado.pedidosLavanderia
     : estado.pedidosLavanderia.filter((p) => p.estado !== 'entregado');
+  if (busqueda) {
+    filas = filas.filter((p) =>
+      (p.cliente_nombre || '').toLowerCase().includes(busqueda) ||
+      (p.cliente_telefono || '').toLowerCase().includes(busqueda)
+    );
+  }
 
   if (!filas.length) {
-    cuerpo.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--gris);padding:20px;">No hay pedidos${estado.lavanderiaMostrarEntregados ? '' : ' en proceso'}.</td></tr>`;
+    cuerpo.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--gris);padding:20px;">No hay pedidos${busqueda ? ' que coincidan con la búsqueda' : (estado.lavanderiaMostrarEntregados ? '' : ' en proceso')}.</td></tr>`;
     return;
   }
   const hoyISO = fechaISO(new Date());
@@ -1620,9 +1642,11 @@ function renderPedidosLavanderia() {
       <td>${esc(p.cliente_nombre) || '—'}</td>
       <td>${esc(p.cliente_telefono) || '—'}</td>
       <td>${p.num_prendas ?? '—'}</td>
+      <td>${NOMBRE_TIPO_SERVICIO[p.tipo_servicio] || '—'}</td>
       <td>${fechaBonita(p.fecha_ingreso)}</td>
       <td>${p.fecha_entrega ? (atrasado ? '⚠️ ' : '') + fechaBonita(p.fecha_entrega) : '—'}</td>
       <td>${pesos(p.valor)}</td>
+      <td>${esc(p.personal_nombre) || '—'}</td>
       <td><span class="badge-limpieza ${p.estado === 'entregado' ? 'lista' : 'pendiente'}">${p.estado === 'entregado' ? 'Entregado' : 'En proceso'}</span></td>
       <td class="acciones">
         <button class="btn btn-chico" data-accion="toggle-estado">${p.estado === 'entregado' ? 'Marcar en proceso' : 'Marcar entregado'}</button>
@@ -1661,11 +1685,18 @@ document.getElementById('lavanderia-mostrar-entregados').addEventListener('chang
   renderPedidosLavanderia();
 });
 
+document.getElementById('lavanderia-buscar').addEventListener('input', () => renderPedidosLavanderia());
+
 document.getElementById('btn-nuevo-pedido-lavanderia').addEventListener('click', () => abrirFormularioPedidoLavanderia(null));
 
 function abrirFormularioPedidoLavanderia(pedido) {
   const esEdicion = !!pedido;
   const v = pedido || {};
+
+  const opcionesTipo = TIPOS_SERVICIO_LAVANDERIA.map((t) =>
+    `<option value="${t}" ${(v.tipo_servicio || 'lavado') === t ? 'selected' : ''}>${NOMBRE_TIPO_SERVICIO[t]}</option>`).join('');
+  const opcionesAtendio = estado.personalLimpieza.filter((p) => p.activo || p.id === v.personal_id).map((p) =>
+    `<option value="${p.id}" ${v.personal_id === p.id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
 
   abrirModal(`
     <h2>${esEdicion ? 'Editar pedido' : 'Nuevo pedido de lavandería'}</h2>
@@ -1676,12 +1707,17 @@ function abrirFormularioPedidoLavanderia(pedido) {
         <div class="campo"><label># Prendas</label><input type="number" min="1" id="pl-prendas" value="${v.num_prendas ?? ''}"></div>
       </div>
       <div class="fila-2">
+        <div class="campo"><label>Tipo de servicio</label><select id="pl-tipo">${opcionesTipo}</select></div>
+        <div class="campo"><label>Atendido por</label><select id="pl-atendio"><option value="">Sin asignar</option>${opcionesAtendio}</select></div>
+      </div>
+      <div class="fila-2">
         <div class="campo"><label>Fecha de ingreso</label><input type="date" id="pl-ingreso" value="${v.fecha_ingreso ? fechaISO(v.fecha_ingreso) : fechaISO(new Date())}" required></div>
         <div class="campo"><label>Fecha de entrega</label><input type="date" id="pl-entrega" value="${v.fecha_entrega ? fechaISO(v.fecha_entrega) : ''}"></div>
       </div>
       <div class="campo">
         <label>Valor del pedido</label>
         <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="pl-valor" value="${formatearMoneda(v.valor)}" placeholder="0"></div>
+        <span class="ayuda-campo">${esEdicion ? 'Cámbialo a mano si el cobro real fue distinto al sugerido.' : 'Se sugiere solo según el número de prendas y el tipo de servicio; puedes ajustarlo.'}</span>
       </div>
       <div class="campo"><label>Notas</label><input id="pl-notas" value="${esc(v.notas)}" placeholder="Ej. camisa con mancha especial"></div>
       <div class="acciones">
@@ -1692,12 +1728,29 @@ function abrirFormularioPedidoLavanderia(pedido) {
   `);
   activarCampoDinero(document.getElementById('pl-valor'));
 
+  // Sugiere el valor (prendas × precio del tipo elegido) solo en pedidos
+  // nuevos, para no pisar un cobro ya guardado al simplemente editar otra cosa.
+  if (!esEdicion) {
+    const inputPrendas = document.getElementById('pl-prendas');
+    const selectTipo = document.getElementById('pl-tipo');
+    const inputValor = document.getElementById('pl-valor');
+    function recalcularValorPedido() {
+      const prendas = Number(inputPrendas.value) || 0;
+      const unitario = PRECIO_UNITARIO_SERVICIO[selectTipo.value] || 0;
+      if (prendas > 0 && unitario > 0) inputValor.value = formatearMoneda(prendas * unitario);
+    }
+    inputPrendas.addEventListener('input', recalcularValorPedido);
+    selectTipo.addEventListener('change', recalcularValorPedido);
+  }
+
   document.getElementById('form-pedido-lavanderia').addEventListener('submit', async (e) => {
     e.preventDefault();
     const cuerpo = {
       cliente_nombre: document.getElementById('pl-cliente').value.trim() || null,
       cliente_telefono: document.getElementById('pl-telefono').value.trim() || null,
       num_prendas: Number(document.getElementById('pl-prendas').value) || null,
+      tipo_servicio: document.getElementById('pl-tipo').value,
+      personal_id: document.getElementById('pl-atendio').value || null,
       fecha_ingreso: document.getElementById('pl-ingreso').value,
       fecha_entrega: document.getElementById('pl-entrega').value || null,
       valor: limpiarMoneda(document.getElementById('pl-valor').value) || null,
@@ -1786,7 +1839,8 @@ async function cargarDashboard() {
   const [{ reservas }] = await Promise.all([
     api('/reservas?' + new URLSearchParams({ desde, hasta: fechaISO(hastaDate) })),
     cargarTareasLimpieza(),
-    cargarPersonalLimpieza(true)
+    cargarPersonalLimpieza(true),
+    cargarPedidosLavanderia()
   ]);
   estado.reservasDashboard = reservas;
 }
@@ -1880,6 +1934,20 @@ function renderDashboard() {
       <span>${pesos(x.s.valorTotal)} <span style="color:var(--gris);font-weight:400;">(le corresponde ${pesos(x.s.leCorresponde)})</span></span>
     </div>
   `).join('') : '<div class="dash-vacio">No hay limpiezas hechas este mes.</div>';
+
+  // ---- Lavandería del mes ----
+  const pedidosDelMes = estado.pedidosLavanderia.filter((p) => fechaISO(p.fecha_ingreso) >= mesLimpieza.desde && fechaISO(p.fecha_ingreso) <= mesLimpieza.hasta);
+  const ingresoLavanderiaMes = pedidosDelMes.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const hoyISOLav = fechaISO(new Date());
+  const pedidosAtrasados = estado.pedidosLavanderia.filter((p) =>
+    p.estado !== 'entregado' && p.fecha_entrega && fechaISO(p.fecha_entrega) < hoyISOLav
+  ).length;
+
+  document.getElementById('dash-kpis-lavanderia').innerHTML = `
+    <div class="kpi"><div class="kpi-valor">${pedidosDelMes.length}</div><div class="kpi-label">Pedidos de lavandería</div></div>
+    <div class="kpi kpi-verde"><div class="kpi-valor">${pesos(ingresoLavanderiaMes)}</div><div class="kpi-label">Ingreso de lavandería</div></div>
+    <div class="kpi kpi-naranja"><div class="kpi-valor">${pedidosAtrasados}</div><div class="kpi-label">Pedidos atrasados</div></div>
+  `;
 }
 
 // ---------------- Notificaciones push ----------------

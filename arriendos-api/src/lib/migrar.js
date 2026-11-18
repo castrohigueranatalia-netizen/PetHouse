@@ -164,5 +164,15 @@ async function aplicarMigraciones() {
       BEFORE UPDATE ON pedidos_lavanderia
       FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en()
   `)
+
+  // Tipo de servicio (con precio distinto según el tipo) y quién atendió el pedido.
+  const { rows: tipoServicioExiste } = await pool.query(
+    `SELECT 1 FROM pg_type WHERE typname = 'tipo_servicio_lavanderia'`
+  )
+  if (!tipoServicioExiste.length) {
+    await pool.query(`CREATE TYPE tipo_servicio_lavanderia AS ENUM ('lavado', 'planchado', 'lavado_y_planchado')`)
+  }
+  await pool.query(`ALTER TABLE pedidos_lavanderia ADD COLUMN IF NOT EXISTS tipo_servicio tipo_servicio_lavanderia NOT NULL DEFAULT 'lavado'`)
+  await pool.query(`ALTER TABLE pedidos_lavanderia ADD COLUMN IF NOT EXISTS personal_id UUID REFERENCES personal_limpieza(id) ON DELETE SET NULL`)
 }
 

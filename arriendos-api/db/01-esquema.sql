@@ -183,11 +183,15 @@ CREATE TABLE turnos_lavanderia (
 CREATE INDEX idx_turnos_lavanderia_fecha ON turnos_lavanderia (fecha);
 
 -- Pedidos de ropa que entran al local.
+CREATE TYPE tipo_servicio_lavanderia AS ENUM ('lavado', 'planchado', 'lavado_y_planchado');
+
 CREATE TABLE pedidos_lavanderia (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cliente_nombre   TEXT,
     cliente_telefono TEXT,
     num_prendas      SMALLINT CHECK (num_prendas IS NULL OR num_prendas > 0),
+    tipo_servicio    tipo_servicio_lavanderia NOT NULL DEFAULT 'lavado',
+    personal_id      UUID REFERENCES personal_limpieza(id) ON DELETE SET NULL, -- quién atendió el pedido
     fecha_ingreso    DATE NOT NULL,
     fecha_entrega    DATE,
     valor            NUMERIC(10,2) CHECK (valor IS NULL OR valor >= 0),
