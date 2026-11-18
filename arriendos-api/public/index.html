@@ -26,6 +26,14 @@
   .campo input, .campo select, .campo textarea {
     width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
   }
+  .campo label .noches-info { font-weight: 400; color: var(--gris); font-size: 12px; }
+  .campo-dinero { display: flex; align-items: center; border: 1px solid var(--borde); border-radius: 8px; background: #fff; overflow: hidden; }
+  .campo-dinero span { padding: 10px 0 10px 12px; color: var(--gris); }
+  .campo-dinero input { border: none !important; padding: 10px 12px 10px 4px !important; border-radius: 0 !important; }
+  .campo-dinero input:focus { outline: none; }
+  .card-apto .campo-dinero { border-radius: 6px; }
+  .card-apto .campo-dinero input { padding: 7px 9px 7px 2px !important; }
+  .card-apto .campo-dinero span { padding: 7px 0 7px 9px; font-size: 13px; }
   .btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--borde); background: #fff; font-weight: 600; }
   .btn-primario { background: var(--coral); border-color: var(--coral); color: #fff; }
   .btn-primario:hover { filter: brightness(0.95); }
@@ -364,6 +372,17 @@ function fechaBonita(f) {
 }
 function pesos(v) { return v == null ? '—' : '$' + Number(v).toLocaleString('es-CO'); }
 
+// Campos de dinero editables: se escriben como texto (ej. "250.000") pero se
+// guardan/calculan como número puro.
+function limpiarMoneda(texto) { return Number(String(texto || '').replace(/\D/g, '')) || 0; }
+function formatearMoneda(valorNumerico) {
+  const n = Math.round(Number(valorNumerico) || 0);
+  return n ? n.toLocaleString('es-CO') : '';
+}
+function activarCampoDinero(input) {
+  input.addEventListener('input', () => { input.value = formatearMoneda(limpiarMoneda(input.value)); });
+}
+
 // ---------------- Login ----------------
 document.getElementById('form-login').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -595,6 +614,14 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
   const opcionesFuente = FUENTES.map((f) =>
     `<option value="${f}" ${v.fuente === f ? 'selected' : ''}>${NOMBRE_FUENTE[f]}</option>`).join('');
 
+  const nochesExistentes = (v.checkin && v.checkout)
+    ? Math.round((new Date(fechaISO(v.checkout)) - new Date(fechaISO(v.checkin))) / 86400000)
+    : 0;
+  const aptoInicial = estado.apartamentos.find((a) => a.id === v.apartamento_id);
+  const precioNocheInicial = (esEdicion && v.precio_total && nochesExistentes > 0)
+    ? Math.round(v.precio_total / nochesExistentes)
+    : (aptoInicial?.precio_noche_base || '');
+
   abrirModal(`
     <h2>${esEdicion ? 'Editar reserva' : 'Nueva reserva'}</h2>
     <form id="form-reserva">
@@ -609,9 +636,16 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
         <div class="campo"><label># Huéspedes</label><input type="number" min="1" id="rv-huespedes" value="${v.num_huespedes || 1}"></div>
       </div>
       <div class="fila-2">
-        <div class="campo"><label>Precio total</label><input type="number" min="0" id="rv-precio" value="${v.precio_total || ''}"></div>
-        <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
+        <div class="campo">
+          <label>Precio por noche</label>
+          <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="rv-precio-noche" value="${formatearMoneda(precioNocheInicial)}" placeholder="0"></div>
+        </div>
+        <div class="campo">
+          <label>Precio total <span class="noches-info" id="rv-noches-info"></span></label>
+          <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="rv-precio" value="${formatearMoneda(v.precio_total)}" placeholder="0"></div>
+        </div>
       </div>
+      <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
       <div class="campo"><label>Notas</label><textarea id="rv-notas" rows="2">${esc(v.notas)}</textarea></div>
       <div class="acciones">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -619,6 +653,35 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
       </div>
     </form>
   `);
+
+  const inputNoche = document.getElementById('rv-precio-noche');
+  const inputTotal = document.getElementById('rv-precio');
+  const selectApto = document.getElementById('rv-apartamento');
+  const inputCheckin = document.getElementById('rv-checkin');
+  const inputCheckout = document.getElementById('rv-checkout');
+  const spanNoches = document.getElementById('rv-noches-info');
+
+  function contarNoches() {
+    if (!inputCheckin.value || !inputCheckout.value) return 0;
+    const n = Math.round((new Date(inputCheckout.value) - new Date(inputCheckin.value)) / 86400000);
+    return n > 0 ? n : 0;
+  }
+  function recalcularTotal() {
+    const noches = contarNoches();
+    spanNoches.textContent = noches > 0 ? `(${noches} ${noches === 1 ? 'noche' : 'noches'})` : '';
+    const precioNoche = limpiarMoneda(inputNoche.value);
+    if (noches > 0 && precioNoche > 0) inputTotal.value = formatearMoneda(noches * precioNoche);
+  }
+
+  activarCampoDinero(inputTotal);
+  inputNoche.addEventListener('input', () => { inputNoche.value = formatearMoneda(limpiarMoneda(inputNoche.value)); recalcularTotal(); });
+  inputCheckin.addEventListener('input', recalcularTotal);
+  inputCheckout.addEventListener('input', recalcularTotal);
+  selectApto.addEventListener('change', () => {
+    const apto = estado.apartamentos.find((a) => a.id === selectApto.value);
+    if (apto?.precio_noche_base) { inputNoche.value = formatearMoneda(apto.precio_noche_base); recalcularTotal(); }
+  });
+  recalcularTotal();
 
   document.getElementById('form-reserva').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -629,7 +692,7 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
       huesped_nombre: document.getElementById('rv-nombre').value || null,
       huesped_telefono: document.getElementById('rv-telefono').value || null,
       num_huespedes: Number(document.getElementById('rv-huespedes').value) || 1,
-      precio_total: document.getElementById('rv-precio').value ? Number(document.getElementById('rv-precio').value) : null,
+      precio_total: limpiarMoneda(inputTotal.value) || null,
       fuente: document.getElementById('rv-fuente').value,
       notas: document.getElementById('rv-notas').value || null
     };
@@ -651,7 +714,7 @@ function renderApartamentos() {
       <h3>${esc(a.nombre)}</h3>
       <div class="fila-2">
         <div class="fila"><label>Capacidad</label><input data-campo="capacidad" type="number" min="1" value="${a.capacidad}"></div>
-        <div class="fila"><label>Precio noche base</label><input data-campo="precio_noche_base" type="number" min="0" value="${a.precio_noche_base || ''}"></div>
+        <div class="fila"><label>Precio noche base</label><div class="campo-dinero"><span>$</span><input data-campo="precio_noche_base" type="text" inputmode="numeric" value="${formatearMoneda(a.precio_noche_base)}" placeholder="0"></div></div>
       </div>
       <div class="fila">
         <label>Link para IMPORTAR de Booking/Airbnb (pega aquí el "Exportar calendario" del extranet)</label>
@@ -677,10 +740,11 @@ function renderApartamentos() {
 
   grid.querySelectorAll('.card-apto').forEach((card) => {
     const id = card.dataset.id;
+    activarCampoDinero(card.querySelector('[data-campo="precio_noche_base"]'));
     card.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
       const cuerpo = {
         capacidad: Number(card.querySelector('[data-campo="capacidad"]').value) || 1,
-        precio_noche_base: card.querySelector('[data-campo="precio_noche_base"]').value ? Number(card.querySelector('[data-campo="precio_noche_base"]').value) : null,
+        precio_noche_base: limpiarMoneda(card.querySelector('[data-campo="precio_noche_base"]').value) || null,
         ical_url_importar: card.querySelector('[data-campo="ical_url_importar"]').value.trim()
       };
       try {
