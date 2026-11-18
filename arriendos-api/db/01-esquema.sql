@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;  -- exclusión de fechas solapadas
 -- 1. TIPOS ENUM
 -- ------------------------------------------------------------
 CREATE TYPE fuente_reserva AS ENUM ('booking', 'airbnb', 'whatsapp', 'directo', 'otro');
-CREATE TYPE estado_reserva AS ENUM ('confirmada', 'pendiente', 'cancelada');
+CREATE TYPE estado_reserva AS ENUM ('confirmada', 'pendiente', 'pagada', 'cancelada');
 
 -- ------------------------------------------------------------
 -- 2. USUARIOS
@@ -88,14 +88,15 @@ CREATE TABLE reservas (
 CREATE INDEX idx_reservas_apartamento ON reservas (apartamento_id);
 CREATE INDEX idx_reservas_fechas      ON reservas (checkin, checkout);
 
--- Evita dobles reservas: no permite dos reservas CONFIRMADAS del mismo
--- apartamento con fechas que se solapen (checkout es fecha de salida,
+-- Evita dobles reservas: no permite dos reservas CONFIRMADAS o PAGADAS del
+-- mismo apartamento con fechas que se solapen (checkout es fecha de salida,
 -- así que dos reservas que "se tocan" en ese día no se consideran solapadas).
+-- Las "pendiente" no bloquean (se permite tener varias tentativas a la vez).
 ALTER TABLE reservas ADD CONSTRAINT chk_no_solape
     EXCLUDE USING gist (
         apartamento_id WITH =,
         daterange(checkin, checkout) WITH &&
-    ) WHERE (estado = 'confirmada');
+    ) WHERE (estado IN ('confirmada', 'pagada'));
 
 -- Mantiene actualizado_en al día en cada UPDATE
 CREATE OR REPLACE FUNCTION tocar_actualizado_en() RETURNS trigger AS $$

@@ -10,7 +10,7 @@ import { auth } from '../middleware/middleware.js'
 const r = Router()
 
 const FUENTES = ['booking', 'airbnb', 'whatsapp', 'directo', 'otro']
-const ESTADOS = ['confirmada', 'pendiente', 'cancelada']
+const ESTADOS = ['confirmada', 'pendiente', 'pagada', 'cancelada']
 
 // ---- Listar reservas (filtros: apartamento_id, desde, hasta, estado, fuente) ----
 // "desde"/"hasta" filtran por solapamiento con ese rango, útil para la vista de calendario.

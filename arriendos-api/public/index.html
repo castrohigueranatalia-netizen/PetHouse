@@ -77,7 +77,7 @@
   table.calendario td.dia { width: 26px; height: 30px; cursor: pointer; }
   table.calendario td.dia:hover { outline: 2px solid var(--coral); outline-offset: -2px; }
   table.calendario td.dia.hoy { box-shadow: inset 0 0 0 2px #111827; }
-  .bloque { display: block; width: 100%; height: 100%; }
+  .bloque { display: block; width: 100%; height: 100%; box-sizing: border-box; }
   .f-booking { background: var(--booking); }
   .f-airbnb { background: var(--airbnb); }
   .f-whatsapp { background: var(--whatsapp); }
@@ -85,10 +85,18 @@
   .f-otro { background: var(--otro); }
   .f-pendiente { background: repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #fde68a 4px, #fde68a 8px); }
   .f-festivo { background: #fdf0f1; border: 1px solid #b91c1c; }
+  /* Confirmada pero sin pagar: mismo color, solo el borde (relleno = ya pagada) */
+  .f-booking-contorno { background: #fff; border: 3px solid var(--booking); }
+  .f-airbnb-contorno { background: #fff; border: 3px solid var(--airbnb); }
+  .f-whatsapp-contorno { background: #fff; border: 3px solid var(--whatsapp); }
+  .f-directo-contorno { background: #fff; border: 3px solid var(--directo); }
+  .f-otro-contorno { background: #fff; border: 3px solid var(--otro); }
+  .f-leyenda-pagada { background: var(--gris); }
+  .f-leyenda-sinpagar { background: #fff; border: 2px solid var(--gris); }
 
   .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--gris); padding: 8px 12px; }
   .leyenda span { display: inline-flex; align-items: center; gap: 5px; }
-  .leyenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .leyenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; box-sizing: border-box; }
 
   /* Tabla de reservas */
   .tabla-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; }
@@ -98,6 +106,7 @@
   table.reservas tr.cancelada td { opacity: .45; text-decoration: line-through; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
   .badge-estado { background: #10b981; }
+  .badge-estado.pagada { background: #2563eb; }
   .badge-estado.pendiente { background: #f59e0b; }
   .badge-estado.cancelada { background: #9ca3af; }
 
@@ -215,6 +224,8 @@
         <span><i class="f-otro"></i> Otro</span>
         <span><i class="f-pendiente"></i> Pendiente</span>
         <span><i class="f-festivo"></i> Festivo (Colombia)</span>
+        <span><i class="f-leyenda-pagada"></i> Lleno = Pagada</span>
+        <span><i class="f-leyenda-sinpagar"></i> Borde = Falta el pago</span>
       </div>
     </div>
 
@@ -261,6 +272,8 @@
 // ============================================================
 const FUENTES = ['booking','airbnb','whatsapp','directo','otro'];
 const NOMBRE_FUENTE = { booking:'Booking', airbnb:'Airbnb', whatsapp:'WhatsApp', directo:'Directo', otro:'Otro' };
+const ESTADOS_RESERVA = ['confirmada','pagada','pendiente','cancelada'];
+const NOMBRE_ESTADO = { confirmada:'Confirmada (falta pago)', pagada:'Pagada', pendiente:'Pendiente', cancelada:'Cancelada' };
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['D','L','M','X','J','V','S']; // índice = Date#getUTCDay() (0 = domingo)
 
@@ -534,8 +547,9 @@ function renderCalendario() {
       const claseFechaEspecial = nombreFestivo ? ' festivo' : (esFinde ? ' finde' : '');
       const clasesCelda = `dia${claseFechaEspecial}${diaISO === hoyISO ? ' hoy' : ''}`;
       if (res) {
-        const clase = res.estado === 'pendiente' ? 'f-pendiente' : 'f-' + res.fuente;
-        const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}${nombreFestivo ? ' · 🎉 ' + nombreFestivo : ''}`);
+        const clase = res.estado === 'pendiente' ? 'f-pendiente' : 'f-' + res.fuente + (res.estado === 'pagada' ? '' : '-contorno');
+        const estadoTexto = NOMBRE_ESTADO[res.estado] || res.estado;
+        const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${estadoTexto} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}${nombreFestivo ? ' · 🎉 ' + nombreFestivo : ''}`);
         tbody += `<td class="${clasesCelda}" title="${titulo}" data-reserva="${res.id}"><span class="bloque ${clase}"></span></td>`;
       } else {
         const titulo = nombreFestivo ? ` title="${esc(nombreFestivo)}"` : '';
@@ -613,6 +627,8 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
     `<option value="${a.id}" ${v.apartamento_id === a.id ? 'selected' : ''}>${esc(a.nombre)}</option>`).join('');
   const opcionesFuente = FUENTES.map((f) =>
     `<option value="${f}" ${v.fuente === f ? 'selected' : ''}>${NOMBRE_FUENTE[f]}</option>`).join('');
+  const opcionesEstado = ESTADOS_RESERVA.map((es) =>
+    `<option value="${es}" ${(v.estado || 'confirmada') === es ? 'selected' : ''}>${NOMBRE_ESTADO[es]}</option>`).join('');
 
   const nochesExistentes = (v.checkin && v.checkout)
     ? Math.round((new Date(fechaISO(v.checkout)) - new Date(fechaISO(v.checkin))) / 86400000)
@@ -645,7 +661,10 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
           <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="rv-precio" value="${formatearMoneda(v.precio_total)}" placeholder="0"></div>
         </div>
       </div>
-      <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
+      <div class="fila-2">
+        <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
+        <div class="campo"><label>Estado</label><select id="rv-estado">${opcionesEstado}</select></div>
+      </div>
       <div class="campo"><label>Notas</label><textarea id="rv-notas" rows="2">${esc(v.notas)}</textarea></div>
       <div class="acciones">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -694,6 +713,7 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
       num_huespedes: Number(document.getElementById('rv-huespedes').value) || 1,
       precio_total: limpiarMoneda(inputTotal.value) || null,
       fuente: document.getElementById('rv-fuente').value,
+      estado: document.getElementById('rv-estado').value,
       notas: document.getElementById('rv-notas').value || null
     };
     try {
