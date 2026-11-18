@@ -101,6 +101,7 @@ async function aplicarMigraciones() {
       actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `)
+  await pool.query(`ALTER TABLE tareas_limpieza ADD COLUMN IF NOT EXISTS valor NUMERIC(10,2) CHECK (valor IS NULL OR valor >= 0)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_tareas_limpieza_fecha ON tareas_limpieza (fecha)`)
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_tareas_limpieza_apartamento ON tareas_limpieza (apartamento_id)`)
   await pool.query(`DROP TRIGGER IF EXISTS trg_tareas_limpieza_actualizado_en ON tareas_limpieza`)

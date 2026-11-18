@@ -77,11 +77,11 @@ r.post('/', auth, async (req, res, next) => {
     const error = validarCuerpo(body, { requerido: true })
     if (error) return res.status(400).json({ error })
 
-    const { apartamento_id, personal_id, fecha, hora, estado = 'pendiente', notas } = body
+    const { apartamento_id, personal_id, fecha, hora, valor, estado = 'pendiente', notas } = body
     const { rows } = await pool.query(
-      `INSERT INTO tareas_limpieza (apartamento_id, personal_id, fecha, hora, estado, notas)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [apartamento_id, personal_id || null, fecha, hora || null, estado, notas || null]
+      `INSERT INTO tareas_limpieza (apartamento_id, personal_id, fecha, hora, valor, estado, notas)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [apartamento_id, personal_id || null, fecha, hora || null, valor || null, estado, notas || null]
     )
     res.status(201).json({ tarea: rows[0] })
   } catch (err) { next(err) }
@@ -94,7 +94,7 @@ r.put('/:id', auth, async (req, res, next) => {
     const error = validarCuerpo(body, { requerido: false })
     if (error) return res.status(400).json({ error })
 
-    const campos = ['apartamento_id', 'personal_id', 'fecha', 'hora', 'estado', 'notas']
+    const campos = ['apartamento_id', 'personal_id', 'fecha', 'hora', 'valor', 'estado', 'notas']
     const sets = []
     const valores = []
     for (const campo of campos) {

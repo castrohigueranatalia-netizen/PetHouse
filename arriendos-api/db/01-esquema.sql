@@ -149,6 +149,7 @@ CREATE TABLE tareas_limpieza (
 
     fecha           DATE NOT NULL,
     hora            TIME,
+    valor           NUMERIC(10,2) CHECK (valor IS NULL OR valor >= 0),
     estado          estado_limpieza NOT NULL DEFAULT 'pendiente',
     notas           TEXT,
 
