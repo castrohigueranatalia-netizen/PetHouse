@@ -4,21 +4,29 @@
 import jwt from 'jsonwebtoken'
 import { JWT_SECRET, pool } from '../config.js'
 
-// ---- Autenticación: requiere "Authorization: Bearer <token>" ----
+// ---- Identifica al usuario de la cuenta ----
+// La app no pide iniciar sesión (uso interno y familiar, un solo usuario).
+// Si llega un token Bearer válido se usa ese usuario; si no, se usa el
+// único usuario de la base de datos como dueño por defecto (lo necesitan,
+// por ejemplo, las suscripciones de notificaciones push).
 export async function auth(req, res, next) {
-  const header = req.headers.authorization || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null
-  if (!token) return res.status(401).json({ error: 'Se requiere iniciar sesión.' })
-
   try {
-    const payload = jwt.verify(token, JWT_SECRET)
-    const { rows } = await pool.query('SELECT id, nombre, email FROM usuarios WHERE id = $1', [payload.uid])
-    if (!rows.length) return res.status(401).json({ error: 'Sesión inválida.' })
+    const header = req.headers.authorization || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null
+
+    if (token) {
+      try {
+        const payload = jwt.verify(token, JWT_SECRET)
+        const { rows } = await pool.query('SELECT id, nombre, email FROM usuarios WHERE id = $1', [payload.uid])
+        if (rows.length) { req.usuario = rows[0]; return next() }
+      } catch { /* token inválido o vencido: cae al usuario por defecto */ }
+    }
+
+    const { rows } = await pool.query('SELECT id, nombre, email FROM usuarios ORDER BY creado_en LIMIT 1')
+    if (!rows.length) return res.status(500).json({ error: 'No hay ningún usuario configurado en la base de datos.' })
     req.usuario = rows[0]
     next()
-  } catch {
-    return res.status(401).json({ error: 'Sesión expirada o inválida. Vuelve a iniciar sesión.' })
-  }
+  } catch (err) { next(err) }
 }
 
 // ---- Manejador global de errores ----

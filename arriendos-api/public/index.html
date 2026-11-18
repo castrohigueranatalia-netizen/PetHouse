@@ -16,11 +16,26 @@
   button { cursor: pointer; }
   .oculto { display: none !important; }
 
-  /* ---------- Login ---------- */
-  #vista-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  /* ---------- Inicio ---------- */
+  #vista-inicio { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
   .tarjeta-login { background: #fff; border-radius: 16px; padding: 32px; width: 100%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
   .tarjeta-login h1 { font-size: 22px; margin: 0 0 4px; }
   .tarjeta-login p.sub { color: var(--gris); margin: 0 0 20px; font-size: 14px; }
+  .tarjeta-inicio { text-align: center; }
+  .modulos { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .btn-modulo {
+    display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--borde); border-radius: 12px;
+    background: #fff; font-size: 15px; font-weight: 700; text-align: left; color: var(--tinta);
+  }
+  .btn-modulo:hover { border-color: var(--coral); background: #fff7f8; }
+  .modulo-emoji { font-size: 26px; }
+
+  /* ---------- Lavandería (placeholder) ---------- */
+  #vista-lavanderia { min-height: 100vh; }
+  .vista-lavanderia-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .modulo-vacio { text-align: center; padding: 70px 20px; color: var(--gris); }
+  .modulo-vacio .modulo-emoji { font-size: 46px; display: block; margin-bottom: 12px; }
+  .modulo-vacio h2 { color: var(--tinta); margin: 0 0 8px; font-size: 18px; }
   .campo { margin-bottom: 14px; }
   .campo label { display: block; font-size: 13px; color: var(--gris); margin-bottom: 4px; }
   .campo input, .campo select, .campo textarea {
@@ -204,22 +219,22 @@
 </head>
 <body>
 
-<!-- ==================== LOGIN ==================== -->
-<div id="vista-login">
-  <form class="tarjeta-login" id="form-login">
+<!-- ==================== INICIO ==================== -->
+<div id="vista-inicio">
+  <div class="tarjeta-login tarjeta-inicio">
     <h1>🏠 Arriendos Cartagena</h1>
-    <p class="sub">Control de reservas de los apartamentos</p>
-    <div class="campo">
-      <label>Correo</label>
-      <input type="email" id="login-email" required autocomplete="username">
+    <p class="sub">¿Qué quieres abrir?</p>
+    <div class="modulos">
+      <button class="btn-modulo" id="btn-modulo-arriendos">
+        <span class="modulo-emoji">🏠</span>
+        <span>Arriendos de apartamentos</span>
+      </button>
+      <button class="btn-modulo" id="btn-modulo-lavanderia">
+        <span class="modulo-emoji">🧺</span>
+        <span>Lavandería</span>
+      </button>
     </div>
-    <div class="campo">
-      <label>Contraseña</label>
-      <input type="password" id="login-password" required autocomplete="current-password">
-    </div>
-    <button class="btn btn-primario btn-block" type="submit">Entrar</button>
-    <div class="error-msg" id="login-error"></div>
-  </form>
+  </div>
 </div>
 
 <!-- ==================== APP ==================== -->
@@ -227,10 +242,8 @@
   <header class="top">
     <h1>🏠 Arriendos Cartagena</h1>
     <div class="usuario">
-      <span id="nombre-usuario"></span>
       <button class="btn btn-chico oculto" id="btn-activar-notificaciones" title="Te avisa cuando se acerca el check-in de una reserva confirmada que aún no se ha pagado">🔔 Activar notificaciones</button>
-      <button class="btn btn-chico" id="btn-cambiar-password">Cambiar contraseña</button>
-      <button class="btn btn-chico" id="btn-salir">Salir</button>
+      <button class="btn btn-chico" id="btn-inicio-desde-app">← Inicio</button>
     </div>
   </header>
 
@@ -346,6 +359,23 @@
   </section>
 </div>
 
+<!-- ==================== LAVANDERÍA (próximamente) ==================== -->
+<div id="vista-lavanderia" class="oculto">
+  <div class="vista-lavanderia-wrap">
+    <header class="top">
+      <h1>🧺 Lavandería</h1>
+      <div class="usuario">
+        <button class="btn btn-chico" id="btn-inicio-desde-lavanderia">← Inicio</button>
+      </div>
+    </header>
+    <div class="modulo-vacio">
+      <span class="modulo-emoji">🧺</span>
+      <h2>Todavía no hay nada aquí</h2>
+      <p>Esta sección está en construcción. Pronto vas a poder coordinar aquí el servicio de lavandería.</p>
+    </div>
+  </div>
+</div>
+
 <button id="btn-asistente" class="fab-asistente oculto" title="Preguntar al asistente">💬</button>
 
 <div id="panel-asistente" class="panel-asistente oculto">
@@ -436,8 +466,6 @@ function festivosDelAnio(year) {
 }
 
 const estado = {
-  token: localStorage.getItem('arriendos_token') || null,
-  usuario: JSON.parse(localStorage.getItem('arriendos_usuario') || 'null'),
   apartamentos: [],
   apartamentosTodos: [],
   reservas: [],
@@ -457,11 +485,7 @@ estado.mesDashboard.setDate(1);
 async function api(ruta, opciones = {}) {
   const res = await fetch('/api' + ruta, {
     ...opciones,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(estado.token ? { Authorization: 'Bearer ' + estado.token } : {}),
-      ...(opciones.headers || {})
-    },
+    headers: { 'Content-Type': 'application/json', ...(opciones.headers || {}) },
     body: opciones.body ? JSON.stringify(opciones.body) : undefined
   });
   const datos = await res.json().catch(() => ({}));
@@ -501,54 +525,20 @@ function activarCampoDinero(input) {
   input.addEventListener('input', () => { input.value = formatearMoneda(limpiarMoneda(input.value)); });
 }
 
-// ---------------- Login ----------------
-document.getElementById('form-login').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errBox = document.getElementById('login-error');
-  errBox.textContent = '';
-  try {
-    const { usuario, token } = await api('/auth/login', { method: 'POST', body: { email, password } });
-    estado.token = token; estado.usuario = usuario;
-    localStorage.setItem('arriendos_token', token);
-    localStorage.setItem('arriendos_usuario', JSON.stringify(usuario));
-    await iniciarApp();
-  } catch (err) {
-    errBox.textContent = err.message;
-  }
-});
+// ---------------- Inicio: elegir módulo ----------------
+function mostrarVista(nombre) {
+  document.getElementById('vista-inicio').classList.toggle('oculto', nombre !== 'inicio');
+  document.getElementById('vista-app').classList.toggle('oculto', nombre !== 'app');
+  document.getElementById('vista-lavanderia').classList.toggle('oculto', nombre !== 'lavanderia');
+  document.getElementById('btn-asistente').classList.toggle('oculto', nombre !== 'app');
+  document.getElementById('panel-asistente').classList.add('oculto');
+  if (nombre === 'app') abrirModuloArriendos();
+}
 
-document.getElementById('btn-salir').addEventListener('click', () => {
-  localStorage.removeItem('arriendos_token');
-  localStorage.removeItem('arriendos_usuario');
-  location.reload();
-});
-
-document.getElementById('btn-cambiar-password').addEventListener('click', () => {
-  abrirModal(`
-    <h2>Cambiar contraseña</h2>
-    <form id="form-password">
-      <div class="campo"><label>Contraseña actual</label><input type="password" id="pw-actual" required></div>
-      <div class="campo"><label>Contraseña nueva (mín. 6 caracteres)</label><input type="password" id="pw-nueva" required minlength="6"></div>
-      <div class="acciones">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primario">Guardar</button>
-      </div>
-    </form>
-  `);
-  document.getElementById('form-password').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-      await api('/auth/cambiar-password', { method: 'POST', body: {
-        actual: document.getElementById('pw-actual').value,
-        nueva: document.getElementById('pw-nueva').value
-      }});
-      toast('Contraseña actualizada.');
-      cerrarModal();
-    } catch (err) { toast(err.message); }
-  });
-});
+document.getElementById('btn-modulo-arriendos').addEventListener('click', () => mostrarVista('app'));
+document.getElementById('btn-modulo-lavanderia').addEventListener('click', () => mostrarVista('lavanderia'));
+document.getElementById('btn-inicio-desde-app').addEventListener('click', () => mostrarVista('inicio'));
+document.getElementById('btn-inicio-desde-lavanderia').addEventListener('click', () => mostrarVista('inicio'));
 
 // ---------------- Tabs ----------------
 document.querySelectorAll('nav.tabs button').forEach((btn) => {
@@ -1399,24 +1389,18 @@ async function activarNotificaciones() {
 }
 
 // ---------------- Arranque ----------------
-async function iniciarApp() {
-  document.getElementById('vista-login').classList.add('oculto');
-  document.getElementById('vista-app').classList.remove('oculto');
-  document.getElementById('nombre-usuario').textContent = estado.usuario?.nombre || estado.usuario?.email || '';
-  document.getElementById('btn-asistente').classList.remove('oculto');
-  configurarNotificaciones();
+let notificacionesConfiguradas = false;
+
+async function abrirModuloArriendos() {
+  if (!notificacionesConfiguradas) {
+    notificacionesConfiguradas = true;
+    configurarNotificaciones();
+  }
   try {
     await cargarApartamentos();
     await refrescarReservas();
-  } catch (err) {
-    if (err.message.includes('sesión')) {
-      localStorage.removeItem('arriendos_token'); localStorage.removeItem('arriendos_usuario');
-      location.reload();
-    } else toast(err.message);
-  }
+  } catch (err) { toast(err.message); }
 }
-
-if (estado.token && estado.usuario) iniciarApp();
 </script>
 </body>
 </html>

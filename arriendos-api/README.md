@@ -21,13 +21,11 @@ npm install
 npm run dev
 ```
 
-Abre **http://localhost:3002**. El usuario inicial queda creado por el seed:
+Abre **http://localhost:3002**. No pide iniciar sesión (es de uso interno,
+solo tú y tu papá la usan): entras directo a elegir entre **"Arriendos de
+apartamentos"** y **"Lavandería"** (esta última todavía en construcción).
 
-- Correo: `papa@arriendoscartagena.com`
-- Contraseña: `cambiame123`
-
-Cámbiala apenas entres, con el botón **"Cambiar contraseña"** (arriba a la derecha).
-Edita también los 7 apartamentos en `db/02-seed.sql` (nombres, precios) *antes*
+Edita los 7 apartamentos en `db/02-seed.sql` (nombres, precios) *antes*
 de levantar la base por primera vez — o después, desde la pestaña **Apartamentos**
 de la propia app.
 
