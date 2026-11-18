@@ -68,8 +68,8 @@
   nav.tabs button.activo { color: var(--coral); border-color: var(--coral); }
 
   .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borde); }
-  .barra-filtros .mes-nav { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-  .barra-filtros .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 6px; width: 28px; height: 28px; }
+  .mes-nav { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 6px; width: 28px; height: 28px; }
   .barra-filtros select { padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; }
   .barra-filtros .spacer { flex: 1; }
 
@@ -194,6 +194,7 @@
   .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .modal-fondo { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
+  .modal.modal-ancho { max-width: 720px; }
   .modal h2 { margin: 0 0 16px; font-size: 18px; }
   .modal .acciones { justify-content: flex-end; margin-top: 18px; }
   .modal .acciones .izq { margin-right: auto; }
@@ -1239,14 +1240,49 @@ function filaHistorial(titulo, s, soloUnaPersona) {
     </div>`;
 }
 
-function renderHistorialLimpieza() {
+function renderHistorialLimpieza(historialMes) {
   const personalId = document.getElementById('hist-personal').value;
   const hoy = new Date();
   const semana = limitesSemana(hoy);
-  const mes = limitesMes(hoy);
-  document.getElementById('hist-contenido').innerHTML =
+  const mes = limitesMes(historialMes);
+
+  document.getElementById('hist-mes-label').textContent = `${MESES[historialMes.getMonth()]} ${historialMes.getFullYear()}`;
+  document.getElementById('hist-resumen').innerHTML =
     filaHistorial(`Esta semana (${fechaBonita(semana.desde)} – ${fechaBonita(semana.hasta)})`, statsLimpieza(personalId, semana.desde, semana.hasta), !!personalId) +
-    filaHistorial(`Este mes (${MESES[hoy.getMonth()]})`, statsLimpieza(personalId, mes.desde, mes.hasta), !!personalId);
+    filaHistorial('Mes seleccionado', statsLimpieza(personalId, mes.desde, mes.hasta), !!personalId);
+
+  // Listado de las tareas de ese mes (cualquier estado) para poder revisarlas o borrarlas
+  const tareasDelMes = estado.tareasLimpieza
+    .filter((t) => (!personalId || t.personal_id === personalId) && fechaISO(t.fecha) >= mes.desde && fechaISO(t.fecha) <= mes.hasta)
+    .sort((a, b) => fechaISO(a.fecha).localeCompare(fechaISO(b.fecha)) || String(a.hora || '').localeCompare(String(b.hora || '')));
+
+  const cuerpoHist = document.getElementById('hist-tabla');
+  if (!tareasDelMes.length) {
+    cuerpoHist.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gris);padding:16px;">No hay tareas registradas en ese mes.</td></tr>';
+    return;
+  }
+  cuerpoHist.innerHTML = tareasDelMes.map((t) => `
+    <tr data-id="${t.id}">
+      <td>${esc(t.apartamento_nombre)}</td>
+      <td>${fechaBonita(t.fecha)}${t.hora ? ' · ' + String(t.hora).slice(0, 5) : ''}</td>
+      <td>${esc(t.personal_nombre) || '—'}</td>
+      <td>${pesos(t.valor)}</td>
+      <td><span class="badge-limpieza ${t.estado}">${t.estado === 'lista' ? 'Lista' : 'Pendiente'}</span></td>
+      <td><button class="btn btn-chico btn-peligro" data-accion="eliminar-hist" data-id="${t.id}">Eliminar</button></td>
+    </tr>
+  `).join('');
+  cuerpoHist.querySelectorAll('[data-accion="eliminar-hist"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta tarea de limpieza? Esta acción no se puede deshacer.')) return;
+      try {
+        await api(`/tareas-limpieza/${btn.dataset.id}`, { method: 'DELETE' });
+        toast('Tarea eliminada.');
+        await cargarTareasLimpieza();
+        renderHistorialLimpieza(historialMes);
+        renderTareasLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+  });
 }
 
 document.getElementById('btn-historial-limpieza').addEventListener('click', async () => {
@@ -1254,20 +1290,49 @@ document.getElementById('btn-historial-limpieza').addEventListener('click', asyn
   const opcionesPersonal = estado.personalLimpieza.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
   abrirModal(`
     <h2>Historial de limpieza</h2>
-    <div class="campo">
-      <label>Niña</label>
-      <select id="hist-personal">
-        <option value="">Todas</option>
-        ${opcionesPersonal}
-      </select>
+    <div class="fila-2">
+      <div class="campo">
+        <label>Niña</label>
+        <select id="hist-personal">
+          <option value="">Todas</option>
+          ${opcionesPersonal}
+        </select>
+      </div>
+      <div class="campo">
+        <label>Mes</label>
+        <div class="mes-nav">
+          <button type="button" id="hist-mes-prev">‹</button>
+          <span id="hist-mes-label">-</span>
+          <button type="button" id="hist-mes-next">›</button>
+        </div>
+      </div>
     </div>
-    <div id="hist-contenido"></div>
+    <div id="hist-resumen"></div>
+    <div class="tabla-wrap" style="margin-top:14px;">
+      <table class="reservas">
+        <thead><tr><th>Apartamento</th><th>Fecha</th><th>Responsable</th><th>Valor</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="hist-tabla"></tbody>
+      </table>
+    </div>
     <div class="acciones">
       <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
-  document.getElementById('hist-personal').addEventListener('change', renderHistorialLimpieza);
-  renderHistorialLimpieza();
+  document.querySelector('#modal-fondo .modal').classList.add('modal-ancho');
+
+  let historialMes = new Date();
+  historialMes.setDate(1);
+
+  document.getElementById('hist-personal').addEventListener('change', () => renderHistorialLimpieza(historialMes));
+  document.getElementById('hist-mes-prev').addEventListener('click', () => {
+    historialMes = new Date(historialMes.getFullYear(), historialMes.getMonth() - 1, 1);
+    renderHistorialLimpieza(historialMes);
+  });
+  document.getElementById('hist-mes-next').addEventListener('click', () => {
+    historialMes = new Date(historialMes.getFullYear(), historialMes.getMonth() + 1, 1);
+    renderHistorialLimpieza(historialMes);
+  });
+  renderHistorialLimpieza(historialMes);
 });
 
 document.getElementById('btn-personal-limpieza').addEventListener('click', () => abrirModalPersonalLimpieza());
