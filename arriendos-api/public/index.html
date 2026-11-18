@@ -512,6 +512,7 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
     document.getElementById('tab-apartamentos').classList.toggle('oculto', btn.dataset.tab !== 'apartamentos');
     document.getElementById('tab-dashboard').classList.toggle('oculto', btn.dataset.tab !== 'dashboard');
+    if (btn.dataset.tab === 'reservas') { renderCalendario(); renderTablaReservas(); }
     if (btn.dataset.tab === 'apartamentos') abrirTabApartamentos();
     if (btn.dataset.tab === 'dashboard') refrescarDashboard();
   });
