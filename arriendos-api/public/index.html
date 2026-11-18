@@ -53,7 +53,15 @@
   .calendario-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; margin-bottom: 20px; }
   table.calendario { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 12px; }
   table.calendario th, table.calendario td { border: 1px solid #eef0f2; text-align: center; padding: 0; }
-  table.calendario th { background: #fafbfc; color: var(--gris); font-weight: 600; padding: 6px 2px; position: sticky; top: 0; }
+  table.calendario th { background: #fafbfc; color: var(--gris); font-weight: 600; padding: 4px 2px; position: sticky; top: 0; }
+  table.calendario th .dia-semana { display: block; font-size: 10px; font-weight: 500; color: var(--gris); text-transform: uppercase; }
+  table.calendario th .dia-numero { display: block; font-size: 12px; }
+  table.calendario th.finde { background: #f3f1fb; }
+  table.calendario td.dia.finde { background: #faf9fd; }
+  table.calendario td.dia.finde.hoy { background: #faf9fd; }
+  table.calendario th.festivo { background: #fde8ea; color: #b91c1c; font-weight: 700; }
+  table.calendario td.dia.festivo { background: #fdf0f1; }
+  table.calendario td.dia.festivo.hoy { background: #fdf0f1; }
   table.calendario td.nombre-apto, table.calendario th.nombre-apto {
     text-align: left; padding: 6px 10px; white-space: nowrap; position: sticky; left: 0; background: #fff; font-weight: 600; z-index: 1;
   }
@@ -68,6 +76,7 @@
   .f-directo { background: var(--directo); }
   .f-otro { background: var(--otro); }
   .f-pendiente { background: repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #fde68a 4px, #fde68a 8px); }
+  .f-festivo { background: #fdf0f1; border: 1px solid #b91c1c; }
 
   .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--gris); padding: 8px 12px; }
   .leyenda span { display: inline-flex; align-items: center; gap: 5px; }
@@ -197,6 +206,7 @@
         <span><i class="f-directo"></i> Directo</span>
         <span><i class="f-otro"></i> Otro</span>
         <span><i class="f-pendiente"></i> Pendiente</span>
+        <span><i class="f-festivo"></i> Festivo (Colombia)</span>
       </div>
     </div>
 
@@ -244,6 +254,67 @@
 const FUENTES = ['booking','airbnb','whatsapp','directo','otro'];
 const NOMBRE_FUENTE = { booking:'Booking', airbnb:'Airbnb', whatsapp:'WhatsApp', directo:'Directo', otro:'Otro' };
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DIAS_SEMANA = ['D','L','M','X','J','V','S']; // índice = Date#getUTCDay() (0 = domingo)
+
+// ---------------- Festivos de Colombia (Ley Emiliani incluida) ----------------
+function calcularPascua(year) {
+  // Domingo de Pascua (algoritmo de Meeus/Jones/Butcher, calendario gregoriano)
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31); // 3 = marzo, 4 = abril
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, mes - 1, dia));
+}
+function sumarDiasUTC(fecha, n) {
+  const d = new Date(fecha);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d;
+}
+function siguienteLunes(fecha) {
+  // Ley Emiliani: si no cae lunes, el festivo se traslada al lunes siguiente
+  return sumarDiasUTC(fecha, (8 - fecha.getUTCDay()) % 7);
+}
+function festivosColombia(year) {
+  const pascua = calcularPascua(year);
+  const mapa = {};
+  const agregar = (fecha, nombre) => { mapa[fechaISO(fecha)] = nombre; };
+
+  agregar(new Date(Date.UTC(year, 0, 1)), 'Año Nuevo');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 0, 6))), 'Reyes Magos');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 2, 19))), 'San José');
+  agregar(sumarDiasUTC(pascua, -3), 'Jueves Santo');
+  agregar(sumarDiasUTC(pascua, -2), 'Viernes Santo');
+  agregar(new Date(Date.UTC(year, 4, 1)), 'Día del Trabajo');
+  agregar(siguienteLunes(sumarDiasUTC(pascua, 39)), 'Ascensión del Señor');
+  agregar(siguienteLunes(sumarDiasUTC(pascua, 60)), 'Corpus Christi');
+  agregar(siguienteLunes(sumarDiasUTC(pascua, 68)), 'Sagrado Corazón');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 5, 29))), 'San Pedro y San Pablo');
+  agregar(new Date(Date.UTC(year, 6, 20)), 'Día de la Independencia');
+  agregar(new Date(Date.UTC(year, 7, 7)), 'Batalla de Boyacá');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 7, 15))), 'Asunción de la Virgen');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 9, 12))), 'Día de la Raza');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 10, 1))), 'Todos los Santos');
+  agregar(siguienteLunes(new Date(Date.UTC(year, 10, 11))), 'Independencia de Cartagena');
+  agregar(new Date(Date.UTC(year, 11, 8)), 'Inmaculada Concepción');
+  agregar(new Date(Date.UTC(year, 11, 25)), 'Navidad');
+
+  return mapa; // { 'YYYY-MM-DD': 'Nombre del festivo' }
+}
+const _cacheFestivos = {};
+function festivosDelAnio(year) {
+  if (!_cacheFestivos[year]) _cacheFestivos[year] = festivosColombia(year);
+  return _cacheFestivos[year];
+}
 
 const estado = {
   token: localStorage.getItem('arriendos_token') || null,
@@ -418,24 +489,38 @@ function renderCalendario() {
     : estado.apartamentos;
 
   const hoyISO = fechaISO(new Date());
+  const festivos = festivosDelAnio(estado.mes.getFullYear());
 
   let thead = '<thead><tr><th class="nombre-apto">Apartamento</th>';
-  for (let d = 1; d <= diasEnMes; d++) thead += `<th>${d}</th>`;
+  for (let d = 1; d <= diasEnMes; d++) {
+    const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
+    const esFinde = diaSemana === 0 || diaSemana === 6;
+    const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
+    const nombreFestivo = festivos[diaISO];
+    const claseEncabezado = nombreFestivo ? 'festivo' : (esFinde ? 'finde' : '');
+    const tituloEncabezado = nombreFestivo ? ` title="${esc(nombreFestivo)}"` : '';
+    thead += `<th class="${claseEncabezado}"${tituloEncabezado}><span class="dia-semana">${DIAS_SEMANA[diaSemana]}</span><span class="dia-numero">${d}</span></th>`;
+  }
   thead += '</tr></thead>';
 
   let tbody = '<tbody>';
   for (const apto of apartamentos) {
     tbody += `<tr><td class="nombre-apto">${esc(apto.nombre)}</td>`;
     for (let d = 1; d <= diasEnMes; d++) {
+      const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
+      const esFinde = diaSemana === 0 || diaSemana === 6;
       const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
+      const nombreFestivo = festivos[diaISO];
       const res = estado.reservas.find((r) => r.apartamento_id === apto.id && r.estado !== 'cancelada' && diaISO >= fechaISO(r.checkin) && diaISO < fechaISO(r.checkout));
-      const claseHoy = diaISO === hoyISO ? ' hoy' : '';
+      const claseFechaEspecial = nombreFestivo ? ' festivo' : (esFinde ? ' finde' : '');
+      const clasesCelda = `dia${claseFechaEspecial}${diaISO === hoyISO ? ' hoy' : ''}`;
       if (res) {
         const clase = res.estado === 'pendiente' ? 'f-pendiente' : 'f-' + res.fuente;
-        const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}`);
-        tbody += `<td class="dia${claseHoy}" title="${titulo}" data-reserva="${res.id}"><span class="bloque ${clase}"></span></td>`;
+        const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}${nombreFestivo ? ' · 🎉 ' + nombreFestivo : ''}`);
+        tbody += `<td class="${clasesCelda}" title="${titulo}" data-reserva="${res.id}"><span class="bloque ${clase}"></span></td>`;
       } else {
-        tbody += `<td class="dia${claseHoy}" data-apartamento="${apto.id}" data-dia="${diaISO}"></td>`;
+        const titulo = nombreFestivo ? ` title="${esc(nombreFestivo)}"` : '';
+        tbody += `<td class="${clasesCelda}"${titulo} data-apartamento="${apto.id}" data-dia="${diaISO}"></td>`;
       }
     }
     tbody += '</tr>';
