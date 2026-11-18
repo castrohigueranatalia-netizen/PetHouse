@@ -110,6 +110,25 @@
   .badge-estado.pendiente { background: #f59e0b; }
   .badge-estado.cancelada { background: #9ca3af; }
 
+  /* Limpieza */
+  .chk-mostrar-listas { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); white-space: nowrap; }
+  table.reservas tr.urgente td { background: #fdf0f1; }
+  .badge-limpieza { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
+  .badge-limpieza.pendiente { background: #f59e0b; }
+  .badge-limpieza.lista { background: #10b981; }
+  .select-responsable { padding: 5px 7px; border: 1px solid var(--borde); border-radius: 6px; font-size: 12px; max-width: 140px; }
+  .lista-personal { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .fila-personal-existente { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6; }
+  .fila-personal-existente:last-child { border-bottom: none; padding-bottom: 0; }
+  .fila-personal-existente.inactivo { opacity: .55; }
+  .fila-personal-campos { display: flex; gap: 6px; }
+  .fila-personal-campos input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
+  .fila-personal-campos input.personal-tel { flex: 0 0 110px; }
+  .fila-personal-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fila-personal { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fila-personal input[type="text"] { flex: 1; min-width: 90px; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
+  .fila-personal input.personal-tel { flex: 0 0 110px; }
+
   /* Apartamentos */
   .grid-apartamentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .card-apto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
@@ -217,6 +236,7 @@
 
   <nav class="tabs">
     <button data-tab="reservas" class="activo">Reservas</button>
+    <button data-tab="limpieza">Limpieza</button>
     <button data-tab="dashboard">Dashboard</button>
     <button data-tab="apartamentos">Apartamentos</button>
   </nav>
@@ -266,6 +286,29 @@
           </tr>
         </thead>
         <tbody id="cuerpo-reservas"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---- Tab Limpieza ---- -->
+  <section id="tab-limpieza" class="oculto">
+    <div class="barra-filtros">
+      <label class="chk-mostrar-listas">
+        <input type="checkbox" id="limpieza-mostrar-listas"> Mostrar las ya hechas
+      </label>
+      <div class="spacer"></div>
+      <button class="btn btn-chico" id="btn-personal-limpieza">👩‍🔧 Personal de limpieza</button>
+      <button class="btn btn-primario" id="btn-nueva-tarea-limpieza">+ Nueva tarea de limpieza</button>
+    </div>
+
+    <div class="tabla-wrap">
+      <table class="reservas">
+        <thead>
+          <tr>
+            <th>Apartamento</th><th>Fecha</th><th>Hora</th><th>Responsable</th><th>Estado</th><th>Notas</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo-limpieza"></tbody>
       </table>
     </div>
   </section>
@@ -402,7 +445,10 @@ const estado = {
   filtroApartamento: '',
   filtroFuente: '',
   mesDashboard: new Date(),
-  reservasDashboard: []
+  reservasDashboard: [],
+  personalLimpieza: [],
+  tareasLimpieza: [],
+  limpiezaMostrarListas: false
 };
 estado.mes.setDate(1);
 estado.mesDashboard.setDate(1);
@@ -510,9 +556,11 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('activo'));
     btn.classList.add('activo');
     document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
+    document.getElementById('tab-limpieza').classList.toggle('oculto', btn.dataset.tab !== 'limpieza');
     document.getElementById('tab-apartamentos').classList.toggle('oculto', btn.dataset.tab !== 'apartamentos');
     document.getElementById('tab-dashboard').classList.toggle('oculto', btn.dataset.tab !== 'dashboard');
     if (btn.dataset.tab === 'reservas') { renderCalendario(); renderTablaReservas(); }
+    if (btn.dataset.tab === 'limpieza') abrirTabLimpieza();
     if (btn.dataset.tab === 'apartamentos') abrirTabApartamentos();
     if (btn.dataset.tab === 'dashboard') refrescarDashboard();
   });
@@ -936,6 +984,227 @@ document.getElementById('btn-nuevo-apartamento').addEventListener('click', () =>
     } catch (err) { toast(err.message); }
   });
 });
+
+// ---------------- Limpieza ----------------
+async function cargarPersonalLimpieza(todos = false) {
+  const { personal } = await api('/personal-limpieza' + (todos ? '?todos=1' : ''));
+  estado.personalLimpieza = personal;
+}
+
+async function cargarTareasLimpieza() {
+  const params = new URLSearchParams();
+  if (!estado.limpiezaMostrarListas) params.set('estado', 'pendiente');
+  const { tareas } = await api('/tareas-limpieza?' + params.toString());
+  estado.tareasLimpieza = tareas;
+}
+
+async function abrirTabLimpieza() {
+  try {
+    await cargarPersonalLimpieza(true);
+    await cargarTareasLimpieza();
+    renderTareasLimpieza();
+  } catch (err) { toast(err.message); }
+}
+
+function opcionesResponsable(personalIdSeleccionado) {
+  // Incluye inactivas solo si son la responsable ya asignada (para no perder
+  // la asignación al editar una tarea vieja cuya niña ya no está activa).
+  const visibles = estado.personalLimpieza.filter((p) => p.activo || p.id === personalIdSeleccionado);
+  return '<option value="">Sin asignar</option>' +
+    visibles.map((p) => `<option value="${p.id}" ${p.id === personalIdSeleccionado ? 'selected' : ''}>${esc(p.nombre)}${p.activo ? '' : ' (inactiva)'}</option>`).join('');
+}
+
+function renderTareasLimpieza() {
+  const cuerpo = document.getElementById('cuerpo-limpieza');
+  if (!estado.tareasLimpieza.length) {
+    cuerpo.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--gris);padding:20px;">No hay tareas de limpieza${estado.limpiezaMostrarListas ? '' : ' pendientes'}.</td></tr>`;
+    return;
+  }
+  cuerpo.innerHTML = estado.tareasLimpieza.map((t) => `
+    <tr class="${t.mismo_dia_entrada ? 'urgente' : ''}" data-id="${t.id}">
+      <td>${esc(t.apartamento_nombre)}</td>
+      <td>${t.mismo_dia_entrada ? '⚠️ ' : ''}${fechaBonita(t.fecha)}</td>
+      <td>${t.hora ? String(t.hora).slice(0, 5) : '—'}</td>
+      <td><select class="select-responsable" data-campo="personal_id">${opcionesResponsable(t.personal_id)}</select></td>
+      <td><span class="badge-limpieza ${t.estado}">${t.estado === 'lista' ? 'Lista' : 'Pendiente'}</span></td>
+      <td>${esc(t.notas) || '—'}</td>
+      <td class="acciones">
+        <button class="btn btn-chico" data-accion="toggle-estado">${t.estado === 'lista' ? 'Marcar pendiente' : 'Marcar lista'}</button>
+        <button class="btn btn-chico" data-accion="editar">Editar</button>
+        <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
+      </td>
+    </tr>
+  `).join('');
+
+  cuerpo.querySelectorAll('tr[data-id]').forEach((fila) => {
+    const id = fila.dataset.id;
+    const tarea = estado.tareasLimpieza.find((t) => t.id === id);
+
+    fila.querySelector('[data-campo="personal_id"]').addEventListener('change', async (e) => {
+      try {
+        await api(`/tareas-limpieza/${id}`, { method: 'PUT', body: { personal_id: e.target.value || '' } });
+        toast('Responsable actualizado.');
+        await cargarTareasLimpieza(); renderTareasLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+
+    fila.querySelector('[data-accion="toggle-estado"]').addEventListener('click', async () => {
+      try {
+        await api(`/tareas-limpieza/${id}`, { method: 'PUT', body: { estado: tarea.estado === 'lista' ? 'pendiente' : 'lista' } });
+        await cargarTareasLimpieza(); renderTareasLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+
+    fila.querySelector('[data-accion="editar"]').addEventListener('click', () => abrirFormularioTareaLimpieza(tarea));
+
+    fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta tarea de limpieza?')) return;
+      try {
+        await api(`/tareas-limpieza/${id}`, { method: 'DELETE' });
+        toast('Tarea eliminada.');
+        await cargarTareasLimpieza(); renderTareasLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+  });
+}
+
+document.getElementById('limpieza-mostrar-listas').addEventListener('change', async (e) => {
+  estado.limpiezaMostrarListas = e.target.checked;
+  await cargarTareasLimpieza();
+  renderTareasLimpieza();
+});
+
+document.getElementById('btn-nueva-tarea-limpieza').addEventListener('click', () => abrirFormularioTareaLimpieza(null));
+
+function abrirFormularioTareaLimpieza(tarea) {
+  const esEdicion = !!tarea;
+  const v = tarea || {};
+  const opcionesApto = estado.apartamentos.map((a) =>
+    `<option value="${a.id}" ${v.apartamento_id === a.id ? 'selected' : ''}>${esc(a.nombre)}</option>`).join('');
+
+  abrirModal(`
+    <h2>${esEdicion ? 'Editar tarea de limpieza' : 'Nueva tarea de limpieza'}</h2>
+    <form id="form-tarea-limpieza">
+      <div class="campo"><label>Apartamento</label><select id="tl-apartamento" required>${opcionesApto}</select></div>
+      <div class="fila-2">
+        <div class="campo"><label>Fecha</label><input type="date" id="tl-fecha" value="${v.fecha ? fechaISO(v.fecha) : ''}" required></div>
+        <div class="campo"><label>Hora</label><input type="time" id="tl-hora" value="${v.hora ? String(v.hora).slice(0, 5) : ''}"></div>
+      </div>
+      <div class="campo"><label>Responsable</label><select id="tl-responsable">${opcionesResponsable(v.personal_id)}</select></div>
+      <div class="campo"><label>Notas</label><input id="tl-notas" value="${esc(v.notas)}" placeholder="Ej. dejar toallas extra"></div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">${esEdicion ? 'Guardar cambios' : 'Crear tarea'}</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-tarea-limpieza').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cuerpo = {
+      apartamento_id: document.getElementById('tl-apartamento').value,
+      fecha: document.getElementById('tl-fecha').value,
+      hora: document.getElementById('tl-hora').value || null,
+      personal_id: document.getElementById('tl-responsable').value || null,
+      notas: document.getElementById('tl-notas').value || null
+    };
+    try {
+      if (esEdicion) await api(`/tareas-limpieza/${tarea.id}`, { method: 'PUT', body: cuerpo });
+      else await api('/tareas-limpieza', { method: 'POST', body: cuerpo });
+      toast(esEdicion ? 'Tarea actualizada.' : 'Tarea creada.');
+      cerrarModal();
+      await cargarTareasLimpieza();
+      renderTareasLimpieza();
+    } catch (err) { toast(err.message); }
+  });
+}
+
+document.getElementById('btn-personal-limpieza').addEventListener('click', () => abrirModalPersonalLimpieza());
+
+async function abrirModalPersonalLimpieza() {
+  await cargarPersonalLimpieza(true);
+  renderModalPersonalLimpieza();
+}
+
+function renderModalPersonalLimpieza() {
+  abrirModal(`
+    <h2>Personal de limpieza</h2>
+    <ul class="lista-personal" id="lista-personal"></ul>
+    <form id="form-nueva-personal" class="fila-personal">
+      <input type="text" id="np-nombre" placeholder="Nombre" required>
+      <input type="text" id="np-telefono" class="personal-tel" placeholder="Teléfono">
+      <button type="submit" class="btn btn-chico btn-primario">+ Agregar</button>
+    </form>
+    <div class="acciones" style="margin-top:16px;">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+
+  const lista = document.getElementById('lista-personal');
+  lista.innerHTML = estado.personalLimpieza.map((p) => `
+    <li class="fila-personal-existente ${p.activo ? '' : 'inactivo'}" data-id="${p.id}">
+      <div class="fila-personal-campos">
+        <input type="text" data-campo="nombre" value="${esc(p.nombre)}">
+        <input type="text" class="personal-tel" data-campo="telefono" value="${esc(p.telefono)}" placeholder="Teléfono">
+      </div>
+      <div class="fila-personal-acciones">
+        <button type="button" class="btn btn-chico" data-accion="guardar">Guardar</button>
+        <button type="button" class="btn btn-chico" data-accion="activar">${p.activo ? 'Desactivar' : 'Reactivar'}</button>
+        <button type="button" class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
+      </div>
+    </li>
+  `).join('');
+
+  lista.querySelectorAll('.fila-personal-existente').forEach((fila) => {
+    const id = fila.dataset.id;
+
+    fila.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
+      const nombre = fila.querySelector('[data-campo="nombre"]').value.trim();
+      if (!nombre) return toast('Falta el nombre.');
+      try {
+        await api(`/personal-limpieza/${id}`, { method: 'PUT', body: {
+          nombre, telefono: fila.querySelector('[data-campo="telefono"]').value.trim()
+        }});
+        toast('Guardado.');
+        await cargarPersonalLimpieza(true);
+        renderModalPersonalLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+
+    fila.querySelector('[data-accion="activar"]').addEventListener('click', async () => {
+      const activoActual = !fila.classList.contains('inactivo');
+      try {
+        await api(`/personal-limpieza/${id}`, { method: 'PUT', body: { activo: !activoActual } });
+        await cargarPersonalLimpieza(true);
+        renderModalPersonalLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+
+    fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      const nombre = fila.querySelector('[data-campo="nombre"]').value.trim();
+      if (!confirm(`¿Eliminar a "${nombre}"? Las tareas que tenía asignadas quedarán sin responsable.`)) return;
+      try {
+        await api(`/personal-limpieza/${id}`, { method: 'DELETE' });
+        toast('Eliminada.');
+        await cargarPersonalLimpieza(true);
+        renderModalPersonalLimpieza();
+      } catch (err) { toast(err.message); }
+    });
+  });
+
+  document.getElementById('form-nueva-personal').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/personal-limpieza', { method: 'POST', body: {
+        nombre: document.getElementById('np-nombre').value.trim(),
+        telefono: document.getElementById('np-telefono').value.trim()
+      }});
+      toast('Agregada.');
+      await cargarPersonalLimpieza(true);
+      renderModalPersonalLimpieza();
+    } catch (err) { toast(err.message); }
+  });
+}
 
 // ---------------- Asistente (chat) ----------------
 let historialAsistente = [];

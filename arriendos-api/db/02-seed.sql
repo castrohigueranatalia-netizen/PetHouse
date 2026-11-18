@@ -21,3 +21,12 @@ INSERT INTO apartamentos (nombre, descripcion, capacidad, precio_noche_base) VAL
     ('Apto 5 - Centro',       'Apartamento 5', 4, 300000),
     ('Apto 6 - Castillogrande','Apartamento 6', 6, 420000),
     ('Apto 7 - Castillogrande','Apartamento 7', 3, 280000);
+
+-- Las 5 niñas de limpieza iniciales. Edita nombre/teléfono desde la app
+-- (pestaña "Limpieza") cuando tengas los datos reales.
+INSERT INTO personal_limpieza (nombre, telefono) VALUES
+    ('María',     '3000000001'),
+    ('Carmen',    '3000000002'),
+    ('Luz Dary',  '3000000003'),
+    ('Yolanda',   '3000000004'),
+    ('Esperanza', '3000000005');

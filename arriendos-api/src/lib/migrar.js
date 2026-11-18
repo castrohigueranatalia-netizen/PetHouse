@@ -67,5 +67,58 @@ async function aplicarMigraciones() {
       creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `)
+
+  // Coordinación de limpieza: personal (niñas de limpieza) + tareas asignadas
+  // por apartamento/fecha/hora. CREATE TYPE no admite "IF NOT EXISTS", por
+  // eso se revisa antes en pg_type.
+  const { rows: tipoLimpiezaExiste } = await pool.query(
+    `SELECT 1 FROM pg_type WHERE typname = 'estado_limpieza'`
+  )
+  if (!tipoLimpiezaExiste.length) {
+    await pool.query(`CREATE TYPE estado_limpieza AS ENUM ('pendiente', 'lista')`)
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_limpieza (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      nombre     TEXT NOT NULL,
+      telefono   TEXT,
+      activo     BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tareas_limpieza (
+      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      apartamento_id  UUID NOT NULL REFERENCES apartamentos(id) ON DELETE CASCADE,
+      personal_id     UUID REFERENCES personal_limpieza(id) ON DELETE SET NULL,
+      fecha           DATE NOT NULL,
+      hora            TIME,
+      estado          estado_limpieza NOT NULL DEFAULT 'pendiente',
+      notas           TEXT,
+      creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_tareas_limpieza_fecha ON tareas_limpieza (fecha)`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_tareas_limpieza_apartamento ON tareas_limpieza (apartamento_id)`)
+  await pool.query(`DROP TRIGGER IF EXISTS trg_tareas_limpieza_actualizado_en ON tareas_limpieza`)
+  await pool.query(`
+    CREATE TRIGGER trg_tareas_limpieza_actualizado_en
+      BEFORE UPDATE ON tareas_limpieza
+      FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en()
+  `)
+
+  // Si la tabla personal_limpieza quedó vacía (base ya existente antes de
+  // esta migración), se siembran las 5 niñas iniciales igual que en el seed.
+  const { rows: personalExistente } = await pool.query('SELECT 1 FROM personal_limpieza LIMIT 1')
+  if (!personalExistente.length) {
+    await pool.query(`
+      INSERT INTO personal_limpieza (nombre, telefono) VALUES
+        ('María', '3000000001'), ('Carmen', '3000000002'), ('Luz Dary', '3000000003'),
+        ('Yolanda', '3000000004'), ('Esperanza', '3000000005')
+    `)
+  }
 }
 

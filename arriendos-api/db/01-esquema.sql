@@ -20,6 +20,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;  -- exclusión de fechas solapadas
 -- ------------------------------------------------------------
 CREATE TYPE fuente_reserva AS ENUM ('booking', 'airbnb', 'whatsapp', 'directo', 'otro');
 CREATE TYPE estado_reserva AS ENUM ('confirmada', 'pendiente', 'pagada', 'cancelada');
+CREATE TYPE estado_limpieza AS ENUM ('pendiente', 'lista');
 
 -- ------------------------------------------------------------
 -- 2. USUARIOS
@@ -126,4 +127,38 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_reservas_actualizado_en
     BEFORE UPDATE ON reservas
+    FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
+
+-- ------------------------------------------------------------
+-- 6. PERSONAL DE LIMPIEZA Y TAREAS DE LIMPIEZA
+-- ------------------------------------------------------------
+-- Las personas que hacen el aseo de los apartamentos (se les asigna
+-- una tarea por apartamento/fecha/hora, según quién esté libre).
+CREATE TABLE personal_limpieza (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre     TEXT NOT NULL,
+    telefono   TEXT,
+    activo     BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE tareas_limpieza (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    apartamento_id  UUID NOT NULL REFERENCES apartamentos(id) ON DELETE CASCADE,
+    personal_id     UUID REFERENCES personal_limpieza(id) ON DELETE SET NULL,
+
+    fecha           DATE NOT NULL,
+    hora            TIME,
+    estado          estado_limpieza NOT NULL DEFAULT 'pendiente',
+    notas           TEXT,
+
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_tareas_limpieza_fecha       ON tareas_limpieza (fecha);
+CREATE INDEX idx_tareas_limpieza_apartamento ON tareas_limpieza (apartamento_id);
+
+CREATE TRIGGER trg_tareas_limpieza_actualizado_en
+    BEFORE UPDATE ON tareas_limpieza
     FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
