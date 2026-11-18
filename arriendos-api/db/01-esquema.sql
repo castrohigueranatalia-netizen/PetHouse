@@ -206,3 +206,20 @@ CREATE INDEX idx_pedidos_lavanderia_fecha_ingreso ON pedidos_lavanderia (fecha_i
 CREATE TRIGGER trg_pedidos_lavanderia_actualizado_en
     BEFORE UPDATE ON pedidos_lavanderia
     FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
+
+-- Ítems de cada pedido (una "factura" puede traer varias prendas distintas:
+-- ropa normal, sábanas, lencería de cama, otros), cada una con su cantidad
+-- y su valor por unidad. num_prendas/valor en pedidos_lavanderia quedan
+-- como el total ya sumado (lo recalcula el backend en cada cambio).
+CREATE TYPE tipo_prenda_lavanderia AS ENUM ('ropa', 'sabanas', 'lenceria_cama', 'otros');
+
+CREATE TABLE items_pedido_lavanderia (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pedido_id       UUID NOT NULL REFERENCES pedidos_lavanderia(id) ON DELETE CASCADE,
+    tipo_prenda     tipo_prenda_lavanderia NOT NULL DEFAULT 'otros',
+    cantidad        SMALLINT NOT NULL CHECK (cantidad > 0),
+    valor_unitario  NUMERIC(10,2) NOT NULL CHECK (valor_unitario >= 0),
+    subtotal        NUMERIC(12,2) GENERATED ALWAYS AS (cantidad * valor_unitario) STORED,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_items_pedido_lavanderia_pedido ON items_pedido_lavanderia (pedido_id);

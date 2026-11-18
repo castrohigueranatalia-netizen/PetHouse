@@ -174,5 +174,39 @@ async function aplicarMigraciones() {
   }
   await pool.query(`ALTER TABLE pedidos_lavanderia ADD COLUMN IF NOT EXISTS tipo_servicio tipo_servicio_lavanderia NOT NULL DEFAULT 'lavado'`)
   await pool.query(`ALTER TABLE pedidos_lavanderia ADD COLUMN IF NOT EXISTS personal_id UUID REFERENCES personal_limpieza(id) ON DELETE SET NULL`)
+
+  // Ítems por pedido (varias prendas/categorías en una misma factura, cada
+  // una con su cantidad y valor por unidad). num_prendas/valor del pedido
+  // pasan a ser el total ya sumado de sus ítems.
+  const { rows: tipoPrendaExiste } = await pool.query(
+    `SELECT 1 FROM pg_type WHERE typname = 'tipo_prenda_lavanderia'`
+  )
+  if (!tipoPrendaExiste.length) {
+    await pool.query(`CREATE TYPE tipo_prenda_lavanderia AS ENUM ('ropa', 'sabanas', 'lenceria_cama', 'otros')`)
+  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS items_pedido_lavanderia (
+      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      pedido_id       UUID NOT NULL REFERENCES pedidos_lavanderia(id) ON DELETE CASCADE,
+      tipo_prenda     tipo_prenda_lavanderia NOT NULL DEFAULT 'otros',
+      cantidad        SMALLINT NOT NULL CHECK (cantidad > 0),
+      valor_unitario  NUMERIC(10,2) NOT NULL CHECK (valor_unitario >= 0),
+      subtotal        NUMERIC(12,2) GENERATED ALWAYS AS (cantidad * valor_unitario) STORED,
+      creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_items_pedido_lavanderia_pedido ON items_pedido_lavanderia (pedido_id)`)
+
+  // Pedidos de antes de este cambio (con num_prendas/valor sueltos y sin
+  // ítems todavía): se les crea un ítem "Otros" con esos mismos datos, para
+  // no perder la información ya cargada.
+  await pool.query(`
+    INSERT INTO items_pedido_lavanderia (pedido_id, tipo_prenda, cantidad, valor_unitario)
+    SELECT pl.id, 'otros', GREATEST(COALESCE(pl.num_prendas, 1), 1),
+           ROUND(COALESCE(pl.valor, 0) / GREATEST(COALESCE(pl.num_prendas, 1), 1), 2)
+      FROM pedidos_lavanderia pl
+     WHERE NOT EXISTS (SELECT 1 FROM items_pedido_lavanderia i WHERE i.pedido_id = pl.id)
+       AND (pl.valor IS NOT NULL OR pl.num_prendas IS NOT NULL)
+  `)
 }
 

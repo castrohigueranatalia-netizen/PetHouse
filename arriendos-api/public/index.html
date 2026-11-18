@@ -151,6 +151,18 @@
   .hist-fila-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
   .hist-fila-datos strong { color: var(--coral); }
 
+  /* Ítems de un pedido de lavandería */
+  .items-pedido-header, .fila-item-pedido { display: grid; grid-template-columns: 1.3fr 64px 110px 95px 30px; gap: 8px; align-items: center; }
+  .items-pedido-header { font-size: 11px; color: var(--gris); text-transform: uppercase; margin-bottom: 6px; }
+  .fila-item-pedido { margin-bottom: 8px; }
+  .fila-item-pedido select, .fila-item-pedido input[type="number"] { padding: 7px 8px; border: 1px solid var(--borde); border-radius: 6px; width: 100%; }
+  .fila-item-pedido .campo-dinero { border-radius: 6px; }
+  .fila-item-pedido .campo-dinero input { padding: 7px 6px 7px 2px !important; }
+  .fila-item-pedido .campo-dinero span { padding: 7px 0 7px 8px; }
+  .item-subtotal { text-align: right; font-weight: 600; font-size: 13px; }
+  .pl-total-fila { text-align: right; font-size: 14px; margin: 4px 0 16px; color: var(--gris); }
+  .pl-total-fila strong { color: var(--coral); font-size: 18px; }
+
   /* Apartamentos */
   .grid-apartamentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .card-apto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
@@ -422,7 +434,7 @@
       <table class="reservas">
         <thead>
           <tr>
-            <th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Tipo</th><th>Ingreso</th><th>Entrega</th>
+            <th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Detalle</th><th>Ingreso</th><th>Entrega</th>
             <th>Valor</th><th>Atendido por</th><th>Estado</th><th></th>
           </tr>
         </thead>
@@ -461,12 +473,12 @@ const NOMBRE_ESTADO = { confirmada:'Confirmada (falta pago)', pagada:'Pagada', p
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIAS_SEMANA = ['D','L','M','X','J','V','S']; // índice = Date#getUTCDay() (0 = domingo)
 
-// Tipos de servicio de lavandería, con un precio por prenda de referencia
-// (solo para sugerir el valor al escribir las prendas; siempre se puede
-// editar a mano si el cobro real es distinto).
-const TIPOS_SERVICIO_LAVANDERIA = ['lavado', 'planchado', 'lavado_y_planchado'];
-const NOMBRE_TIPO_SERVICIO = { lavado: 'Lavado', planchado: 'Planchado', lavado_y_planchado: 'Lavado y planchado' };
-const PRECIO_UNITARIO_SERVICIO = { lavado: 3000, planchado: 2000, lavado_y_planchado: 4500 };
+// Tipos de prenda de un pedido de lavandería, con un precio por unidad de
+// referencia (solo para sugerir el valor al agregar un ítem; siempre se
+// puede editar a mano si el cobro real es distinto).
+const TIPOS_PRENDA_LAVANDERIA = ['ropa', 'sabanas', 'lenceria_cama', 'otros'];
+const NOMBRE_TIPO_PRENDA = { ropa: 'Ropa', sabanas: 'Sábanas', lenceria_cama: 'Lencería de cama', otros: 'Otros' };
+const PRECIO_SUGERIDO_PRENDA = { ropa: 3000, sabanas: 5000, lenceria_cama: 6000, otros: 0 };
 
 // ---------------- Festivos de Colombia (Ley Emiliani incluida) ----------------
 function calcularPascua(year) {
@@ -1615,6 +1627,11 @@ function renderResumenPedidosLavanderia() {
     : '🧺 No hay pedidos de lavandería registrados este mes.';
 }
 
+function resumenItemsPedido(p) {
+  if (!Array.isArray(p.items) || !p.items.length) return '—';
+  return p.items.map((it) => `${it.cantidad} ${NOMBRE_TIPO_PRENDA[it.tipo_prenda] || it.tipo_prenda}`).join(', ');
+}
+
 function renderPedidosLavanderia() {
   renderResumenPedidosLavanderia();
   const cuerpo = document.getElementById('cuerpo-pedidos-lavanderia');
@@ -1642,7 +1659,7 @@ function renderPedidosLavanderia() {
       <td>${esc(p.cliente_nombre) || '—'}</td>
       <td>${esc(p.cliente_telefono) || '—'}</td>
       <td>${p.num_prendas ?? '—'}</td>
-      <td>${NOMBRE_TIPO_SERVICIO[p.tipo_servicio] || '—'}</td>
+      <td>${resumenItemsPedido(p)}</td>
       <td>${fechaBonita(p.fecha_ingreso)}</td>
       <td>${p.fecha_entrega ? (atrasado ? '⚠️ ' : '') + fechaBonita(p.fecha_entrega) : '—'}</td>
       <td>${pesos(p.valor)}</td>
@@ -1689,14 +1706,62 @@ document.getElementById('lavanderia-buscar').addEventListener('input', () => ren
 
 document.getElementById('btn-nuevo-pedido-lavanderia').addEventListener('click', () => abrirFormularioPedidoLavanderia(null));
 
+// ---- Ítems de la factura (varias prendas/categorías por pedido) ----
+function filaItemPedidoHtml(item) {
+  const tipo = item.tipo_prenda || 'ropa';
+  const valorInicial = item.valor_unitario != null ? item.valor_unitario : PRECIO_SUGERIDO_PRENDA[tipo];
+  return `
+    <div class="fila-item-pedido">
+      <select class="item-tipo">
+        ${TIPOS_PRENDA_LAVANDERIA.map((t) => `<option value="${t}" ${t === tipo ? 'selected' : ''}>${NOMBRE_TIPO_PRENDA[t]}</option>`).join('')}
+      </select>
+      <input type="number" min="1" class="item-cantidad" value="${item.cantidad ?? 1}">
+      <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" class="item-valor" value="${formatearMoneda(valorInicial)}"></div>
+      <span class="item-subtotal">$0</span>
+      <button type="button" class="btn btn-chico btn-peligro" data-accion="quitar-item" title="Quitar">×</button>
+    </div>`;
+}
+
+function recalcularFilaItem(fila) {
+  const cantidad = Number(fila.querySelector('.item-cantidad').value) || 0;
+  const valorUnitario = limpiarMoneda(fila.querySelector('.item-valor').value);
+  const subtotal = cantidad * valorUnitario;
+  fila.querySelector('.item-subtotal').textContent = pesos(subtotal);
+  return subtotal;
+}
+
+function recalcularTotalPedido() {
+  let total = 0;
+  document.querySelectorAll('#pl-items-lista .fila-item-pedido').forEach((fila) => { total += recalcularFilaItem(fila); });
+  document.getElementById('pl-total').textContent = pesos(total);
+}
+
+function agregarFilaItem(item = {}) {
+  const cont = document.getElementById('pl-items-lista');
+  const envoltorio = document.createElement('div');
+  envoltorio.innerHTML = filaItemPedidoHtml(item).trim();
+  const fila = envoltorio.firstElementChild;
+  cont.appendChild(fila);
+
+  activarCampoDinero(fila.querySelector('.item-valor'));
+  fila.querySelector('.item-tipo').addEventListener('change', (e) => {
+    fila.querySelector('.item-valor').value = formatearMoneda(PRECIO_SUGERIDO_PRENDA[e.target.value] || 0);
+    recalcularTotalPedido();
+  });
+  fila.querySelector('.item-cantidad').addEventListener('input', recalcularTotalPedido);
+  fila.querySelector('.item-valor').addEventListener('input', recalcularTotalPedido);
+  fila.querySelector('[data-accion="quitar-item"]').addEventListener('click', () => {
+    if (document.querySelectorAll('#pl-items-lista .fila-item-pedido').length <= 1) return toast('El pedido necesita al menos una prenda.');
+    fila.remove();
+    recalcularTotalPedido();
+  });
+
+  recalcularTotalPedido();
+}
+
 function abrirFormularioPedidoLavanderia(pedido) {
   const esEdicion = !!pedido;
   const v = pedido || {};
-
-  const opcionesTipo = TIPOS_SERVICIO_LAVANDERIA.map((t) =>
-    `<option value="${t}" ${(v.tipo_servicio || 'lavado') === t ? 'selected' : ''}>${NOMBRE_TIPO_SERVICIO[t]}</option>`).join('');
-  const opcionesAtendio = estado.personalLimpieza.filter((p) => p.activo || p.id === v.personal_id).map((p) =>
-    `<option value="${p.id}" ${v.personal_id === p.id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
 
   abrirModal(`
     <h2>${esEdicion ? 'Editar pedido' : 'Nuevo pedido de lavandería'}</h2>
@@ -1704,21 +1769,25 @@ function abrirFormularioPedidoLavanderia(pedido) {
       <div class="campo"><label>Cliente</label><input id="pl-cliente" value="${esc(v.cliente_nombre)}" placeholder="Nombre del cliente"></div>
       <div class="fila-2">
         <div class="campo"><label>Teléfono</label><input id="pl-telefono" value="${esc(v.cliente_telefono)}"></div>
-        <div class="campo"><label># Prendas</label><input type="number" min="1" id="pl-prendas" value="${v.num_prendas ?? ''}"></div>
-      </div>
-      <div class="fila-2">
-        <div class="campo"><label>Tipo de servicio</label><select id="pl-tipo">${opcionesTipo}</select></div>
-        <div class="campo"><label>Atendido por</label><select id="pl-atendio"><option value="">Sin asignar</option>${opcionesAtendio}</select></div>
+        <div class="campo">
+          <label>Atendido por</label>
+          <select id="pl-atendio"></select>
+          <span class="ayuda-campo">Se limita sola a la(s) niña(s) asignadas a la lavandería ese día.</span>
+        </div>
       </div>
       <div class="fila-2">
         <div class="campo"><label>Fecha de ingreso</label><input type="date" id="pl-ingreso" value="${v.fecha_ingreso ? fechaISO(v.fecha_ingreso) : fechaISO(new Date())}" required></div>
         <div class="campo"><label>Fecha de entrega</label><input type="date" id="pl-entrega" value="${v.fecha_entrega ? fechaISO(v.fecha_entrega) : ''}"></div>
       </div>
+
       <div class="campo">
-        <label>Valor del pedido</label>
-        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="pl-valor" value="${formatearMoneda(v.valor)}" placeholder="0"></div>
-        <span class="ayuda-campo">${esEdicion ? 'Cámbialo a mano si el cobro real fue distinto al sugerido.' : 'Se sugiere solo según el número de prendas y el tipo de servicio; puedes ajustarlo.'}</span>
+        <label>Prendas de este pedido</label>
+        <div class="items-pedido-header"><span>Tipo</span><span>Cant.</span><span>Valor c/u</span><span>Subtotal</span><span></span></div>
+        <div id="pl-items-lista"></div>
+        <button type="button" class="btn btn-chico" id="pl-btn-agregar-item">+ Agregar ítem</button>
       </div>
+      <div class="pl-total-fila">Total de la factura: <strong id="pl-total">$0</strong></div>
+
       <div class="campo"><label>Notas</label><input id="pl-notas" value="${esc(v.notas)}" placeholder="Ej. camisa con mancha especial"></div>
       <div class="acciones">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -1726,35 +1795,54 @@ function abrirFormularioPedidoLavanderia(pedido) {
       </div>
     </form>
   `);
-  activarCampoDinero(document.getElementById('pl-valor'));
+  document.querySelector('#modal-fondo .modal').classList.add('modal-ancho');
 
-  // Sugiere el valor (prendas × precio del tipo elegido) solo en pedidos
-  // nuevos, para no pisar un cobro ya guardado al simplemente editar otra cosa.
-  if (!esEdicion) {
-    const inputPrendas = document.getElementById('pl-prendas');
-    const selectTipo = document.getElementById('pl-tipo');
-    const inputValor = document.getElementById('pl-valor');
-    function recalcularValorPedido() {
-      const prendas = Number(inputPrendas.value) || 0;
-      const unitario = PRECIO_UNITARIO_SERVICIO[selectTipo.value] || 0;
-      if (prendas > 0 && unitario > 0) inputValor.value = formatearMoneda(prendas * unitario);
+  if (esEdicion && Array.isArray(v.items) && v.items.length) v.items.forEach((it) => agregarFilaItem(it));
+  else agregarFilaItem({});
+  document.getElementById('pl-btn-agregar-item').addEventListener('click', () => agregarFilaItem({}));
+
+  // "Atendido por" automático: solo deja elegir entre las niñas asignadas a
+  // la lavandería ese día (turnos_lavanderia). Si no hay ninguna asignada
+  // ese día, cae a la lista completa para no bloquear el formulario.
+  const inputIngreso = document.getElementById('pl-ingreso');
+  const selectAtendio = document.getElementById('pl-atendio');
+  function actualizarAtendioPor() {
+    const asignadasEseDia = estado.turnosLavanderia.filter((t) => fechaISO(t.fecha) === fechaISO(inputIngreso.value));
+    let lista = asignadasEseDia.length
+      ? asignadasEseDia.map((t) => ({ id: t.personal_id, nombre: t.personal_nombre }))
+      : estado.personalLimpieza.filter((p) => p.activo).map((p) => ({ id: p.id, nombre: p.nombre }));
+
+    const actual = selectAtendio.value || v.personal_id || '';
+    // No perder la asignación ya guardada aunque esa niña no esté entre las
+    // asignadas a la lavandería ese día (p.ej. si se cambió la fecha después).
+    if (actual && !lista.some((p) => p.id === actual)) {
+      const previa = estado.personalLimpieza.find((p) => p.id === actual);
+      if (previa) lista = [...lista, { id: previa.id, nombre: previa.nombre + ' (no asignada ese día)' }];
     }
-    inputPrendas.addEventListener('input', recalcularValorPedido);
-    selectTipo.addEventListener('change', recalcularValorPedido);
+    selectAtendio.innerHTML = '<option value="">Sin asignar</option>' +
+      lista.map((p) => `<option value="${p.id}" ${p.id === actual ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+    if (!actual && asignadasEseDia.length === 1) selectAtendio.value = asignadasEseDia[0].personal_id;
   }
+  inputIngreso.addEventListener('input', actualizarAtendioPor);
+  actualizarAtendioPor();
 
   document.getElementById('form-pedido-lavanderia').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const items = [...document.querySelectorAll('#pl-items-lista .fila-item-pedido')].map((fila) => ({
+      tipo_prenda: fila.querySelector('.item-tipo').value,
+      cantidad: Number(fila.querySelector('.item-cantidad').value) || 0,
+      valor_unitario: limpiarMoneda(fila.querySelector('.item-valor').value)
+    }));
+    if (!items.length || items.some((it) => !it.cantidad)) return toast('Revisa las cantidades de cada ítem.');
+
     const cuerpo = {
       cliente_nombre: document.getElementById('pl-cliente').value.trim() || null,
       cliente_telefono: document.getElementById('pl-telefono').value.trim() || null,
-      num_prendas: Number(document.getElementById('pl-prendas').value) || null,
-      tipo_servicio: document.getElementById('pl-tipo').value,
-      personal_id: document.getElementById('pl-atendio').value || null,
-      fecha_ingreso: document.getElementById('pl-ingreso').value,
+      personal_id: selectAtendio.value || null,
+      fecha_ingreso: inputIngreso.value,
       fecha_entrega: document.getElementById('pl-entrega').value || null,
-      valor: limpiarMoneda(document.getElementById('pl-valor').value) || null,
-      notas: document.getElementById('pl-notas').value.trim() || null
+      notas: document.getElementById('pl-notas').value.trim() || null,
+      items
     };
     try {
       if (esEdicion) await api(`/pedidos-lavanderia/${pedido.id}`, { method: 'PUT', body: cuerpo });
