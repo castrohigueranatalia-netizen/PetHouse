@@ -124,6 +124,27 @@
   .copiar-row { display: flex; gap: 6px; }
   .copiar-row input { flex: 1; background: #f9fafb; color: var(--gris); }
 
+  /* Dashboard */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
+  .kpi-valor { font-size: 26px; font-weight: 700; }
+  .kpi-label { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .kpi-verde .kpi-valor { color: #059669; }
+  .kpi-naranja .kpi-valor { color: #d97706; }
+  .tarjeta-dash { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .tarjeta-dash h3 { margin: 0 0 14px; font-size: 15px; }
+  .dash-fila { display: grid; grid-template-columns: 160px 1fr 48px 110px 110px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+  .dash-fila:last-child { border-bottom: none; }
+  .dash-fila-nombre { font-weight: 600; }
+  .dash-barra { background: #f1f2f4; border-radius: 999px; height: 10px; overflow: hidden; }
+  .dash-barra-relleno { background: var(--coral); height: 100%; border-radius: 999px; }
+  .dash-fila-pct { text-align: right; color: var(--gris); }
+  .dash-fila-noches { color: var(--gris); }
+  .dash-fila-ingreso { text-align: right; font-weight: 600; }
+  .dash-fuente-fila { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+  .dash-fuente-fila:last-child { border-bottom: none; }
+  .dash-vacio { color: var(--gris); font-size: 13px; padding: 10px 0; }
+
   /* Modal */
   .modal-fondo { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
@@ -190,6 +211,7 @@
 
   <nav class="tabs">
     <button data-tab="reservas" class="activo">Reservas</button>
+    <button data-tab="dashboard">Dashboard</button>
     <button data-tab="apartamentos">Apartamentos</button>
   </nav>
 
@@ -245,6 +267,29 @@
   <!-- ---- Tab Apartamentos ---- -->
   <section id="tab-apartamentos" class="oculto">
     <div class="grid-apartamentos" id="grid-apartamentos"></div>
+  </section>
+
+  <!-- ---- Tab Dashboard ---- -->
+  <section id="tab-dashboard" class="oculto">
+    <div class="barra-filtros">
+      <div class="mes-nav">
+        <button id="dash-mes-prev">‹</button>
+        <span id="dash-mes-label">-</span>
+        <button id="dash-mes-next">›</button>
+      </div>
+    </div>
+
+    <div class="kpi-row" id="dash-kpis"></div>
+
+    <div class="tarjeta-dash">
+      <h3>Ocupación por apartamento</h3>
+      <div id="dash-apartamentos"></div>
+    </div>
+
+    <div class="tarjeta-dash">
+      <h3>Ingresos por canal</h3>
+      <div id="dash-fuentes"></div>
+    </div>
   </section>
 </div>
 
@@ -344,9 +389,12 @@ const estado = {
   reservas: [],
   mes: new Date(),
   filtroApartamento: '',
-  filtroFuente: ''
+  filtroFuente: '',
+  mesDashboard: new Date(),
+  reservasDashboard: []
 };
 estado.mes.setDate(1);
+estado.mesDashboard.setDate(1);
 
 // ---------------- API ----------------
 async function api(ruta, opciones = {}) {
@@ -452,7 +500,9 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     btn.classList.add('activo');
     document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
     document.getElementById('tab-apartamentos').classList.toggle('oculto', btn.dataset.tab !== 'apartamentos');
+    document.getElementById('tab-dashboard').classList.toggle('oculto', btn.dataset.tab !== 'dashboard');
     if (btn.dataset.tab === 'apartamentos') renderApartamentos();
+    if (btn.dataset.tab === 'dashboard') refrescarDashboard();
   });
 });
 
@@ -844,6 +894,95 @@ document.getElementById('form-asistente').addEventListener('submit', async (e) =
   }
   renderChat();
 });
+
+// ---------------- Dashboard ----------------
+document.getElementById('dash-mes-prev').addEventListener('click', () => cambiarMesDashboard(-1));
+document.getElementById('dash-mes-next').addEventListener('click', () => cambiarMesDashboard(1));
+async function cambiarMesDashboard(delta) {
+  estado.mesDashboard = new Date(estado.mesDashboard.getFullYear(), estado.mesDashboard.getMonth() + delta, 1);
+  await refrescarDashboard();
+}
+
+// Noches de una reserva que caen dentro de [desde, hasta) — una reserva
+// puede empezar antes del mes o terminar después, así que se recorta.
+function nochesEnRango(checkin, checkout, desde, hasta) {
+  const ini = Math.max(new Date(checkin).getTime(), new Date(desde).getTime());
+  const fin = Math.min(new Date(checkout).getTime(), new Date(hasta).getTime());
+  const noches = Math.round((fin - ini) / 86400000);
+  return noches > 0 ? noches : 0;
+}
+
+async function cargarDashboard() {
+  const desde = fechaISO(estado.mesDashboard);
+  const hastaDate = new Date(Date.UTC(estado.mesDashboard.getFullYear(), estado.mesDashboard.getMonth() + 1, 1));
+  const { reservas } = await api('/reservas?' + new URLSearchParams({ desde, hasta: fechaISO(hastaDate) }));
+  estado.reservasDashboard = reservas;
+}
+
+async function refrescarDashboard() {
+  try {
+    await cargarDashboard();
+    renderDashboard();
+  } catch (err) { toast(err.message); }
+}
+
+function renderDashboard() {
+  document.getElementById('dash-mes-label').textContent = `${MESES[estado.mesDashboard.getMonth()]} ${estado.mesDashboard.getFullYear()}`;
+
+  const desde = fechaISO(estado.mesDashboard);
+  const hasta = fechaISO(new Date(Date.UTC(estado.mesDashboard.getFullYear(), estado.mesDashboard.getMonth() + 1, 1)));
+  const diasEnMes = new Date(estado.mesDashboard.getFullYear(), estado.mesDashboard.getMonth() + 1, 0).getDate();
+  const activos = estado.apartamentos.filter((a) => a.activo !== false);
+  const relevantes = estado.reservasDashboard.filter((r) => r.estado === 'confirmada' || r.estado === 'pagada');
+
+  const porApto = activos.map((apto) => {
+    let nochesOcupadas = 0, ingresoPagado = 0, ingresoPorCobrar = 0;
+    for (const r of relevantes) {
+      if (r.apartamento_id !== apto.id) continue;
+      const n = nochesEnRango(r.checkin, r.checkout, desde, hasta);
+      if (!n) continue;
+      nochesOcupadas += n;
+      const monto = Number(r.precio_total) || 0;
+      if (r.estado === 'pagada') ingresoPagado += monto; else ingresoPorCobrar += monto;
+    }
+    const ocupacion = diasEnMes ? nochesOcupadas / diasEnMes : 0;
+    return { apto, nochesOcupadas, ocupacion, ingresoPagado, ingresoPorCobrar };
+  }).sort((a, b) => b.ocupacion - a.ocupacion);
+
+  const totalNochesDisp = activos.length * diasEnMes;
+  const totalNochesOcup = porApto.reduce((s, x) => s + x.nochesOcupadas, 0);
+  const ocupacionGlobal = totalNochesDisp ? totalNochesOcup / totalNochesDisp : 0;
+  const totalPagado = porApto.reduce((s, x) => s + x.ingresoPagado, 0);
+  const totalPorCobrar = porApto.reduce((s, x) => s + x.ingresoPorCobrar, 0);
+
+  document.getElementById('dash-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-valor">${Math.round(ocupacionGlobal * 100)}%</div><div class="kpi-label">Ocupación promedio</div></div>
+    <div class="kpi"><div class="kpi-valor">${pesos(totalPagado + totalPorCobrar)}</div><div class="kpi-label">Ingresos del mes</div></div>
+    <div class="kpi kpi-verde"><div class="kpi-valor">${pesos(totalPagado)}</div><div class="kpi-label">Ya cobrado</div></div>
+    <div class="kpi kpi-naranja"><div class="kpi-valor">${pesos(totalPorCobrar)}</div><div class="kpi-label">Por cobrar</div></div>
+  `;
+
+  document.getElementById('dash-apartamentos').innerHTML = porApto.length ? porApto.map((x) => `
+    <div class="dash-fila">
+      <div class="dash-fila-nombre">${esc(x.apto.nombre)}</div>
+      <div class="dash-barra"><div class="dash-barra-relleno" style="width:${Math.min(100, Math.round(x.ocupacion * 100))}%"></div></div>
+      <div class="dash-fila-pct">${Math.round(x.ocupacion * 100)}%</div>
+      <div class="dash-fila-noches">${x.nochesOcupadas}/${diasEnMes} noches</div>
+      <div class="dash-fila-ingreso">${pesos(x.ingresoPagado + x.ingresoPorCobrar)}</div>
+    </div>
+  `).join('') : '<div class="dash-vacio">No hay apartamentos activos.</div>';
+
+  const porFuente = {};
+  for (const r of relevantes) {
+    const n = nochesEnRango(r.checkin, r.checkout, desde, hasta);
+    if (!n) continue;
+    porFuente[r.fuente] = (porFuente[r.fuente] || 0) + (Number(r.precio_total) || 0);
+  }
+  const fuentesOrdenadas = Object.entries(porFuente).sort((a, b) => b[1] - a[1]);
+  document.getElementById('dash-fuentes').innerHTML = fuentesOrdenadas.length
+    ? fuentesOrdenadas.map(([f, monto]) => `<div class="dash-fuente-fila"><span class="badge f-${f}">${NOMBRE_FUENTE[f]}</span><span>${pesos(monto)}</span></div>`).join('')
+    : '<div class="dash-vacio">No hay reservas (confirmadas o pagadas) este mes.</div>';
+}
 
 // ---------------- Arranque ----------------
 async function iniciarApp() {
