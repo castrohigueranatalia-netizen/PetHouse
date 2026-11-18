@@ -3,9 +3,10 @@
 // ============================================================
 import cron from 'node-cron'
 import app from './app.js'
-import { PORT, SYNC_INTERVAL_MIN, pool } from './config.js'
+import { PORT, SYNC_INTERVAL_MIN, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, pool } from './config.js'
 import { sincronizarTodos } from './services/icalSync.js'
 import { asegurarEsquema } from './lib/migrar.js'
+import { revisarPagosPendientes } from './services/notificacionesPago.js'
 
 async function iniciar() {
   // Comprueba la conexión a la base al arrancar
@@ -42,6 +43,17 @@ async function iniciar() {
     console.log(`   🔄 Sincronización automática de iCal cada ${SYNC_INTERVAL_MIN} min`)
   } else {
     console.log('   🔄 Sincronización automática desactivada (SYNC_INTERVAL_MIN=0)')
+  }
+
+  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    // Una revisión al arrancar y luego cada 6 horas
+    revisarPagosPendientes().catch((err) => console.error('Revisión inicial de pagos pendientes falló:', err.message))
+    cron.schedule('0 */6 * * *', () => {
+      revisarPagosPendientes().catch((err) => console.error('Revisión de pagos pendientes falló:', err.message))
+    })
+    console.log('   🔔 Notificaciones push de pago pendiente activas (cada 6 horas)')
+  } else {
+    console.log('   🔔 Notificaciones push desactivadas (faltan VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY en .env)')
   }
 }
 

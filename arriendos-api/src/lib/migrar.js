@@ -54,5 +54,18 @@ async function aplicarMigraciones() {
     `)
     console.log('✔ Restricción actualizada')
   }
+
+  // Notificaciones push de pago pendiente (columna + tabla de suscripciones).
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS recordatorio_pago_enviado_en TIMESTAMPTZ`)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_suscripciones (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      usuario_id  UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      endpoint    TEXT NOT NULL UNIQUE,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
 }
 

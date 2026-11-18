@@ -204,6 +204,7 @@
     <h1>🏠 Arriendos Cartagena</h1>
     <div class="usuario">
       <span id="nombre-usuario"></span>
+      <button class="btn btn-chico oculto" id="btn-activar-notificaciones" title="Te avisa cuando se acerca el check-in de una reserva confirmada que aún no se ha pagado">🔔 Activar notificaciones</button>
       <button class="btn btn-chico" id="btn-cambiar-password">Cambiar contraseña</button>
       <button class="btn btn-chico" id="btn-salir">Salir</button>
     </div>
@@ -984,12 +985,67 @@ function renderDashboard() {
     : '<div class="dash-vacio">No hay reservas (confirmadas o pagadas) este mes.</div>';
 }
 
+// ---------------- Notificaciones push ----------------
+function base64UrlAUint8Array(base64Url) {
+  const relleno = '='.repeat((4 - (base64Url.length % 4)) % 4);
+  const base64 = (base64Url + relleno).replace(/-/g, '+').replace(/_/g, '/');
+  const bruto = atob(base64);
+  const salida = new Uint8Array(bruto.length);
+  for (let i = 0; i < bruto.length; i++) salida[i] = bruto.charCodeAt(i);
+  return salida;
+}
+
+async function configurarNotificaciones() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return; // navegador sin soporte
+
+  try {
+    await navigator.serviceWorker.register('/sw.js');
+  } catch (err) { console.error('No se pudo registrar el service worker:', err); return; }
+
+  const boton = document.getElementById('btn-activar-notificaciones');
+  if (Notification.permission === 'default') {
+    boton.classList.remove('oculto');
+    boton.addEventListener('click', activarNotificaciones, { once: true });
+  } else if (Notification.permission === 'granted') {
+    // Ya están permitidas; si por algún motivo no hay suscripción guardada
+    // en el servidor (ej. se reinstaló la base de datos), la crea de nuevo.
+    try {
+      const registro = await navigator.serviceWorker.ready;
+      const existente = await registro.pushManager.getSubscription();
+      if (existente) await api('/push/suscribir', { method: 'POST', body: existente.toJSON() });
+    } catch { /* reintento silencioso, sin molestar si falla */ }
+  }
+}
+
+async function activarNotificaciones() {
+  const boton = document.getElementById('btn-activar-notificaciones');
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') { toast('No se activaron las notificaciones.'); return; }
+
+    const { clave } = await api('/push/clave-publica');
+    if (!clave) { toast('Las notificaciones push no están configuradas en el servidor todavía.'); return; }
+
+    const registro = await navigator.serviceWorker.ready;
+    const suscripcion = await registro.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: base64UrlAUint8Array(clave)
+    });
+    await api('/push/suscribir', { method: 'POST', body: suscripcion.toJSON() });
+    boton.classList.add('oculto');
+    toast('Notificaciones activadas. Te avisaremos cuando se acerque un check-in sin pagar.');
+  } catch (err) {
+    toast('No se pudieron activar las notificaciones: ' + err.message);
+  }
+}
+
 // ---------------- Arranque ----------------
 async function iniciarApp() {
   document.getElementById('vista-login').classList.add('oculto');
   document.getElementById('vista-app').classList.remove('oculto');
   document.getElementById('nombre-usuario').textContent = estado.usuario?.nombre || estado.usuario?.email || '';
   document.getElementById('btn-asistente').classList.remove('oculto');
+  configurarNotificaciones();
   try {
     await cargarApartamentos();
     await refrescarReservas();

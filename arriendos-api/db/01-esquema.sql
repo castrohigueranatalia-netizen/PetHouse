@@ -78,6 +78,10 @@ CREATE TABLE reservas (
     -- para poder marcarla 'cancelada' si el evento desaparece del calendario.
     ical_uid        TEXT,
 
+    -- Se llena cuando ya se mandó la notificación push de "falta el pago"
+    -- para esta reserva, así no se repite en cada revisión.
+    recordatorio_pago_enviado_en TIMESTAMPTZ,
+
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
     actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -87,6 +91,20 @@ CREATE TABLE reservas (
 
 CREATE INDEX idx_reservas_apartamento ON reservas (apartamento_id);
 CREATE INDEX idx_reservas_fechas      ON reservas (checkin, checkout);
+
+-- ------------------------------------------------------------
+-- 5. SUSCRIPCIONES A NOTIFICACIONES PUSH
+-- ------------------------------------------------------------
+-- Una fila por navegador/dispositivo donde se activaron las notificaciones
+-- (Web Push estándar: no depende de apps de terceros ni tiene costo).
+CREATE TABLE push_suscripciones (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id  UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Evita dobles reservas: no permite dos reservas CONFIRMADAS o PAGADAS del
 -- mismo apartamento con fechas que se solapen (checkout es fecha de salida,

@@ -96,6 +96,47 @@ fracción de centavo de dólar; para el volumen de preguntas de un solo
 usuario esto es prácticamente insignificante, pero el costo corre por la
 cuenta de Anthropic asociada a esa clave.
 
+## Notificaciones push de pago pendiente (botón 🔔)
+
+Avisa directo al celular/computador (notificación del navegador, como
+cualquier app) cuando se acerca el check-in de una reserva marcada
+**Confirmada** (es decir: todavía no "Pagada") — para no olvidar llamar a
+confirmar el pago. El aviso dice el apartamento, el nombre y teléfono del
+huésped, y la fecha de check-in.
+
+Es **Web Push** estándar (el mismo mecanismo que usan Gmail o Twitter para
+notificarte en el navegador) — no depende de WhatsApp ni de ningún tercero,
+y no tiene costo. Para activarlo:
+
+1. Genera las claves una sola vez (en tu computador, con Node instalado):
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. Pega las dos claves que te da en las variables de entorno del servidor
+   (en Render: pestaña del servicio → **Environment**):
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT` = `mailto:tu-correo@ejemplo.com` (cualquier correo tuyo)
+3. Reinicia el servidor. En la app, arriba a la derecha, aparece el botón
+   **"🔔 Activar notificaciones"** — dale clic y acepta el permiso que pide
+   el navegador.
+
+Cada 6 horas (y una vez al arrancar) la app revisa sola las reservas
+confirmadas sin pagar cuyo check-in está a `RECORDATORIO_PAGO_DIAS` días o
+menos (3 por defecto, se cambia en `.env`) y manda un aviso — una sola vez
+por reserva, para no repetirlo cada rato.
+
+**Para que te lleguen de verdad:**
+- En **Android/computador**, basta con darle clic a "Activar notificaciones"
+  en Chrome/Edge/Firefox — funciona aunque tengas la pestaña cerrada,
+  mientras el navegador esté instalado en ese dispositivo.
+- En **iPhone**, Safari solo manda estas notificaciones si primero agregas
+  la página a la pantalla de inicio (botón compartir → "Agregar a inicio")
+  y la activas desde ahí — es una limitación de Apple, no de la app.
+
+Sin las claves VAPID configuradas, la app funciona igual — el botón de
+notificaciones simplemente no aparece.
+
 ## Qué evita la base de datos
 
 - **Doble reserva:** no se puede crear/editar una reserva confirmada que se
@@ -115,8 +156,8 @@ arriendos-api/
 │   ├── 02-seed.sql         Usuario inicial + los 7 apartamentos
 │   └── docker-compose.yml  PostgreSQL local (puerto 5433)
 ├── src/
-│   ├── routes/              auth · apartamentos · reservas · ical · asistente
-│   ├── services/             icalSync (importar) · icalExport (exportar) · asistente (Claude API)
+│   ├── routes/              auth · apartamentos · reservas · ical · asistente · push
+│   ├── services/             icalSync (importar) · icalExport (exportar) · asistente (Claude API) · notificacionesPago (Web Push)
 │   └── ...
 └── public/index.html        Frontend (una sola página, sin build)
 ```
