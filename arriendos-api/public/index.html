@@ -127,6 +127,8 @@
   .badge-estado.cancelada { background: #9ca3af; }
 
   /* Limpieza */
+  .resumen-limpieza-hoy { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
+  .resumen-limpieza-hoy strong { color: var(--coral); }
   .chk-mostrar-listas { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); white-space: nowrap; }
   table.reservas tr.urgente td { background: #fdf0f1; }
   .badge-limpieza { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
@@ -306,6 +308,8 @@
 
   <!-- ---- Tab Limpieza ---- -->
   <section id="tab-limpieza" class="oculto">
+    <div class="resumen-limpieza-hoy" id="limpieza-resumen-hoy"></div>
+
     <div class="barra-filtros">
       <label class="chk-mostrar-listas">
         <input type="checkbox" id="limpieza-mostrar-listas"> Mostrar las ya hechas
@@ -1037,7 +1041,20 @@ function opcionesResponsable(personalIdSeleccionado, ocupados = new Set()) {
     }).join('');
 }
 
+function renderResumenLimpiezaHoy() {
+  const hoyISO = fechaISO(new Date());
+  const deHoy = estado.tareasLimpieza.filter((t) => fechaISO(t.fecha) === hoyISO);
+  const el = document.getElementById('limpieza-resumen-hoy');
+  if (!deHoy.length) {
+    el.textContent = '🧹 No hay limpiezas programadas para hoy.';
+    return;
+  }
+  const hechas = deHoy.filter((t) => t.estado === 'lista').length;
+  el.innerHTML = `🧹 Hoy se han cumplido <strong>${hechas} de ${deHoy.length}</strong> limpiezas programadas.`;
+}
+
 function renderTareasLimpieza() {
+  renderResumenLimpiezaHoy();
   const cuerpo = document.getElementById('cuerpo-limpieza');
   const filas = estado.limpiezaMostrarListas
     ? estado.tareasLimpieza

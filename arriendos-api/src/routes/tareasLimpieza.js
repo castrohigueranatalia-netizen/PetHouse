@@ -10,12 +10,28 @@ const r = Router()
 
 const ESTADOS = ['pendiente', 'lista']
 
+// ---- Marca como "lista" las tareas pendientes cuya hora ya pasó ----
+// Así no hay que confirmar a mano cada limpieza: si ya se cumplió la hora
+// programada (en horario de Cartagena/Bogotá) se da por hecha sola. Si una
+// no se hizo de verdad, se puede volver a "Pendiente" con el botón normal.
+// Las tareas sin hora se dan por vencidas solo al terminar el día (no hay
+// forma de saber a qué hora exacta pasó).
+async function marcarVencidasComoListas() {
+  await pool.query(`
+    UPDATE tareas_limpieza
+       SET estado = 'lista'
+     WHERE estado = 'pendiente'
+       AND (fecha + COALESCE(hora, TIME '23:59:59')) < (now() AT TIME ZONE 'America/Bogota')
+  `)
+}
+
 // ---- Listar tareas (filtros: desde, hasta, estado, apartamento_id) ----
 // Incluye "mismo_dia_entrada": true si ese apartamento tiene una reserva
 // confirmada/pagada cuya entrada cae justo el día de la tarea (hay que
 // hacer el aseo con prisa, el próximo huésped llega el mismo día).
 r.get('/', auth, async (req, res, next) => {
   try {
+    await marcarVencidasComoListas()
     const { desde, hasta, estado, apartamento_id } = req.query
     const condiciones = []
     const valores = []
