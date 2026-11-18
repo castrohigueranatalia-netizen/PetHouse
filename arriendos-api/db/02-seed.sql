@@ -30,3 +30,11 @@ INSERT INTO personal_limpieza (nombre, telefono) VALUES
     ('Luz Dary',  '3000000003'),
     ('Yolanda',   '3000000004'),
     ('Esperanza', '3000000005');
+
+-- Productos iniciales de la lavandería. Ajusta cantidad/valor desde la app
+-- (pestaña "Productos" dentro de Lavandería) cuando tengas los datos reales.
+INSERT INTO productos_lavanderia (nombre, cantidad, unidad, valor_unitario) VALUES
+    ('Jabón en polvo', 10, 'kg',     8000),
+    ('Desmanchante',    5, 'litros', 12000),
+    ('Vinagre',         8, 'litros', 4000),
+    ('Suavizante',      6, 'litros', 9000);

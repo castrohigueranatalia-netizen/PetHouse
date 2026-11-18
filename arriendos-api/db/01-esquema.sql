@@ -223,3 +223,21 @@ CREATE TABLE items_pedido_lavanderia (
     creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_items_pedido_lavanderia_pedido ON items_pedido_lavanderia (pedido_id);
+
+-- ------------------------------------------------------------
+-- 8. PRODUCTOS DE LAVANDERÍA (inventario)
+-- ------------------------------------------------------------
+CREATE TABLE productos_lavanderia (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre          TEXT NOT NULL,
+    cantidad        NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (cantidad >= 0),
+    unidad          TEXT NOT NULL DEFAULT 'unidades',
+    valor_unitario  NUMERIC(10,2) CHECK (valor_unitario IS NULL OR valor_unitario >= 0),
+
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_productos_lavanderia_actualizado_en
+    BEFORE UPDATE ON productos_lavanderia
+    FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();

@@ -388,9 +388,6 @@
       <h3>Aseos por niña este mes</h3>
       <div id="dash-limpieza-personal"></div>
     </div>
-
-    <h3 class="dash-subtitulo">🧺 Lavandería</h3>
-    <div class="kpi-row" id="dash-kpis-lavanderia"></div>
   </section>
 </div>
 
@@ -404,43 +401,78 @@
       </div>
     </header>
 
-    <!-- ---- Personal asignado a la lavandería ---- -->
-    <div class="tarjeta-dash">
-      <h3>👩‍🔧 Niñas asignadas a la lavandería</h3>
-      <p class="ayuda-campo" style="margin-bottom:10px;">Una niña asignada aquí ese día queda bloqueada para limpieza ese mismo día, y al revés.</p>
-      <div class="barra-filtros" style="margin-bottom:12px;">
+    <nav class="tabs">
+      <button data-tab-lav="pedidos" class="activo">Pedidos</button>
+      <button data-tab-lav="dashboard">Dashboard</button>
+      <button data-tab-lav="productos">Productos</button>
+    </nav>
+
+    <!-- ---- Tab Pedidos ---- -->
+    <section id="lav-tab-pedidos">
+      <!-- ---- Personal asignado a la lavandería ---- -->
+      <div class="tarjeta-dash">
+        <h3>👩‍🔧 Niñas asignadas a la lavandería</h3>
+        <p class="ayuda-campo" style="margin-bottom:10px;">Una niña asignada aquí ese día queda bloqueada para limpieza ese mismo día, y al revés.</p>
+        <div class="barra-filtros" style="margin-bottom:12px;">
+          <div class="spacer"></div>
+          <button class="btn btn-primario btn-chico" id="btn-nuevo-turno-lavanderia">+ Asignar niña</button>
+        </div>
+        <div class="tabla-wrap">
+          <table class="reservas">
+            <thead><tr><th>Fecha</th><th>Niña</th><th></th></tr></thead>
+            <tbody id="cuerpo-turnos-lavanderia"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ---- Pedidos de lavandería ---- -->
+      <div class="barra-filtros">
+        <label class="chk-mostrar-listas">
+          <input type="checkbox" id="lavanderia-mostrar-entregados"> Mostrar entregados
+        </label>
+        <input type="text" id="lavanderia-buscar" placeholder="Buscar por cliente o teléfono...">
         <div class="spacer"></div>
-        <button class="btn btn-primario btn-chico" id="btn-nuevo-turno-lavanderia">+ Asignar niña</button>
+        <button class="btn btn-primario" id="btn-nuevo-pedido-lavanderia">+ Nuevo pedido</button>
       </div>
       <div class="tabla-wrap">
         <table class="reservas">
-          <thead><tr><th>Fecha</th><th>Niña</th><th></th></tr></thead>
-          <tbody id="cuerpo-turnos-lavanderia"></tbody>
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Detalle</th><th>Ingreso</th><th>Entrega</th>
+              <th>Valor</th><th>Atendido por</th><th>Estado</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-pedidos-lavanderia"></tbody>
         </table>
       </div>
-    </div>
+    </section>
 
-    <!-- ---- Pedidos de lavandería ---- -->
-    <div class="resumen-banner" id="lavanderia-resumen-mes"></div>
-    <div class="barra-filtros">
-      <label class="chk-mostrar-listas">
-        <input type="checkbox" id="lavanderia-mostrar-entregados"> Mostrar entregados
-      </label>
-      <input type="text" id="lavanderia-buscar" placeholder="Buscar por cliente o teléfono...">
-      <div class="spacer"></div>
-      <button class="btn btn-primario" id="btn-nuevo-pedido-lavanderia">+ Nuevo pedido</button>
-    </div>
-    <div class="tabla-wrap">
-      <table class="reservas">
-        <thead>
-          <tr>
-            <th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Detalle</th><th>Ingreso</th><th>Entrega</th>
-            <th>Valor</th><th>Atendido por</th><th>Estado</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="cuerpo-pedidos-lavanderia"></tbody>
-      </table>
-    </div>
+    <!-- ---- Tab Dashboard ---- -->
+    <section id="lav-tab-dashboard" class="oculto">
+      <div class="barra-filtros">
+        <div class="mes-nav">
+          <button id="lav-dash-mes-prev">‹</button>
+          <span id="lav-dash-mes-label">-</span>
+          <button id="lav-dash-mes-next">›</button>
+        </div>
+      </div>
+      <div class="kpi-row" id="lav-dash-kpis"></div>
+    </section>
+
+    <!-- ---- Tab Productos ---- -->
+    <section id="lav-tab-productos" class="oculto">
+      <div class="resumen-banner" id="lav-resumen-productos"></div>
+      <div class="barra-filtros">
+        <div class="spacer"></div>
+        <button class="btn btn-primario" id="btn-nuevo-producto-lavanderia">+ Nuevo producto</button>
+      </div>
+      <div class="tabla-wrap">
+        <table class="reservas">
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Unidad</th><th>Valor unitario</th><th>Valor total</th><th></th></tr></thead>
+          <tbody id="cuerpo-productos-lavanderia"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -554,10 +586,13 @@ const estado = {
   limpiezaMostrarListas: false,
   turnosLavanderia: [],
   pedidosLavanderia: [],
-  lavanderiaMostrarEntregados: false
+  lavanderiaMostrarEntregados: false,
+  mesLavanderiaDashboard: new Date(),
+  productosLavanderia: []
 };
 estado.mes.setDate(1);
 estado.mesDashboard.setDate(1);
+estado.mesLavanderiaDashboard.setDate(1);
 
 // ---------------- API ----------------
 async function api(ruta, opciones = {}) {
@@ -620,9 +655,9 @@ document.getElementById('btn-inicio-desde-app').addEventListener('click', () => 
 document.getElementById('btn-inicio-desde-lavanderia').addEventListener('click', () => mostrarVista('inicio'));
 
 // ---------------- Tabs ----------------
-document.querySelectorAll('nav.tabs button').forEach((btn) => {
+document.querySelectorAll('#vista-app nav.tabs button').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('activo'));
+    document.querySelectorAll('#vista-app nav.tabs button').forEach((b) => b.classList.remove('activo'));
     btn.classList.add('activo');
     document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
     document.getElementById('tab-limpieza').classList.toggle('oculto', btn.dataset.tab !== 'limpieza');
@@ -632,6 +667,18 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     if (btn.dataset.tab === 'limpieza') abrirTabLimpieza();
     if (btn.dataset.tab === 'apartamentos') abrirTabApartamentos();
     if (btn.dataset.tab === 'dashboard') refrescarDashboard();
+  });
+});
+
+document.querySelectorAll('#vista-lavanderia nav.tabs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#vista-lavanderia nav.tabs button').forEach((b) => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    document.getElementById('lav-tab-pedidos').classList.toggle('oculto', btn.dataset.tabLav !== 'pedidos');
+    document.getElementById('lav-tab-dashboard').classList.toggle('oculto', btn.dataset.tabLav !== 'dashboard');
+    document.getElementById('lav-tab-productos').classList.toggle('oculto', btn.dataset.tabLav !== 'productos');
+    if (btn.dataset.tabLav === 'dashboard') refrescarDashboardLavanderia();
+    if (btn.dataset.tabLav === 'productos') abrirTabProductosLavanderia();
   });
 });
 
@@ -1616,24 +1663,12 @@ document.getElementById('btn-nuevo-turno-lavanderia').addEventListener('click', 
 });
 
 // ---- Pedidos de lavandería ----
-function renderResumenPedidosLavanderia() {
-  const mes = limitesMes(new Date());
-  const delMes = estado.pedidosLavanderia.filter((p) => fechaISO(p.fecha_ingreso) >= mes.desde && fechaISO(p.fecha_ingreso) <= mes.hasta);
-  const cantidad = delMes.length;
-  const ingresoTotal = delMes.reduce((s, p) => s + (Number(p.valor) || 0), 0);
-  const el = document.getElementById('lavanderia-resumen-mes');
-  el.innerHTML = cantidad
-    ? `🧺 Este mes: <strong>${cantidad}</strong> pedido${cantidad === 1 ? '' : 's'} · Ingreso: <strong>${pesos(ingresoTotal)}</strong>`
-    : '🧺 No hay pedidos de lavandería registrados este mes.';
-}
-
 function resumenItemsPedido(p) {
   if (!Array.isArray(p.items) || !p.items.length) return '—';
   return p.items.map((it) => `${it.cantidad} ${NOMBRE_TIPO_PRENDA[it.tipo_prenda] || it.tipo_prenda}`).join(', ');
 }
 
 function renderPedidosLavanderia() {
-  renderResumenPedidosLavanderia();
   const cuerpo = document.getElementById('cuerpo-pedidos-lavanderia');
   const busqueda = document.getElementById('lavanderia-buscar').value.trim().toLowerCase();
 
@@ -1855,6 +1890,150 @@ function abrirFormularioPedidoLavanderia(pedido) {
   });
 }
 
+// ---------------- Lavandería: Dashboard propio ----------------
+document.getElementById('lav-dash-mes-prev').addEventListener('click', () => cambiarMesLavanderiaDashboard(-1));
+document.getElementById('lav-dash-mes-next').addEventListener('click', () => cambiarMesLavanderiaDashboard(1));
+async function cambiarMesLavanderiaDashboard(delta) {
+  estado.mesLavanderiaDashboard = new Date(estado.mesLavanderiaDashboard.getFullYear(), estado.mesLavanderiaDashboard.getMonth() + delta, 1);
+  await refrescarDashboardLavanderia();
+}
+
+async function refrescarDashboardLavanderia() {
+  try {
+    await cargarPedidosLavanderia();
+    renderDashboardLavanderia();
+  } catch (err) { toast(err.message); }
+}
+
+function renderDashboardLavanderia() {
+  document.getElementById('lav-dash-mes-label').textContent = `${MESES[estado.mesLavanderiaDashboard.getMonth()]} ${estado.mesLavanderiaDashboard.getFullYear()}`;
+
+  const mes = limitesMes(estado.mesLavanderiaDashboard);
+  const pedidosDelMes = estado.pedidosLavanderia.filter((p) => fechaISO(p.fecha_ingreso) >= mes.desde && fechaISO(p.fecha_ingreso) <= mes.hasta);
+  const ingresoMes = pedidosDelMes.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const entregadosMes = pedidosDelMes.filter((p) => p.estado === 'entregado').length;
+  const hoyISO = fechaISO(new Date());
+  const pedidosAtrasados = estado.pedidosLavanderia.filter((p) =>
+    p.estado !== 'entregado' && p.fecha_entrega && fechaISO(p.fecha_entrega) < hoyISO
+  ).length;
+
+  document.getElementById('lav-dash-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-valor">${pedidosDelMes.length}</div><div class="kpi-label">Pedidos del mes</div></div>
+    <div class="kpi kpi-verde"><div class="kpi-valor">${pesos(ingresoMes)}</div><div class="kpi-label">Ingreso del mes</div></div>
+    <div class="kpi"><div class="kpi-valor">${entregadosMes}</div><div class="kpi-label">Entregados este mes</div></div>
+    <div class="kpi kpi-naranja"><div class="kpi-valor">${pedidosAtrasados}</div><div class="kpi-label">Pedidos atrasados</div></div>
+  `;
+}
+
+// ---------------- Lavandería: Productos / inventario ----------------
+const UNIDADES_PRODUCTO_LAVANDERIA = ['unidades', 'litros', 'kg', 'gramos'];
+
+async function cargarProductosLavanderia() {
+  const { productos } = await api('/productos-lavanderia');
+  estado.productosLavanderia = productos;
+}
+
+async function abrirTabProductosLavanderia() {
+  try {
+    await cargarProductosLavanderia();
+    renderProductosLavanderia();
+  } catch (err) { toast(err.message); }
+}
+
+function renderProductosLavanderia() {
+  const valorTotalInventario = estado.productosLavanderia.reduce(
+    (s, p) => s + (Number(p.cantidad) || 0) * (Number(p.valor_unitario) || 0), 0
+  );
+  document.getElementById('lav-resumen-productos').innerHTML = estado.productosLavanderia.length
+    ? `📦 Valor total del inventario: <strong>${pesos(valorTotalInventario)}</strong>`
+    : '📦 Todavía no hay productos registrados.';
+
+  const cuerpo = document.getElementById('cuerpo-productos-lavanderia');
+  if (!estado.productosLavanderia.length) {
+    cuerpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gris);padding:20px;">No hay productos registrados todavía.</td></tr>';
+    return;
+  }
+  cuerpo.innerHTML = estado.productosLavanderia.map((p) => {
+    const valorTotal = (Number(p.cantidad) || 0) * (Number(p.valor_unitario) || 0);
+    return `
+    <tr data-id="${p.id}">
+      <td>${esc(p.nombre)}</td>
+      <td>${Number(p.cantidad)}</td>
+      <td>${esc(p.unidad)}</td>
+      <td>${pesos(p.valor_unitario)}</td>
+      <td>${pesos(valorTotal)}</td>
+      <td class="acciones">
+        <button class="btn btn-chico" data-accion="editar">Editar</button>
+        <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  cuerpo.querySelectorAll('tr[data-id]').forEach((fila) => {
+    const id = fila.dataset.id;
+    const producto = estado.productosLavanderia.find((p) => p.id === id);
+
+    fila.querySelector('[data-accion="editar"]').addEventListener('click', () => abrirFormularioProductoLavanderia(producto));
+    fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      if (!confirm(`¿Eliminar "${producto.nombre}" del inventario?`)) return;
+      try {
+        await api(`/productos-lavanderia/${id}`, { method: 'DELETE' });
+        toast('Producto eliminado.');
+        await cargarProductosLavanderia();
+        renderProductosLavanderia();
+      } catch (err) { toast(err.message); }
+    });
+  });
+}
+
+document.getElementById('btn-nuevo-producto-lavanderia').addEventListener('click', () => abrirFormularioProductoLavanderia(null));
+
+function abrirFormularioProductoLavanderia(producto) {
+  const esEdicion = !!producto;
+  const v = producto || {};
+  const opcionesUnidad = UNIDADES_PRODUCTO_LAVANDERIA.map((u) =>
+    `<option value="${u}" ${(v.unidad || 'unidades') === u ? 'selected' : ''}>${u}</option>`).join('');
+
+  abrirModal(`
+    <h2>${esEdicion ? 'Editar producto' : 'Nuevo producto'}</h2>
+    <form id="form-producto-lavanderia">
+      <div class="campo"><label>Producto</label><input id="pr-nombre" value="${esc(v.nombre)}" placeholder='Ej. "Jabón en polvo"' required></div>
+      <div class="fila-2">
+        <div class="campo"><label>Cantidad en inventario</label><input type="number" min="0" step="0.01" id="pr-cantidad" value="${v.cantidad ?? ''}" required></div>
+        <div class="campo"><label>Unidad</label><select id="pr-unidad">${opcionesUnidad}</select></div>
+      </div>
+      <div class="campo">
+        <label>Valor por unidad</label>
+        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="pr-valor" value="${formatearMoneda(v.valor_unitario)}" placeholder="0"></div>
+      </div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">${esEdicion ? 'Guardar cambios' : 'Crear producto'}</button>
+      </div>
+    </form>
+  `);
+  activarCampoDinero(document.getElementById('pr-valor'));
+
+  document.getElementById('form-producto-lavanderia').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cuerpo = {
+      nombre: document.getElementById('pr-nombre').value.trim(),
+      cantidad: Number(document.getElementById('pr-cantidad').value) || 0,
+      unidad: document.getElementById('pr-unidad').value,
+      valor_unitario: limpiarMoneda(document.getElementById('pr-valor').value) || null
+    };
+    if (!cuerpo.nombre) return toast('Falta el nombre del producto.');
+    try {
+      if (esEdicion) await api(`/productos-lavanderia/${producto.id}`, { method: 'PUT', body: cuerpo });
+      else await api('/productos-lavanderia', { method: 'POST', body: cuerpo });
+      toast(esEdicion ? 'Producto actualizado.' : 'Producto creado.');
+      cerrarModal();
+      await cargarProductosLavanderia();
+      renderProductosLavanderia();
+    } catch (err) { toast(err.message); }
+  });
+}
+
 // ---------------- Asistente (chat) ----------------
 let historialAsistente = [];
 
@@ -1927,8 +2106,7 @@ async function cargarDashboard() {
   const [{ reservas }] = await Promise.all([
     api('/reservas?' + new URLSearchParams({ desde, hasta: fechaISO(hastaDate) })),
     cargarTareasLimpieza(),
-    cargarPersonalLimpieza(true),
-    cargarPedidosLavanderia()
+    cargarPersonalLimpieza(true)
   ]);
   estado.reservasDashboard = reservas;
 }
@@ -2022,20 +2200,6 @@ function renderDashboard() {
       <span>${pesos(x.s.valorTotal)} <span style="color:var(--gris);font-weight:400;">(le corresponde ${pesos(x.s.leCorresponde)})</span></span>
     </div>
   `).join('') : '<div class="dash-vacio">No hay limpiezas hechas este mes.</div>';
-
-  // ---- Lavandería del mes ----
-  const pedidosDelMes = estado.pedidosLavanderia.filter((p) => fechaISO(p.fecha_ingreso) >= mesLimpieza.desde && fechaISO(p.fecha_ingreso) <= mesLimpieza.hasta);
-  const ingresoLavanderiaMes = pedidosDelMes.reduce((s, p) => s + (Number(p.valor) || 0), 0);
-  const hoyISOLav = fechaISO(new Date());
-  const pedidosAtrasados = estado.pedidosLavanderia.filter((p) =>
-    p.estado !== 'entregado' && p.fecha_entrega && fechaISO(p.fecha_entrega) < hoyISOLav
-  ).length;
-
-  document.getElementById('dash-kpis-lavanderia').innerHTML = `
-    <div class="kpi"><div class="kpi-valor">${pedidosDelMes.length}</div><div class="kpi-label">Pedidos de lavandería</div></div>
-    <div class="kpi kpi-verde"><div class="kpi-valor">${pesos(ingresoLavanderiaMes)}</div><div class="kpi-label">Ingreso de lavandería</div></div>
-    <div class="kpi kpi-naranja"><div class="kpi-valor">${pedidosAtrasados}</div><div class="kpi-label">Pedidos atrasados</div></div>
-  `;
 }
 
 // ---------------- Notificaciones push ----------------

@@ -208,5 +208,35 @@ async function aplicarMigraciones() {
      WHERE NOT EXISTS (SELECT 1 FROM items_pedido_lavanderia i WHERE i.pedido_id = pl.id)
        AND (pl.valor IS NOT NULL OR pl.num_prendas IS NOT NULL)
   `)
+
+  // Productos de lavandería (inventario): jabón, desmanchante, vinagre, etc.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS productos_lavanderia (
+      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      nombre          TEXT NOT NULL,
+      cantidad        NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (cantidad >= 0),
+      unidad          TEXT NOT NULL DEFAULT 'unidades',
+      valor_unitario  NUMERIC(10,2) CHECK (valor_unitario IS NULL OR valor_unitario >= 0),
+      creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+  await pool.query(`DROP TRIGGER IF EXISTS trg_productos_lavanderia_actualizado_en ON productos_lavanderia`)
+  await pool.query(`
+    CREATE TRIGGER trg_productos_lavanderia_actualizado_en
+      BEFORE UPDATE ON productos_lavanderia
+      FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en()
+  `)
+
+  const { rows: productosExistentes } = await pool.query('SELECT 1 FROM productos_lavanderia LIMIT 1')
+  if (!productosExistentes.length) {
+    await pool.query(`
+      INSERT INTO productos_lavanderia (nombre, cantidad, unidad, valor_unitario) VALUES
+        ('Jabón en polvo', 10, 'kg', 8000),
+        ('Desmanchante', 5, 'litros', 12000),
+        ('Vinagre', 8, 'litros', 4000),
+        ('Suavizante', 6, 'litros', 9000)
+    `)
+  }
 }
 

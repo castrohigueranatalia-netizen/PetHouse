@@ -16,6 +16,7 @@ import personalLimpiezaRoutes from './routes/personalLimpieza.js'
 import tareasLimpiezaRoutes from './routes/tareasLimpieza.js'
 import turnosLavanderiaRoutes from './routes/turnosLavanderia.js'
 import pedidosLavanderiaRoutes from './routes/pedidosLavanderia.js'
+import productosLavanderiaRoutes from './routes/productosLavanderia.js'
 import { manejadorErrores, noEncontrado } from './middleware/middleware.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -37,6 +38,7 @@ app.use('/api/personal-limpieza', personalLimpiezaRoutes)
 app.use('/api/tareas-limpieza', tareasLimpiezaRoutes)
 app.use('/api/turnos-lavanderia', turnosLavanderiaRoutes)
 app.use('/api/pedidos-lavanderia', pedidosLavanderiaRoutes)
+app.use('/api/productos-lavanderia', productosLavanderiaRoutes)
 
 // Frontend (página autocontenida) servida desde /public
 app.use(express.static(path.join(__dirname, '..', 'public')))
