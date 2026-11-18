@@ -31,10 +31,28 @@ INSERT INTO personal_limpieza (nombre, telefono) VALUES
     ('Yolanda',   '3000000004'),
     ('Esperanza', '3000000005');
 
--- Productos iniciales de la lavandería. Ajusta cantidad/valor desde la app
--- (pestaña "Productos" dentro de Lavandería) cuando tengas los datos reales.
-INSERT INTO productos_lavanderia (nombre, cantidad, unidad, valor_unitario) VALUES
-    ('Jabón en polvo', 10, 'kg',     8000),
-    ('Desmanchante',    5, 'litros', 12000),
-    ('Vinagre',         8, 'litros', 4000),
-    ('Suavizante',      6, 'litros', 9000);
+-- Productos iniciales de la lavandería (arrancan en 0; el inventario y el
+-- valor se arman solos con cada compra que registres desde la app, pestaña
+-- "Productos" dentro de Lavandería).
+INSERT INTO productos_lavanderia (nombre, unidad) VALUES
+    ('Jabón en polvo', 'kg'),
+    ('Desmanchante',   'litros'),
+    ('Vinagre',        'litros'),
+    ('Suavizante',     'litros');
+
+-- Una primera compra de ejemplo por producto, para que arranques viendo
+-- cómo se ve el historial. Edítalas o bórralas desde la app.
+INSERT INTO compras_producto_lavanderia (producto_id, fecha_compra, cantidad, valor_unitario)
+SELECT id, CURRENT_DATE, datos.cantidad, datos.valor_unitario
+  FROM productos_lavanderia
+  JOIN (VALUES
+          ('Jabón en polvo', 10::numeric, 8000::numeric),
+          ('Desmanchante',    5,          12000),
+          ('Vinagre',         8,          4000),
+          ('Suavizante',      6,          9000)
+       ) AS datos(nombre, cantidad, valor_unitario) USING (nombre);
+
+UPDATE productos_lavanderia p
+   SET cantidad = c.cantidad, valor_unitario = c.valor_unitario
+  FROM compras_producto_lavanderia c
+ WHERE c.producto_id = p.id;

@@ -1963,7 +1963,7 @@ function renderProductosLavanderia() {
       <td>${pesos(p.valor_unitario)}</td>
       <td>${pesos(valorTotal)}</td>
       <td class="acciones">
-        <button class="btn btn-chico" data-accion="editar">Editar</button>
+        <button class="btn btn-chico" data-accion="compras">Compras</button>
         <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
       </td>
     </tr>`;
@@ -1973,9 +1973,9 @@ function renderProductosLavanderia() {
     const id = fila.dataset.id;
     const producto = estado.productosLavanderia.find((p) => p.id === id);
 
-    fila.querySelector('[data-accion="editar"]').addEventListener('click', () => abrirFormularioProductoLavanderia(producto));
+    fila.querySelector('[data-accion="compras"]').addEventListener('click', () => abrirComprasProducto(producto));
     fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
-      if (!confirm(`¿Eliminar "${producto.nombre}" del inventario?`)) return;
+      if (!confirm(`¿Eliminar "${producto.nombre}" del inventario? También se borra todo su historial de compras.`)) return;
       try {
         await api(`/productos-lavanderia/${id}`, { method: 'DELETE' });
         toast('Producto eliminado.');
@@ -1986,50 +1986,131 @@ function renderProductosLavanderia() {
   });
 }
 
-document.getElementById('btn-nuevo-producto-lavanderia').addEventListener('click', () => abrirFormularioProductoLavanderia(null));
-
-function abrirFormularioProductoLavanderia(producto) {
-  const esEdicion = !!producto;
-  const v = producto || {};
-  const opcionesUnidad = UNIDADES_PRODUCTO_LAVANDERIA.map((u) =>
-    `<option value="${u}" ${(v.unidad || 'unidades') === u ? 'selected' : ''}>${u}</option>`).join('');
-
+document.getElementById('btn-nuevo-producto-lavanderia').addEventListener('click', () => {
+  const opcionesUnidad = UNIDADES_PRODUCTO_LAVANDERIA.map((u) => `<option value="${u}">${u}</option>`).join('');
   abrirModal(`
-    <h2>${esEdicion ? 'Editar producto' : 'Nuevo producto'}</h2>
+    <h2>Nuevo producto</h2>
     <form id="form-producto-lavanderia">
-      <div class="campo"><label>Producto</label><input id="pr-nombre" value="${esc(v.nombre)}" placeholder='Ej. "Jabón en polvo"' required></div>
-      <div class="fila-2">
-        <div class="campo"><label>Cantidad en inventario</label><input type="number" min="0" step="0.01" id="pr-cantidad" value="${v.cantidad ?? ''}" required></div>
-        <div class="campo"><label>Unidad</label><select id="pr-unidad">${opcionesUnidad}</select></div>
-      </div>
-      <div class="campo">
-        <label>Valor por unidad</label>
-        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="pr-valor" value="${formatearMoneda(v.valor_unitario)}" placeholder="0"></div>
-      </div>
+      <div class="campo"><label>Producto</label><input id="pr-nombre" placeholder='Ej. "Jabón en polvo"' required></div>
+      <div class="campo"><label>Unidad</label><select id="pr-unidad">${opcionesUnidad}</select></div>
+      <p class="ayuda-campo">Arranca en 0; registra su primera compra después de crearlo (botón "Compras").</p>
       <div class="acciones">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primario">${esEdicion ? 'Guardar cambios' : 'Crear producto'}</button>
+        <button type="submit" class="btn btn-primario">Crear producto</button>
       </div>
     </form>
   `);
-  activarCampoDinero(document.getElementById('pr-valor'));
-
   document.getElementById('form-producto-lavanderia').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const cuerpo = {
-      nombre: document.getElementById('pr-nombre').value.trim(),
-      cantidad: Number(document.getElementById('pr-cantidad').value) || 0,
-      unidad: document.getElementById('pr-unidad').value,
-      valor_unitario: limpiarMoneda(document.getElementById('pr-valor').value) || null
-    };
-    if (!cuerpo.nombre) return toast('Falta el nombre del producto.');
+    const nombre = document.getElementById('pr-nombre').value.trim();
+    if (!nombre) return toast('Falta el nombre del producto.');
     try {
-      if (esEdicion) await api(`/productos-lavanderia/${producto.id}`, { method: 'PUT', body: cuerpo });
-      else await api('/productos-lavanderia', { method: 'POST', body: cuerpo });
-      toast(esEdicion ? 'Producto actualizado.' : 'Producto creado.');
+      await api('/productos-lavanderia', { method: 'POST', body: { nombre, unidad: document.getElementById('pr-unidad').value } });
+      toast('Producto creado.');
       cerrarModal();
       await cargarProductosLavanderia();
       renderProductosLavanderia();
+    } catch (err) { toast(err.message); }
+  });
+});
+
+// ---- Compras de un producto: renombrar/cambiar unidad + historial ----
+function abrirComprasProducto(producto) {
+  const opcionesUnidad = UNIDADES_PRODUCTO_LAVANDERIA.map((u) =>
+    `<option value="${u}" ${(producto.unidad || 'unidades') === u ? 'selected' : ''}>${u}</option>`).join('');
+
+  abrirModal(`
+    <h2>Compras: ${esc(producto.nombre)}</h2>
+    <div class="fila-2">
+      <div class="campo"><label>Nombre</label><input id="prc-nombre" value="${esc(producto.nombre)}"></div>
+      <div class="campo"><label>Unidad</label><select id="prc-unidad">${opcionesUnidad}</select></div>
+    </div>
+    <div class="acciones" style="justify-content:flex-start; margin:-6px 0 18px;">
+      <button type="button" class="btn btn-chico" id="prc-guardar-datos">Guardar nombre/unidad</button>
+    </div>
+
+    <div class="campo">
+      <label>Registrar nueva compra</label>
+      <div class="fila-item-pedido" style="grid-template-columns: 130px 80px 120px auto;">
+        <input type="date" id="prc-fecha" value="${fechaISO(new Date())}">
+        <input type="number" min="0.01" step="0.01" id="prc-cantidad" placeholder="Cant.">
+        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="prc-valor" placeholder="Valor c/u"></div>
+        <button type="button" class="btn btn-chico btn-primario" id="prc-agregar-compra">+ Agregar</button>
+      </div>
+    </div>
+
+    <div class="tabla-wrap">
+      <table class="reservas">
+        <thead><tr><th>Fecha</th><th>Cantidad</th><th>Valor c/u</th><th>Total</th><th></th></tr></thead>
+        <tbody id="prc-compras-lista"></tbody>
+      </table>
+    </div>
+
+    <div class="acciones">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+  document.querySelector('#modal-fondo .modal').classList.add('modal-ancho');
+  activarCampoDinero(document.getElementById('prc-valor'));
+
+  function renderListaCompras() {
+    const actual = estado.productosLavanderia.find((p) => p.id === producto.id) || producto;
+    const compras = actual.compras || [];
+    const cuerpo = document.getElementById('prc-compras-lista');
+    cuerpo.innerHTML = compras.length
+      ? compras.map((c) => `
+        <tr data-id="${c.id}">
+          <td>${fechaBonita(c.fecha_compra)}</td>
+          <td>${Number(c.cantidad)}</td>
+          <td>${pesos(c.valor_unitario)}</td>
+          <td>${pesos(c.valor_total)}</td>
+          <td><button type="button" class="btn btn-chico btn-peligro" data-accion="quitar-compra">Eliminar</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:14px;">Todavía no hay compras registradas.</td></tr>';
+
+    cuerpo.querySelectorAll('[data-accion="quitar-compra"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const compraId = btn.closest('tr').dataset.id;
+        if (!confirm('¿Eliminar esta compra del historial?')) return;
+        try {
+          await api(`/productos-lavanderia/${producto.id}/compras/${compraId}`, { method: 'DELETE' });
+          toast('Compra eliminada.');
+          await cargarProductosLavanderia();
+          renderProductosLavanderia();
+          renderListaCompras();
+        } catch (err) { toast(err.message); }
+      });
+    });
+  }
+  renderListaCompras();
+
+  document.getElementById('prc-guardar-datos').addEventListener('click', async () => {
+    const nombre = document.getElementById('prc-nombre').value.trim();
+    if (!nombre) return toast('Falta el nombre del producto.');
+    try {
+      await api(`/productos-lavanderia/${producto.id}`, { method: 'PUT', body: { nombre, unidad: document.getElementById('prc-unidad').value } });
+      toast('Guardado.');
+      await cargarProductosLavanderia();
+      renderProductosLavanderia();
+    } catch (err) { toast(err.message); }
+  });
+
+  document.getElementById('prc-agregar-compra').addEventListener('click', async () => {
+    const cuerpo = {
+      fecha_compra: document.getElementById('prc-fecha').value,
+      cantidad: Number(document.getElementById('prc-cantidad').value) || 0,
+      valor_unitario: limpiarMoneda(document.getElementById('prc-valor').value)
+    };
+    if (!cuerpo.fecha_compra) return toast('Falta la fecha de la compra.');
+    if (!cuerpo.cantidad) return toast('Falta la cantidad comprada.');
+    try {
+      await api(`/productos-lavanderia/${producto.id}/compras`, { method: 'POST', body: cuerpo });
+      toast('Compra registrada.');
+      document.getElementById('prc-cantidad').value = '';
+      document.getElementById('prc-valor').value = '';
+      await cargarProductosLavanderia();
+      renderProductosLavanderia();
+      renderListaCompras();
     } catch (err) { toast(err.message); }
   });
 }

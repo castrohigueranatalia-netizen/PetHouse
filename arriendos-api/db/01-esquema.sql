@@ -227,6 +227,11 @@ CREATE INDEX idx_items_pedido_lavanderia_pedido ON items_pedido_lavanderia (pedi
 -- ------------------------------------------------------------
 -- 8. PRODUCTOS DE LAVANDERÍA (inventario)
 -- ------------------------------------------------------------
+-- cantidad y valor_unitario quedan como el total ya calculado a partir del
+-- historial de compras (compras_producto_lavanderia): cantidad = suma de lo
+-- comprado, valor_unitario = el de la compra más reciente. No se editan
+-- directamente, los recalcula el backend cada vez que se registra o se
+-- borra una compra.
 CREATE TABLE productos_lavanderia (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre          TEXT NOT NULL,
@@ -241,3 +246,18 @@ CREATE TABLE productos_lavanderia (
 CREATE TRIGGER trg_productos_lavanderia_actualizado_en
     BEFORE UPDATE ON productos_lavanderia
     FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
+
+-- Historial de compras de cada producto: cuándo se compró, cuánto, y a qué
+-- precio por unidad. Es la fuente de verdad de cantidad/valor_unitario de
+-- arriba.
+CREATE TABLE compras_producto_lavanderia (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    producto_id     UUID NOT NULL REFERENCES productos_lavanderia(id) ON DELETE CASCADE,
+    fecha_compra    DATE NOT NULL,
+    cantidad        NUMERIC(10,2) NOT NULL CHECK (cantidad > 0),
+    valor_unitario  NUMERIC(10,2) NOT NULL CHECK (valor_unitario >= 0),
+    valor_total     NUMERIC(12,2) GENERATED ALWAYS AS (cantidad * valor_unitario) STORED,
+    notas           TEXT,
+    creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_compras_producto_lavanderia_producto ON compras_producto_lavanderia (producto_id);

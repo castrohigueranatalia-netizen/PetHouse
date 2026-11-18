@@ -238,5 +238,32 @@ async function aplicarMigraciones() {
         ('Suavizante', 6, 'litros', 9000)
     `)
   }
+
+  // Historial de compras por producto (cantidad/valor_unitario del producto
+  // pasan a calcularse a partir de aquí; ya no se editan directamente).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS compras_producto_lavanderia (
+      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      producto_id     UUID NOT NULL REFERENCES productos_lavanderia(id) ON DELETE CASCADE,
+      fecha_compra    DATE NOT NULL,
+      cantidad        NUMERIC(10,2) NOT NULL CHECK (cantidad > 0),
+      valor_unitario  NUMERIC(10,2) NOT NULL CHECK (valor_unitario >= 0),
+      valor_total     NUMERIC(12,2) GENERATED ALWAYS AS (cantidad * valor_unitario) STORED,
+      notas           TEXT,
+      creado_en       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_compras_producto_lavanderia_producto ON compras_producto_lavanderia (producto_id)`)
+
+  // Productos de antes de este cambio (con cantidad/valor_unitario puestos
+  // directamente, sin compras todavía): se les crea una compra inicial con
+  // esos mismos datos, para no perder lo que ya tenían cargado.
+  await pool.query(`
+    INSERT INTO compras_producto_lavanderia (producto_id, fecha_compra, cantidad, valor_unitario)
+    SELECT p.id, p.creado_en::date, p.cantidad, COALESCE(p.valor_unitario, 0)
+      FROM productos_lavanderia p
+     WHERE p.cantidad > 0
+       AND NOT EXISTS (SELECT 1 FROM compras_producto_lavanderia c WHERE c.producto_id = p.id)
+  `)
 }
 
