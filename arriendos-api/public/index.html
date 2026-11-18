@@ -127,8 +127,8 @@
   .badge-estado.cancelada { background: #9ca3af; }
 
   /* Limpieza */
-  .resumen-limpieza-hoy { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
-  .resumen-limpieza-hoy strong { color: var(--coral); }
+  .resumen-banner { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
+  .resumen-banner strong { color: var(--coral); }
   .chk-mostrar-listas { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); white-space: nowrap; }
   table.reservas tr.urgente td { background: #fdf0f1; }
   .badge-limpieza { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
@@ -314,7 +314,7 @@
 
   <!-- ---- Tab Limpieza ---- -->
   <section id="tab-limpieza" class="oculto">
-    <div class="resumen-limpieza-hoy" id="limpieza-resumen-hoy"></div>
+    <div class="resumen-banner" id="limpieza-resumen-hoy"></div>
 
     <div class="barra-filtros">
       <label class="chk-mostrar-listas">
@@ -379,7 +379,7 @@
   </section>
 </div>
 
-<!-- ==================== LAVANDERÍA (próximamente) ==================== -->
+<!-- ==================== LAVANDERÍA ==================== -->
 <div id="vista-lavanderia" class="oculto">
   <div class="vista-lavanderia-wrap">
     <header class="top">
@@ -388,10 +388,39 @@
         <button class="btn btn-chico" id="btn-inicio-desde-lavanderia">← Inicio</button>
       </div>
     </header>
-    <div class="modulo-vacio">
-      <span class="modulo-emoji">🧺</span>
-      <h2>Todavía no hay nada aquí</h2>
-      <p>Esta sección está en construcción. Pronto vas a poder coordinar aquí el servicio de lavandería.</p>
+
+    <!-- ---- Personal asignado a la lavandería ---- -->
+    <div class="tarjeta-dash">
+      <h3>👩‍🔧 Niñas asignadas a la lavandería</h3>
+      <p class="ayuda-campo" style="margin-bottom:10px;">Una niña asignada aquí ese día queda bloqueada para limpieza ese mismo día, y al revés.</p>
+      <div class="barra-filtros" style="margin-bottom:12px;">
+        <div class="spacer"></div>
+        <button class="btn btn-primario btn-chico" id="btn-nuevo-turno-lavanderia">+ Asignar niña</button>
+      </div>
+      <div class="tabla-wrap">
+        <table class="reservas">
+          <thead><tr><th>Fecha</th><th>Niña</th><th></th></tr></thead>
+          <tbody id="cuerpo-turnos-lavanderia"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ---- Pedidos de lavandería ---- -->
+    <div class="resumen-banner" id="lavanderia-resumen-mes"></div>
+    <div class="barra-filtros">
+      <label class="chk-mostrar-listas">
+        <input type="checkbox" id="lavanderia-mostrar-entregados"> Mostrar entregados
+      </label>
+      <div class="spacer"></div>
+      <button class="btn btn-primario" id="btn-nuevo-pedido-lavanderia">+ Nuevo pedido</button>
+    </div>
+    <div class="tabla-wrap">
+      <table class="reservas">
+        <thead>
+          <tr><th>Cliente</th><th>Teléfono</th><th>Prendas</th><th>Ingreso</th><th>Entrega</th><th>Valor</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="cuerpo-pedidos-lavanderia"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -496,7 +525,10 @@ const estado = {
   reservasDashboard: [],
   personalLimpieza: [],
   tareasLimpieza: [],
-  limpiezaMostrarListas: false
+  limpiezaMostrarListas: false,
+  turnosLavanderia: [],
+  pedidosLavanderia: [],
+  lavanderiaMostrarEntregados: false
 };
 estado.mes.setDate(1);
 estado.mesDashboard.setDate(1);
@@ -553,6 +585,7 @@ function mostrarVista(nombre) {
   document.getElementById('btn-asistente').classList.toggle('oculto', nombre !== 'app');
   document.getElementById('panel-asistente').classList.add('oculto');
   if (nombre === 'app') abrirModuloArriendos();
+  if (nombre === 'lavanderia') abrirVistaLavanderia();
 }
 
 document.getElementById('btn-modulo-arriendos').addEventListener('click', () => mostrarVista('app'));
@@ -1017,11 +1050,23 @@ function minutosDeHora(hora) {
   return h * 60 + m;
 }
 
+// Devuelve { ocupados, enLavanderia }: ocupados = todas las niñas bloqueadas
+// para esa fecha/hora (por otra limpieza cercana O por estar asignadas a la
+// lavandería ese día); enLavanderia = subconjunto bloqueado específicamente
+// por la lavandería (para poder explicar el motivo en el selector).
 function calcularOcupados(fecha, hora, idTareaExcluir) {
   const ocupados = new Set();
-  const minCandidata = minutosDeHora(hora);
-  if (!fecha || minCandidata == null) return ocupados; // sin hora no se puede calcular
+  const enLavanderia = new Set();
+  if (!fecha) return { ocupados, enLavanderia };
   const fechaCandidata = fechaISO(fecha);
+
+  estado.turnosLavanderia.forEach((t) => {
+    if (fechaISO(t.fecha) === fechaCandidata) { ocupados.add(t.personal_id); enLavanderia.add(t.personal_id); }
+  });
+
+  const minCandidata = minutosDeHora(hora);
+  if (minCandidata == null) return { ocupados, enLavanderia }; // sin hora no se puede calcular el choque por horario
+
   estado.tareasLimpieza.forEach((t) => {
     if (!t.personal_id || t.id === idTareaExcluir) return;
     if (fechaISO(t.fecha) !== fechaCandidata) return;
@@ -1031,18 +1076,29 @@ function calcularOcupados(fecha, hora, idTareaExcluir) {
     // de esa otra limpieza (tiempo para desplazarse y terminar bien).
     if (Math.abs(minExistente - minCandidata) <= 2 * 60) ocupados.add(t.personal_id);
   });
-  return ocupados;
+  return { ocupados, enLavanderia };
+}
+
+// Niñas con al menos una tarea de limpieza (cualquier hora o estado) en esa
+// fecha — se usa para bloquearlas al asignarlas a la lavandería ese día.
+function niñasConLimpiezaEseDia(fecha) {
+  const ids = new Set();
+  if (!fecha) return ids;
+  const f = fechaISO(fecha);
+  estado.tareasLimpieza.forEach((t) => { if (t.personal_id && fechaISO(t.fecha) === f) ids.add(t.personal_id); });
+  return ids;
 }
 
 async function abrirTabLimpieza() {
   try {
     await cargarPersonalLimpieza(true);
+    await cargarTurnosLavanderia();
     await cargarTareasLimpieza();
     renderTareasLimpieza();
   } catch (err) { toast(err.message); }
 }
 
-function opcionesResponsable(personalIdSeleccionado, ocupados = new Set()) {
+function opcionesResponsable(personalIdSeleccionado, ocupados = new Set(), enLavanderia = new Set()) {
   // Incluye inactivas solo si son la responsable ya asignada (para no perder
   // la asignación al editar una tarea vieja cuya niña ya no está activa).
   const visibles = estado.personalLimpieza.filter((p) => p.activo || p.id === personalIdSeleccionado);
@@ -1050,7 +1106,8 @@ function opcionesResponsable(personalIdSeleccionado, ocupados = new Set()) {
     visibles.map((p) => {
       const esActual = p.id === personalIdSeleccionado;
       const estaOcupada = ocupados.has(p.id);
-      const etiquetas = [!p.activo ? 'inactiva' : null, estaOcupada ? 'ocupada a esa hora' : null].filter(Boolean);
+      const motivo = enLavanderia.has(p.id) ? 'en la lavandería ese día' : (estaOcupada ? 'ocupada a esa hora' : null);
+      const etiquetas = [!p.activo ? 'inactiva' : null, motivo].filter(Boolean);
       const sufijo = etiquetas.length ? ` (${etiquetas.join(', ')})` : '';
       return `<option value="${p.id}" ${esActual ? 'selected' : ''} ${estaOcupada && !esActual ? 'disabled' : ''}>${esc(p.nombre)}${sufijo}</option>`;
     }).join('');
@@ -1080,13 +1137,13 @@ function renderTareasLimpieza() {
     return;
   }
   cuerpo.innerHTML = filas.map((t) => {
-    const ocupados = calcularOcupados(t.fecha, t.hora, t.id);
+    const { ocupados, enLavanderia } = calcularOcupados(t.fecha, t.hora, t.id);
     return `
     <tr class="${t.mismo_dia_entrada ? 'urgente' : ''}" data-id="${t.id}">
       <td>${esc(t.apartamento_nombre)}</td>
       <td>${t.mismo_dia_entrada ? '⚠️ ' : ''}${fechaBonita(t.fecha)}</td>
       <td>${t.hora ? String(t.hora).slice(0, 5) : '—'}</td>
-      <td><select class="select-responsable" data-campo="personal_id">${opcionesResponsable(t.personal_id, ocupados)}</select></td>
+      <td><select class="select-responsable" data-campo="personal_id">${opcionesResponsable(t.personal_id, ocupados, enLavanderia)}</select></td>
       <td>${pesos(t.valor)}</td>
       <td><span class="badge-limpieza ${t.estado}">${t.estado === 'lista' ? 'Lista' : 'Pendiente'}</span></td>
       <td>${esc(t.notas) || '—'}</td>
@@ -1175,8 +1232,8 @@ function abrirFormularioTareaLimpieza(tarea) {
 
   function actualizarDisponibilidad() {
     const seleccionActual = selectResponsable.value || v.personal_id || '';
-    const ocupados = calcularOcupados(inputFecha.value, inputHora.value, esEdicion ? tarea.id : null);
-    selectResponsable.innerHTML = opcionesResponsable(seleccionActual, ocupados);
+    const { ocupados, enLavanderia } = calcularOcupados(inputFecha.value, inputHora.value, esEdicion ? tarea.id : null);
+    selectResponsable.innerHTML = opcionesResponsable(seleccionActual, ocupados, enLavanderia);
   }
   inputFecha.addEventListener('input', actualizarDisponibilidad);
   inputHora.addEventListener('input', actualizarDisponibilidad);
@@ -1427,6 +1484,232 @@ function renderModalPersonalLimpieza() {
       toast('Agregada.');
       await cargarPersonalLimpieza(true);
       renderModalPersonalLimpieza();
+    } catch (err) { toast(err.message); }
+  });
+}
+
+// ---------------- Lavandería ----------------
+async function cargarTurnosLavanderia() {
+  const { turnos } = await api('/turnos-lavanderia');
+  estado.turnosLavanderia = turnos;
+}
+
+async function cargarPedidosLavanderia() {
+  const { pedidos } = await api('/pedidos-lavanderia');
+  estado.pedidosLavanderia = pedidos;
+}
+
+async function abrirVistaLavanderia() {
+  try {
+    await Promise.all([
+      cargarPersonalLimpieza(true),
+      cargarTurnosLavanderia(),
+      cargarPedidosLavanderia(),
+      cargarTareasLimpieza()
+    ]);
+    renderTurnosLavanderia();
+    renderPedidosLavanderia();
+  } catch (err) { toast(err.message); }
+}
+
+// ---- Turnos (niñas asignadas a la lavandería por día) ----
+function renderTurnosLavanderia() {
+  const cuerpo = document.getElementById('cuerpo-turnos-lavanderia');
+  const filas = [...estado.turnosLavanderia].sort((a, b) => fechaISO(a.fecha).localeCompare(fechaISO(b.fecha)));
+  if (!filas.length) {
+    cuerpo.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:16px;">No hay niñas asignadas a la lavandería todavía.</td></tr>';
+    return;
+  }
+  cuerpo.innerHTML = filas.map((t) => `
+    <tr data-id="${t.id}">
+      <td>${fechaBonita(t.fecha)}</td>
+      <td>${esc(t.personal_nombre)}</td>
+      <td><button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button></td>
+    </tr>
+  `).join('');
+  cuerpo.querySelectorAll('tr[data-id]').forEach((fila) => {
+    const id = fila.dataset.id;
+    fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      if (!confirm('¿Quitar esta asignación de lavandería? Esa niña quedará libre para limpieza ese día.')) return;
+      try {
+        await api(`/turnos-lavanderia/${id}`, { method: 'DELETE' });
+        toast('Asignación eliminada.');
+        await cargarTurnosLavanderia();
+        renderTurnosLavanderia();
+      } catch (err) { toast(err.message); }
+    });
+  });
+}
+
+document.getElementById('btn-nuevo-turno-lavanderia').addEventListener('click', () => {
+  abrirModal(`
+    <h2>Asignar niña a la lavandería</h2>
+    <form id="form-turno-lavanderia">
+      <div class="campo"><label>Fecha</label><input type="date" id="tla-fecha" value="${fechaISO(new Date())}" required></div>
+      <div class="campo">
+        <label>Niña</label>
+        <select id="tla-personal" required></select>
+        <span class="ayuda-campo">No aparecen seleccionables las que ya tienen limpieza asignada ese día, ni las ya asignadas a la lavandería ese mismo día.</span>
+      </div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Asignar</button>
+      </div>
+    </form>
+  `);
+
+  const inputFecha = document.getElementById('tla-fecha');
+  const selectPersonal = document.getElementById('tla-personal');
+
+  function actualizarOpciones() {
+    const ocupadasPorLimpieza = niñasConLimpiezaEseDia(inputFecha.value);
+    const yaAsignadas = new Set(
+      estado.turnosLavanderia.filter((t) => fechaISO(t.fecha) === fechaISO(inputFecha.value)).map((t) => t.personal_id)
+    );
+    const visibles = estado.personalLimpieza.filter((p) => p.activo);
+    selectPersonal.innerHTML = '<option value="">Selecciona...</option>' + visibles.map((p) => {
+      const bloqueada = ocupadasPorLimpieza.has(p.id) || yaAsignadas.has(p.id);
+      const motivo = yaAsignadas.has(p.id) ? 'ya asignada' : (ocupadasPorLimpieza.has(p.id) ? 'tiene limpieza ese día' : null);
+      return `<option value="${p.id}" ${bloqueada ? 'disabled' : ''}>${esc(p.nombre)}${motivo ? ' (' + motivo + ')' : ''}</option>`;
+    }).join('');
+  }
+  inputFecha.addEventListener('input', actualizarOpciones);
+  actualizarOpciones();
+
+  document.getElementById('form-turno-lavanderia').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!selectPersonal.value) return toast('Elige una niña.');
+    try {
+      await api('/turnos-lavanderia', { method: 'POST', body: { personal_id: selectPersonal.value, fecha: inputFecha.value } });
+      toast('Niña asignada a la lavandería.');
+      cerrarModal();
+      await cargarTurnosLavanderia();
+      renderTurnosLavanderia();
+    } catch (err) { toast(err.message); }
+  });
+});
+
+// ---- Pedidos de lavandería ----
+function renderResumenPedidosLavanderia() {
+  const mes = limitesMes(new Date());
+  const delMes = estado.pedidosLavanderia.filter((p) => fechaISO(p.fecha_ingreso) >= mes.desde && fechaISO(p.fecha_ingreso) <= mes.hasta);
+  const cantidad = delMes.length;
+  const ingresoTotal = delMes.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const el = document.getElementById('lavanderia-resumen-mes');
+  el.innerHTML = cantidad
+    ? `🧺 Este mes: <strong>${cantidad}</strong> pedido${cantidad === 1 ? '' : 's'} · Ingreso: <strong>${pesos(ingresoTotal)}</strong>`
+    : '🧺 No hay pedidos de lavandería registrados este mes.';
+}
+
+function renderPedidosLavanderia() {
+  renderResumenPedidosLavanderia();
+  const cuerpo = document.getElementById('cuerpo-pedidos-lavanderia');
+  const filas = estado.lavanderiaMostrarEntregados
+    ? estado.pedidosLavanderia
+    : estado.pedidosLavanderia.filter((p) => p.estado !== 'entregado');
+
+  if (!filas.length) {
+    cuerpo.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--gris);padding:20px;">No hay pedidos${estado.lavanderiaMostrarEntregados ? '' : ' en proceso'}.</td></tr>`;
+    return;
+  }
+  const hoyISO = fechaISO(new Date());
+  cuerpo.innerHTML = filas.map((p) => {
+    const atrasado = p.estado !== 'entregado' && p.fecha_entrega && fechaISO(p.fecha_entrega) < hoyISO;
+    return `
+    <tr class="${atrasado ? 'urgente' : ''}" data-id="${p.id}">
+      <td>${esc(p.cliente_nombre) || '—'}</td>
+      <td>${esc(p.cliente_telefono) || '—'}</td>
+      <td>${p.num_prendas ?? '—'}</td>
+      <td>${fechaBonita(p.fecha_ingreso)}</td>
+      <td>${p.fecha_entrega ? (atrasado ? '⚠️ ' : '') + fechaBonita(p.fecha_entrega) : '—'}</td>
+      <td>${pesos(p.valor)}</td>
+      <td><span class="badge-limpieza ${p.estado === 'entregado' ? 'lista' : 'pendiente'}">${p.estado === 'entregado' ? 'Entregado' : 'En proceso'}</span></td>
+      <td class="acciones">
+        <button class="btn btn-chico" data-accion="toggle-estado">${p.estado === 'entregado' ? 'Marcar en proceso' : 'Marcar entregado'}</button>
+        <button class="btn btn-chico" data-accion="editar">Editar</button>
+        <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  cuerpo.querySelectorAll('tr[data-id]').forEach((fila) => {
+    const id = fila.dataset.id;
+    const pedido = estado.pedidosLavanderia.find((p) => p.id === id);
+
+    fila.querySelector('[data-accion="toggle-estado"]').addEventListener('click', async () => {
+      try {
+        await api(`/pedidos-lavanderia/${id}`, { method: 'PUT', body: { estado: pedido.estado === 'entregado' ? 'en_proceso' : 'entregado' } });
+        await cargarPedidosLavanderia();
+        renderPedidosLavanderia();
+      } catch (err) { toast(err.message); }
+    });
+    fila.querySelector('[data-accion="editar"]').addEventListener('click', () => abrirFormularioPedidoLavanderia(pedido));
+    fila.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      if (!confirm('¿Eliminar este pedido de lavandería?')) return;
+      try {
+        await api(`/pedidos-lavanderia/${id}`, { method: 'DELETE' });
+        toast('Pedido eliminado.');
+        await cargarPedidosLavanderia();
+        renderPedidosLavanderia();
+      } catch (err) { toast(err.message); }
+    });
+  });
+}
+
+document.getElementById('lavanderia-mostrar-entregados').addEventListener('change', (e) => {
+  estado.lavanderiaMostrarEntregados = e.target.checked;
+  renderPedidosLavanderia();
+});
+
+document.getElementById('btn-nuevo-pedido-lavanderia').addEventListener('click', () => abrirFormularioPedidoLavanderia(null));
+
+function abrirFormularioPedidoLavanderia(pedido) {
+  const esEdicion = !!pedido;
+  const v = pedido || {};
+
+  abrirModal(`
+    <h2>${esEdicion ? 'Editar pedido' : 'Nuevo pedido de lavandería'}</h2>
+    <form id="form-pedido-lavanderia">
+      <div class="campo"><label>Cliente</label><input id="pl-cliente" value="${esc(v.cliente_nombre)}" placeholder="Nombre del cliente"></div>
+      <div class="fila-2">
+        <div class="campo"><label>Teléfono</label><input id="pl-telefono" value="${esc(v.cliente_telefono)}"></div>
+        <div class="campo"><label># Prendas</label><input type="number" min="1" id="pl-prendas" value="${v.num_prendas ?? ''}"></div>
+      </div>
+      <div class="fila-2">
+        <div class="campo"><label>Fecha de ingreso</label><input type="date" id="pl-ingreso" value="${v.fecha_ingreso ? fechaISO(v.fecha_ingreso) : fechaISO(new Date())}" required></div>
+        <div class="campo"><label>Fecha de entrega</label><input type="date" id="pl-entrega" value="${v.fecha_entrega ? fechaISO(v.fecha_entrega) : ''}"></div>
+      </div>
+      <div class="campo">
+        <label>Valor del pedido</label>
+        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="pl-valor" value="${formatearMoneda(v.valor)}" placeholder="0"></div>
+      </div>
+      <div class="campo"><label>Notas</label><input id="pl-notas" value="${esc(v.notas)}" placeholder="Ej. camisa con mancha especial"></div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">${esEdicion ? 'Guardar cambios' : 'Crear pedido'}</button>
+      </div>
+    </form>
+  `);
+  activarCampoDinero(document.getElementById('pl-valor'));
+
+  document.getElementById('form-pedido-lavanderia').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cuerpo = {
+      cliente_nombre: document.getElementById('pl-cliente').value.trim() || null,
+      cliente_telefono: document.getElementById('pl-telefono').value.trim() || null,
+      num_prendas: Number(document.getElementById('pl-prendas').value) || null,
+      fecha_ingreso: document.getElementById('pl-ingreso').value,
+      fecha_entrega: document.getElementById('pl-entrega').value || null,
+      valor: limpiarMoneda(document.getElementById('pl-valor').value) || null,
+      notas: document.getElementById('pl-notas').value.trim() || null
+    };
+    try {
+      if (esEdicion) await api(`/pedidos-lavanderia/${pedido.id}`, { method: 'PUT', body: cuerpo });
+      else await api('/pedidos-lavanderia', { method: 'POST', body: cuerpo });
+      toast(esEdicion ? 'Pedido actualizado.' : 'Pedido creado.');
+      cerrarModal();
+      await cargarPedidosLavanderia();
+      renderPedidosLavanderia();
     } catch (err) { toast(err.message); }
   });
 }

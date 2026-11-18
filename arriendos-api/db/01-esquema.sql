@@ -163,3 +163,42 @@ CREATE INDEX idx_tareas_limpieza_apartamento ON tareas_limpieza (apartamento_id)
 CREATE TRIGGER trg_tareas_limpieza_actualizado_en
     BEFORE UPDATE ON tareas_limpieza
     FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
+
+-- ------------------------------------------------------------
+-- 7. LAVANDERÍA
+-- ------------------------------------------------------------
+CREATE TYPE estado_pedido_lavanderia AS ENUM ('en_proceso', 'entregado');
+
+-- Qué niñas (las mismas de personal_limpieza) están asignadas a atender el
+-- local de lavandería cada día. Ese día quedan bloqueadas para limpieza, y
+-- viceversa (una niña con limpieza asignada ese día no se puede poner aquí).
+CREATE TABLE turnos_lavanderia (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    personal_id UUID NOT NULL REFERENCES personal_limpieza(id) ON DELETE CASCADE,
+    fecha       DATE NOT NULL,
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_turno_lavanderia UNIQUE (personal_id, fecha)
+);
+CREATE INDEX idx_turnos_lavanderia_fecha ON turnos_lavanderia (fecha);
+
+-- Pedidos de ropa que entran al local.
+CREATE TABLE pedidos_lavanderia (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cliente_nombre   TEXT,
+    cliente_telefono TEXT,
+    num_prendas      SMALLINT CHECK (num_prendas IS NULL OR num_prendas > 0),
+    fecha_ingreso    DATE NOT NULL,
+    fecha_entrega    DATE,
+    valor            NUMERIC(10,2) CHECK (valor IS NULL OR valor >= 0),
+    estado           estado_pedido_lavanderia NOT NULL DEFAULT 'en_proceso',
+    notas            TEXT,
+
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_pedidos_lavanderia_fecha_ingreso ON pedidos_lavanderia (fecha_ingreso);
+
+CREATE TRIGGER trg_pedidos_lavanderia_actualizado_en
+    BEFORE UPDATE ON pedidos_lavanderia
+    FOR EACH ROW EXECUTE FUNCTION tocar_actualizado_en();
