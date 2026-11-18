@@ -1,6 +1,6 @@
 // ============================================================
 // ARRIENDOS CARTAGENA API · Módulo Apartamentos
-// GET /api/apartamentos · GET /:id · POST / · PUT /:id
+// GET /api/apartamentos · GET /:id · POST / · PUT /:id · DELETE /:id
 // ============================================================
 import { Router } from 'express'
 import { pool, PUBLIC_URL } from '../config.js'
@@ -85,6 +85,20 @@ r.put('/:id', auth, async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Apartamento no encontrado.' })
     res.json({ apartamento: conUrlExportar(rows[0]) })
   } catch (err) { next(err) }
+})
+
+// ---- Eliminar apartamento (solo si no tiene reservas asociadas) ----
+r.delete('/:id', auth, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM apartamentos WHERE id = $1', [req.params.id])
+    if (!rowCount) return res.status(404).json({ error: 'Apartamento no encontrado.' })
+    res.json({ ok: true })
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'No se puede eliminar: este apartamento tiene reservas registradas. Puedes desactivarlo en su lugar.' })
+    }
+    next(err)
+  }
 })
 
 export default r

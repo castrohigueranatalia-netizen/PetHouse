@@ -113,7 +113,11 @@
   /* Apartamentos */
   .grid-apartamentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .card-apto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
-  .card-apto h3 { margin: 0 0 10px; font-size: 16px; }
+  .card-apto.inactivo { opacity: .6; background: #fafafa; }
+  .card-apto-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .card-apto-nombre { flex: 1; border: 1px solid transparent !important; background: transparent !important; padding: 4px 6px !important; font-size: 16px; font-weight: 700; border-radius: 6px; }
+  .card-apto-nombre:hover, .card-apto-nombre:focus { border-color: var(--borde) !important; background: #fff !important; }
+  .badge-inactivo { background: #9ca3af; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   .card-apto .fila { margin-bottom: 10px; }
   .card-apto .fila label { display: block; font-size: 12px; color: var(--gris); margin-bottom: 3px; }
   .card-apto input { width: 100%; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
@@ -146,10 +150,11 @@
   .dash-vacio { color: var(--gris); font-size: 13px; padding: 10px 0; }
 
   /* Modal */
+  .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .modal-fondo { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
   .modal h2 { margin: 0 0 16px; font-size: 18px; }
-  .modal .acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .modal .acciones { justify-content: flex-end; margin-top: 18px; }
   .modal .acciones .izq { margin-right: auto; }
 
   #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100; }
@@ -267,6 +272,10 @@
 
   <!-- ---- Tab Apartamentos ---- -->
   <section id="tab-apartamentos" class="oculto">
+    <div class="barra-filtros">
+      <div class="spacer"></div>
+      <button class="btn btn-primario" id="btn-nuevo-apartamento">+ Nuevo apartamento</button>
+    </div>
     <div class="grid-apartamentos" id="grid-apartamentos"></div>
   </section>
 
@@ -387,6 +396,7 @@ const estado = {
   token: localStorage.getItem('arriendos_token') || null,
   usuario: JSON.parse(localStorage.getItem('arriendos_usuario') || 'null'),
   apartamentos: [],
+  apartamentosTodos: [],
   reservas: [],
   mes: new Date(),
   filtroApartamento: '',
@@ -502,7 +512,7 @@ document.querySelectorAll('nav.tabs button').forEach((btn) => {
     document.getElementById('tab-reservas').classList.toggle('oculto', btn.dataset.tab !== 'reservas');
     document.getElementById('tab-apartamentos').classList.toggle('oculto', btn.dataset.tab !== 'apartamentos');
     document.getElementById('tab-dashboard').classList.toggle('oculto', btn.dataset.tab !== 'dashboard');
-    if (btn.dataset.tab === 'apartamentos') renderApartamentos();
+    if (btn.dataset.tab === 'apartamentos') abrirTabApartamentos();
     if (btn.dataset.tab === 'dashboard') refrescarDashboard();
   });
 });
@@ -528,6 +538,19 @@ async function cargarApartamentos() {
   sel.innerHTML = '<option value="">Todos los apartamentos</option>' +
     apartamentos.map((a) => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('');
   sel.value = estado.filtroApartamento;
+}
+
+// Para la pestaña "Apartamentos" (a diferencia de estado.apartamentos, incluye los desactivados)
+async function cargarApartamentosTodos() {
+  const { apartamentos } = await api('/apartamentos?todos=1');
+  estado.apartamentosTodos = apartamentos;
+}
+
+async function abrirTabApartamentos() {
+  try {
+    await cargarApartamentosTodos();
+    renderApartamentos();
+  } catch (err) { toast(err.message); }
 }
 
 async function cargarReservas() {
@@ -780,9 +803,12 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
 // ---------------- Render: apartamentos ----------------
 function renderApartamentos() {
   const grid = document.getElementById('grid-apartamentos');
-  grid.innerHTML = estado.apartamentos.map((a) => `
-    <div class="card-apto" data-id="${a.id}">
-      <h3>${esc(a.nombre)}</h3>
+  grid.innerHTML = estado.apartamentosTodos.map((a) => `
+    <div class="card-apto ${a.activo ? '' : 'inactivo'}" data-id="${a.id}">
+      <div class="card-apto-header">
+        <input class="card-apto-nombre" data-campo="nombre" value="${esc(a.nombre)}">
+        ${a.activo ? '' : '<span class="badge-inactivo">Inactivo</span>'}
+      </div>
       <div class="fila-2">
         <div class="fila"><label>Capacidad</label><input data-campo="capacidad" type="number" min="1" value="${a.capacidad}"></div>
         <div class="fila"><label>Precio noche base</label><div class="campo-dinero"><span>$</span><input data-campo="precio_noche_base" type="text" inputmode="numeric" value="${formatearMoneda(a.precio_noche_base)}" placeholder="0"></div></div>
@@ -804,6 +830,8 @@ function renderApartamentos() {
       </div>
       <div class="acciones" style="margin-top:14px;">
         <button class="btn btn-chico" data-accion="sincronizar">Sincronizar ahora</button>
+        <button class="btn btn-chico" data-accion="activar">${a.activo ? 'Desactivar' : 'Reactivar'}</button>
+        <button class="btn btn-chico btn-peligro" data-accion="eliminar">Eliminar</button>
         <button class="btn btn-chico btn-primario" data-accion="guardar">Guardar</button>
       </div>
     </div>
@@ -812,8 +840,17 @@ function renderApartamentos() {
   grid.querySelectorAll('.card-apto').forEach((card) => {
     const id = card.dataset.id;
     activarCampoDinero(card.querySelector('[data-campo="precio_noche_base"]'));
+
+    async function refrescarTrasCambio() {
+      await Promise.all([cargarApartamentosTodos(), cargarApartamentos()]);
+      renderApartamentos();
+    }
+
     card.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
+      const nombre = card.querySelector('[data-campo="nombre"]').value.trim();
+      if (!nombre) return toast('El apartamento necesita un nombre.');
       const cuerpo = {
+        nombre,
         capacidad: Number(card.querySelector('[data-campo="capacidad"]').value) || 1,
         precio_noche_base: limpiarMoneda(card.querySelector('[data-campo="precio_noche_base"]').value) || null,
         ical_url_importar: card.querySelector('[data-campo="ical_url_importar"]').value.trim()
@@ -821,8 +858,7 @@ function renderApartamentos() {
       try {
         await api(`/apartamentos/${id}`, { method: 'PUT', body: cuerpo });
         toast('Apartamento actualizado.');
-        await cargarApartamentos();
-        renderApartamentos();
+        await refrescarTrasCambio();
       } catch (err) { toast(err.message); }
     });
 
@@ -833,11 +869,29 @@ function renderApartamentos() {
         const r = await api(`/apartamentos/${id}/sincronizar`, { method: 'POST' });
         if (!r.ok) toast('No se pudo sincronizar: ' + r.error);
         else toast(`Listo: ${r.importadas} nuevas, ${r.canceladas} canceladas${r.conflictos?.length ? ', ' + r.conflictos.length + ' con conflicto' : ''}.`);
-        await cargarApartamentos();
         await refrescarReservas();
-        renderApartamentos();
+        await refrescarTrasCambio();
       } catch (err) { toast(err.message); }
       finally { btn.disabled = false; btn.textContent = 'Sincronizar ahora'; }
+    });
+
+    card.querySelector('[data-accion="activar"]').addEventListener('click', async (e) => {
+      const activoActual = !card.classList.contains('inactivo');
+      try {
+        await api(`/apartamentos/${id}`, { method: 'PUT', body: { activo: !activoActual } });
+        toast(activoActual ? 'Apartamento desactivado.' : 'Apartamento reactivado.');
+        await refrescarTrasCambio();
+      } catch (err) { toast(err.message); }
+    });
+
+    card.querySelector('[data-accion="eliminar"]').addEventListener('click', async () => {
+      const nombre = card.querySelector('[data-campo="nombre"]').value.trim();
+      if (!confirm(`¿Eliminar "${nombre}" definitivamente? Esta acción no se puede deshacer.`)) return;
+      try {
+        await api(`/apartamentos/${id}`, { method: 'DELETE' });
+        toast('Apartamento eliminado.');
+        await refrescarTrasCambio();
+      } catch (err) { toast(err.message); }
     });
 
     card.querySelector('[data-accion="copiar"]').addEventListener('click', async (e) => {
@@ -846,6 +900,41 @@ function renderApartamentos() {
     });
   });
 }
+
+document.getElementById('btn-nuevo-apartamento').addEventListener('click', () => {
+  abrirModal(`
+    <h2>Nuevo apartamento</h2>
+    <form id="form-nuevo-apartamento">
+      <div class="campo"><label>Nombre</label><input id="na-nombre" placeholder='Ej. "Apto 8 - Manga"' required></div>
+      <div class="fila-2">
+        <div class="campo"><label>Capacidad</label><input type="number" min="1" id="na-capacidad" value="2"></div>
+        <div class="campo">
+          <label>Precio noche base</label>
+          <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="na-precio" placeholder="0"></div>
+        </div>
+      </div>
+      <div class="acciones">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Crear apartamento</button>
+      </div>
+    </form>
+  `);
+  activarCampoDinero(document.getElementById('na-precio'));
+  document.getElementById('form-nuevo-apartamento').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/apartamentos', { method: 'POST', body: {
+        nombre: document.getElementById('na-nombre').value.trim(),
+        capacidad: Number(document.getElementById('na-capacidad').value) || 1,
+        precio_noche_base: limpiarMoneda(document.getElementById('na-precio').value) || null
+      }});
+      toast('Apartamento creado.');
+      cerrarModal();
+      await Promise.all([cargarApartamentosTodos(), cargarApartamentos()]);
+      renderApartamentos();
+    } catch (err) { toast(err.message); }
+  });
+});
 
 // ---------------- Asistente (chat) ----------------
 let historialAsistente = [];
