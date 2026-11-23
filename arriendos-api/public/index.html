@@ -93,6 +93,7 @@
   .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid var(--borde); }
   .mes-nav { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
   .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 8px; width: 40px; height: 40px; font-size: 17px; }
+  .mes-nav button:disabled { opacity: .35; cursor: not-allowed; }
   .barra-filtros select, .barra-filtros input[type="text"] { padding: 10px 12px; font-size: 15px; border: 1px solid var(--borde); border-radius: 8px; }
   .barra-filtros .spacer { flex: 1; }
 
@@ -860,6 +861,13 @@ document.getElementById('filtro-fuente').addEventListener('change', async (e) =>
 function renderCalendario() {
   document.getElementById('mes-label').textContent = `${MESES[estado.mes.getMonth()]} ${estado.mes.getFullYear()}`;
 
+  const hoy = new Date();
+  const esMesActual = estado.mes.getFullYear() === hoy.getFullYear() && estado.mes.getMonth() === hoy.getMonth();
+  // El calendario de reservas solo muestra de hoy en adelante: en el mes
+  // actual arranca en el día de hoy, y no se puede retroceder a meses ya pasados.
+  const diaInicio = esMesActual ? hoy.getDate() : 1;
+  document.getElementById('mes-prev').disabled = esMesActual;
+
   const diasEnMes = new Date(estado.mes.getFullYear(), estado.mes.getMonth() + 1, 0).getDate();
   const apartamentos = estado.filtroApartamento
     ? estado.apartamentos.filter((a) => a.id === estado.filtroApartamento)
@@ -869,7 +877,7 @@ function renderCalendario() {
   const festivos = festivosDelAnio(estado.mes.getFullYear());
 
   let thead = '<thead><tr><th class="nombre-apto">Apartamento</th>';
-  for (let d = 1; d <= diasEnMes; d++) {
+  for (let d = diaInicio; d <= diasEnMes; d++) {
     const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
     const esFinde = diaSemana === 0 || diaSemana === 6;
     const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
@@ -883,7 +891,7 @@ function renderCalendario() {
   let tbody = '<tbody>';
   for (const apto of apartamentos) {
     tbody += `<tr><td class="nombre-apto">${esc(apto.nombre)}</td>`;
-    for (let d = 1; d <= diasEnMes; d++) {
+    for (let d = diaInicio; d <= diasEnMes; d++) {
       const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
       const esFinde = diaSemana === 0 || diaSemana === 6;
       const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
@@ -989,7 +997,7 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
     <form id="form-reserva">
       <div class="campo"><label>Apartamento</label><select id="rv-apartamento" required>${opcionesApto}</select></div>
       <div class="fila-2">
-        <div class="campo"><label>Entrada</label><input type="date" id="rv-checkin" value="${v.checkin ? fechaISO(v.checkin) : ''}" required></div>
+        <div class="campo"><label>Entrada</label><input type="date" id="rv-checkin" value="${v.checkin ? fechaISO(v.checkin) : ''}" ${esEdicion ? '' : `min="${fechaISO(new Date())}"`} required></div>
         <div class="campo"><label>Salida</label><input type="date" id="rv-checkout" value="${v.checkout ? fechaISO(v.checkout) : ''}" required></div>
       </div>
       <div class="fila-2">
