@@ -60,49 +60,49 @@
   .modulo-vacio .modulo-emoji { font-size: 46px; display: block; margin-bottom: 12px; }
   .modulo-vacio h2 { color: var(--tinta); margin: 0 0 8px; font-size: 18px; }
   .campo { margin-bottom: 14px; }
-  .campo label { display: block; font-size: 13px; color: var(--gris); margin-bottom: 4px; }
+  .campo label { display: block; font-size: 14px; color: var(--gris); margin-bottom: 4px; }
   .campo input, .campo select, .campo textarea {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
+    width: 100%; padding: 11px 12px; font-size: 16px; border: 1px solid var(--borde); border-radius: 8px; background: #fff;
   }
-  .campo label .noches-info { font-weight: 400; color: var(--gris); font-size: 12px; }
-  .ayuda-campo { display: block; font-size: 11px; color: var(--gris); margin-top: 4px; }
+  .campo label .noches-info { font-weight: 400; color: var(--gris); font-size: 13px; }
+  .ayuda-campo { display: block; font-size: 12px; color: var(--gris); margin-top: 4px; }
   .campo-dinero { display: flex; align-items: center; border: 1px solid var(--borde); border-radius: 8px; background: #fff; overflow: hidden; }
-  .campo-dinero span { padding: 10px 0 10px 12px; color: var(--gris); }
-  .campo-dinero input { border: none !important; padding: 10px 12px 10px 4px !important; border-radius: 0 !important; }
+  .campo-dinero span { padding: 11px 0 11px 12px; color: var(--gris); font-size: 16px; }
+  .campo-dinero input { border: none !important; padding: 11px 12px 11px 4px !important; border-radius: 0 !important; }
   .campo-dinero input:focus { outline: none; }
   .card-apto .campo-dinero { border-radius: 6px; }
-  .card-apto .campo-dinero input { padding: 7px 9px 7px 2px !important; }
-  .card-apto .campo-dinero span { padding: 7px 0 7px 9px; font-size: 13px; }
-  .btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--borde); background: #fff; font-weight: 600; }
+  .card-apto .campo-dinero input { padding: 8px 9px 8px 2px !important; }
+  .card-apto .campo-dinero span { padding: 8px 0 8px 9px; font-size: 14px; }
+  .btn { padding: 12px 18px; font-size: 15px; border-radius: 8px; border: 1px solid var(--borde); background: #fff; font-weight: 600; }
   .btn-primario { background: var(--coral); border-color: var(--coral); color: #fff; }
   .btn-primario:hover { filter: brightness(0.95); }
   .btn-block { width: 100%; }
   .btn-peligro { color: #b91c1c; border-color: #fca5a5; }
-  .btn-chico { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
-  .error-msg { color: #b91c1c; font-size: 13px; margin-top: 8px; min-height: 16px; }
+  .btn-chico { padding: 9px 14px; font-size: 14px; border-radius: 6px; }
+  .error-msg { color: #b91c1c; font-size: 14px; margin-top: 8px; min-height: 16px; }
 
   /* ---------- App ---------- */
   #vista-app { max-width: 1200px; margin: 0 auto; padding: 16px; }
   header.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
-  header.top h1 { font-size: 20px; margin: 0; }
+  header.top h1 { font-size: 22px; margin: 0; }
   header.top .usuario { color: var(--gris); font-size: 14px; display: flex; align-items: center; gap: 10px; }
-  nav.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--borde); }
-  nav.tabs button { background: none; border: none; padding: 10px 14px; font-weight: 600; color: var(--gris); border-bottom: 2px solid transparent; }
+  nav.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--borde); flex-wrap: wrap; }
+  nav.tabs button { background: none; border: none; padding: 12px 16px; font-size: 15px; font-weight: 600; color: var(--gris); border-bottom: 2px solid transparent; }
   nav.tabs button.activo { color: var(--coral); border-color: var(--coral); }
 
-  .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borde); }
-  .mes-nav { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-  .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 6px; width: 28px; height: 28px; }
-  .barra-filtros select, .barra-filtros input[type="text"] { padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+  .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid var(--borde); }
+  .mes-nav { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+  .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 8px; width: 40px; height: 40px; font-size: 17px; }
+  .barra-filtros select, .barra-filtros input[type="text"] { padding: 10px 12px; font-size: 15px; border: 1px solid var(--borde); border-radius: 8px; }
   .barra-filtros .spacer { flex: 1; }
 
   /* Calendario tipo cuadrícula (filas = apartamentos, columnas = días) */
   .calendario-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; margin-bottom: 20px; }
-  table.calendario { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 12px; }
+  table.calendario { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
   table.calendario th, table.calendario td { border: 1px solid #eef0f2; text-align: center; padding: 0; }
-  table.calendario th { background: #fafbfc; color: var(--gris); font-weight: 600; padding: 4px 2px; position: sticky; top: 0; }
-  table.calendario th .dia-semana { display: block; font-size: 10px; font-weight: 500; color: var(--gris); text-transform: uppercase; }
-  table.calendario th .dia-numero { display: block; font-size: 12px; }
+  table.calendario th { background: #fafbfc; color: var(--gris); font-weight: 600; padding: 5px 2px; position: sticky; top: 0; }
+  table.calendario th .dia-semana { display: block; font-size: 11px; font-weight: 500; color: var(--gris); text-transform: uppercase; }
+  table.calendario th .dia-numero { display: block; font-size: 13px; }
   table.calendario th.finde { background: #f3f1fb; }
   table.calendario td.dia.finde { background: #faf9fd; }
   table.calendario td.dia.finde.hoy { background: #faf9fd; }
@@ -113,7 +113,7 @@
     text-align: left; padding: 6px 10px; white-space: nowrap; position: sticky; left: 0; background: #fff; font-weight: 600; z-index: 1;
   }
   table.calendario th.nombre-apto { background: #fafbfc; z-index: 2; }
-  table.calendario td.dia { width: 26px; height: 30px; cursor: pointer; }
+  table.calendario td.dia { width: 32px; height: 38px; cursor: pointer; }
   table.calendario td.dia:hover { outline: 2px solid var(--coral); outline-offset: -2px; }
   table.calendario td.dia.hoy { box-shadow: inset 0 0 0 2px #111827; }
   .bloque { display: block; width: 100%; height: 100%; box-sizing: border-box; }
@@ -133,88 +133,96 @@
   .f-leyenda-pagada { background: var(--gris); }
   .f-leyenda-sinpagar { background: #fff; border: 2px solid var(--gris); }
 
-  .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--gris); padding: 8px 12px; }
+  .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--gris); padding: 8px 12px; }
   .leyenda span { display: inline-flex; align-items: center; gap: 5px; }
   .leyenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; box-sizing: border-box; }
 
   /* Tabla de reservas */
   .tabla-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--borde); border-radius: 10px; }
-  table.reservas { border-collapse: collapse; width: 100%; font-size: 13px; }
-  table.reservas th, table.reservas td { padding: 9px 10px; border-bottom: 1px solid #eef0f2; text-align: left; white-space: nowrap; }
+  table.reservas { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.reservas th, table.reservas td { padding: 11px 10px; border-bottom: 1px solid #eef0f2; text-align: left; white-space: nowrap; }
   table.reservas th { color: var(--gris); font-weight: 600; background: #fafbfc; }
   table.reservas tr.cancelada td { opacity: .45; text-decoration: line-through; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
   .badge-estado { background: #10b981; }
   .badge-estado.pagada { background: #2563eb; }
   .badge-estado.pendiente { background: #f59e0b; }
   .badge-estado.cancelada { background: #9ca3af; }
 
   /* Limpieza */
-  .resumen-banner { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
+  .resumen-banner { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; font-size: 15px; }
   .resumen-banner strong { color: var(--coral); }
-  .chk-mostrar-listas { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); white-space: nowrap; }
+  .chk-mostrar-listas { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--gris); white-space: nowrap; }
+  .chk-mostrar-listas input[type="checkbox"] { width: 18px; height: 18px; }
   table.reservas tr.urgente td { background: #fdf0f1; }
-  .badge-limpieza { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
+  .badge-limpieza { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
   .badge-limpieza.pendiente { background: #f59e0b; }
   .badge-limpieza.lista { background: #10b981; }
-  .select-responsable { padding: 5px 7px; border: 1px solid var(--borde); border-radius: 6px; font-size: 12px; max-width: 140px; }
+  .select-responsable { padding: 7px 8px; border: 1px solid var(--borde); border-radius: 6px; font-size: 14px; max-width: 160px; }
   .lista-personal { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .fila-personal-existente { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6; }
   .fila-personal-existente:last-child { border-bottom: none; padding-bottom: 0; }
   .fila-personal-existente.inactivo { opacity: .55; }
-  .fila-personal-campos { display: flex; gap: 6px; }
-  .fila-personal-campos input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
-  .fila-personal-campos input.personal-tel { flex: 0 0 110px; }
+  .fila-personal-campos { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fila-personal-campos input { flex: 1; min-width: 0; padding: 9px 10px; font-size: 15px; border: 1px solid var(--borde); border-radius: 6px; }
+  .fila-personal-campos input.personal-tel { flex: 0 0 120px; }
   .fila-personal-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
   .fila-personal { display: flex; gap: 6px; flex-wrap: wrap; }
-  .fila-personal input[type="text"] { flex: 1; min-width: 90px; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
-  .fila-personal input.personal-tel { flex: 0 0 110px; }
+  .fila-personal input[type="text"] { flex: 1; min-width: 90px; padding: 9px 10px; font-size: 15px; border: 1px solid var(--borde); border-radius: 6px; }
+  .fila-personal input.personal-tel { flex: 0 0 120px; }
   .hist-fila { border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
   .hist-fila-titulo { font-weight: 700; margin-bottom: 8px; }
-  .hist-fila-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+  .hist-fila-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
   .hist-fila-datos strong { color: var(--coral); }
 
   /* Ítems de un pedido de lavandería */
-  .items-pedido-header, .fila-item-pedido { display: grid; grid-template-columns: 1.3fr 64px 110px 95px 30px; gap: 8px; align-items: center; }
-  .items-pedido-header { font-size: 11px; color: var(--gris); text-transform: uppercase; margin-bottom: 6px; }
+  .items-pedido-header, .fila-item-pedido { display: grid; grid-template-columns: 1.3fr 70px 120px 100px 36px; gap: 8px; align-items: center; }
+  .items-pedido-header { font-size: 12px; color: var(--gris); text-transform: uppercase; margin-bottom: 6px; }
   .fila-item-pedido { margin-bottom: 8px; }
-  .fila-item-pedido select, .fila-item-pedido input[type="number"] { padding: 7px 8px; border: 1px solid var(--borde); border-radius: 6px; width: 100%; }
+  .fila-item-pedido select, .fila-item-pedido input[type="number"] { padding: 9px 8px; font-size: 15px; border: 1px solid var(--borde); border-radius: 6px; width: 100%; }
   .fila-item-pedido .campo-dinero { border-radius: 6px; }
-  .fila-item-pedido .campo-dinero input { padding: 7px 6px 7px 2px !important; }
-  .fila-item-pedido .campo-dinero span { padding: 7px 0 7px 8px; }
-  .item-subtotal { text-align: right; font-weight: 600; font-size: 13px; }
-  .pl-total-fila { text-align: right; font-size: 14px; margin: 4px 0 16px; color: var(--gris); }
-  .pl-total-fila strong { color: var(--coral); font-size: 18px; }
+  .fila-item-pedido .campo-dinero input { padding: 9px 6px 9px 2px !important; font-size: 15px; }
+  .fila-item-pedido .campo-dinero span { padding: 9px 0 9px 8px; }
+  .fila-item-pedido [data-accion="quitar-item"] { padding: 9px 0; }
+  .item-subtotal { text-align: right; font-weight: 600; font-size: 14px; }
+  .pl-total-fila { text-align: right; font-size: 15px; margin: 4px 0 16px; color: var(--gris); }
+  .pl-total-fila strong { color: var(--coral); font-size: 19px; }
+
+  .fila-compra-producto { display: grid; grid-template-columns: 150px 90px 140px auto; gap: 8px; align-items: center; }
+  .fila-compra-producto input[type="date"], .fila-compra-producto input[type="number"] { padding: 10px 10px; font-size: 15px; border: 1px solid var(--borde); border-radius: 6px; width: 100%; }
+  .fila-compra-producto .campo-dinero { border-radius: 6px; }
+  .fila-compra-producto .campo-dinero input { padding: 10px 6px 10px 2px !important; font-size: 15px; }
+  .fila-compra-producto .campo-dinero span { padding: 10px 0 10px 8px; }
 
   /* Apartamentos */
   .grid-apartamentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .card-apto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
   .card-apto.inactivo { opacity: .6; background: #fafafa; }
   .card-apto-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .card-apto-nombre { flex: 1; border: 1px solid transparent !important; background: transparent !important; padding: 4px 6px !important; font-size: 16px; font-weight: 700; border-radius: 6px; }
+  .card-apto-nombre { flex: 1; border: 1px solid transparent !important; background: transparent !important; padding: 4px 6px !important; font-size: 17px; font-weight: 700; border-radius: 6px; }
   .card-apto-nombre:hover, .card-apto-nombre:focus { border-color: var(--borde) !important; background: #fff !important; }
-  .badge-inactivo { background: #9ca3af; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge-inactivo { background: #9ca3af; color: #fff; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
   .card-apto .fila { margin-bottom: 10px; }
-  .card-apto .fila label { display: block; font-size: 12px; color: var(--gris); margin-bottom: 3px; }
-  .card-apto input { width: 100%; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; }
+  .card-apto .fila label { display: block; font-size: 13px; color: var(--gris); margin-bottom: 3px; }
+  .card-apto input { width: 100%; padding: 9px 10px; font-size: 15px; border: 1px solid var(--borde); border-radius: 6px; }
   .fila-2 { display: flex; gap: 8px; }
   .fila-2 > div { flex: 1; }
-  .estado-sync { font-size: 12px; color: var(--gris); margin-top: 6px; }
+  .estado-sync { font-size: 13px; color: var(--gris); margin-top: 6px; }
   .estado-sync.err { color: #b91c1c; }
   .copiar-row { display: flex; gap: 6px; }
   .copiar-row input { flex: 1; background: #f9fafb; color: var(--gris); }
 
   /* Dashboard */
-  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .kpi { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; }
-  .kpi-valor { font-size: 26px; font-weight: 700; }
-  .kpi-label { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .kpi-valor { font-size: 27px; font-weight: 700; }
+  .kpi-label { font-size: 14px; color: var(--gris); margin-top: 4px; }
   .kpi-verde .kpi-valor { color: #059669; }
   .kpi-naranja .kpi-valor { color: #d97706; }
   .tarjeta-dash { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-  .tarjeta-dash h3 { margin: 0 0 14px; font-size: 15px; }
-  .dash-subtitulo { margin: 4px 0 12px; font-size: 15px; }
-  .dash-fila { display: grid; grid-template-columns: 160px 1fr 48px 110px 110px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+  .tarjeta-dash h3 { margin: 0 0 14px; font-size: 16px; }
+  .dash-subtitulo { margin: 4px 0 12px; font-size: 16px; }
+  .dash-fila { display: grid; grid-template-columns: 160px 1fr 48px 110px 110px; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
   .dash-fila:last-child { border-bottom: none; }
   .dash-fila-nombre { font-weight: 600; }
   .dash-barra { background: #f1f2f4; border-radius: 999px; height: 10px; overflow: hidden; }
@@ -222,20 +230,20 @@
   .dash-fila-pct { text-align: right; color: var(--gris); }
   .dash-fila-noches { color: var(--gris); }
   .dash-fila-ingreso { text-align: right; font-weight: 600; }
-  .dash-fuente-fila { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+  .dash-fuente-fila { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
   .dash-fuente-fila:last-child { border-bottom: none; }
-  .dash-vacio { color: var(--gris); font-size: 13px; padding: 10px 0; }
+  .dash-vacio { color: var(--gris); font-size: 14px; padding: 10px 0; }
 
   /* Modal */
   .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .modal-fondo { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
   .modal.modal-ancho { max-width: 720px; }
-  .modal h2 { margin: 0 0 16px; font-size: 18px; }
+  .modal h2 { margin: 0 0 16px; font-size: 19px; }
   .modal .acciones { justify-content: flex-end; margin-top: 18px; }
   .modal .acciones .izq { margin-right: auto; }
 
-  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100; }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 15px; max-width: calc(100vw - 32px); text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100; }
   #toast.mostrar { opacity: 1; }
 
   /* Asistente (chat) */
@@ -259,6 +267,66 @@
   .chat-vacio { color: var(--gris); font-size: 13px; text-align: center; margin: auto; padding: 0 10px; }
   .chat-form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--borde); }
   .chat-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+
+  /* ===================== Responsive (celular) =====================
+     Va al FINAL de la hoja de estilos a propósito: así estas reglas
+     ganan sobre las de arriba cuando el ancho de pantalla coincide. */
+  @media (max-width: 760px) {
+    /* Contenedores: un poco menos de margen para ganar espacio en el celular */
+    #vista-app, .vista-lavanderia-wrap { padding: 12px; }
+    header.top h1 { font-size: 19px; }
+
+    /* Barra de filtros: todo en una sola columna, botones de ancho completo */
+    .barra-filtros { flex-direction: column; align-items: stretch; }
+    .barra-filtros .spacer { display: none; }
+    .barra-filtros > * { width: 100%; }
+    .barra-filtros .mes-nav { justify-content: center; }
+
+    /* Ocupación por apartamento (Dashboard): nombre+ingreso arriba, barra completa, noches+% abajo */
+    .dash-fila {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "nombre ingreso" "barra barra" "noches pct";
+      row-gap: 6px;
+    }
+    .dash-fila-nombre { grid-area: nombre; }
+    .dash-fila-ingreso { grid-area: ingreso; }
+    .dash-barra { grid-area: barra; }
+    .dash-fila-noches { grid-area: noches; }
+    .dash-fila-pct { grid-area: pct; }
+
+    /* Ítems de un pedido de lavandería: el tipo arriba, cantidad/valor/borrar abajo, subtotal al final */
+    .items-pedido-header { display: none; }
+    .fila-item-pedido {
+      grid-template-columns: 1fr 1fr 40px;
+      grid-template-rows: auto auto auto;
+      row-gap: 6px;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .fila-item-pedido .item-tipo { grid-column: 1 / -1; grid-row: 1; }
+    .fila-item-pedido .item-cantidad { grid-column: 1; grid-row: 2; }
+    .fila-item-pedido .campo-dinero { grid-column: 2; grid-row: 2; }
+    .fila-item-pedido [data-accion="quitar-item"] { grid-column: 3; grid-row: 2; }
+    .fila-item-pedido .item-subtotal { grid-column: 1 / 3; grid-row: 3; font-size: 15px; }
+
+    /* Registrar compra de producto: fecha arriba, cantidad+valor, botón abajo */
+    .fila-compra-producto {
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "fecha fecha" "cant valor" "boton boton";
+      row-gap: 8px;
+    }
+    .fila-compra-producto input[type="date"] { grid-area: fecha; }
+    .fila-compra-producto input[type="number"] { grid-area: cant; }
+    .fila-compra-producto .campo-dinero { grid-area: valor; }
+    .fila-compra-producto button { grid-area: boton; width: 100%; }
+
+    /* Formularios con dos campos por fila: uno debajo del otro, más fácil de tocar */
+    .fila-2 { flex-direction: column; gap: 0; }
+
+    .modal { padding: 16px; }
+    .modal-fondo { padding: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -2061,7 +2129,7 @@ function abrirComprasProducto(producto) {
 
     <div class="campo">
       <label>Registrar nueva compra</label>
-      <div class="fila-item-pedido" style="grid-template-columns: 130px 80px 120px auto;">
+      <div class="fila-compra-producto">
         <input type="date" id="prc-fecha" value="${fechaISO(new Date())}">
         <input type="number" min="0.01" step="0.01" id="prc-cantidad" placeholder="Cant.">
         <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="prc-valor" placeholder="Valor c/u"></div>
