@@ -414,7 +414,7 @@
         <thead>
           <tr>
             <th>Apartamento</th><th>Huésped</th><th>Teléfono</th><th>Entrada</th><th>Salida</th>
-            <th>Noches</th><th>Huésp.</th><th>Precio</th><th>Fuente</th><th>Estado</th><th>Notas</th><th></th>
+            <th>Noches</th><th>Huésp.</th><th>Precio</th><th>Abono</th><th>Fuente</th><th>Estado</th><th>Notas</th><th></th>
           </tr>
         </thead>
         <tbody id="cuerpo-reservas"></tbody>
@@ -723,6 +723,14 @@ function fechaBonita(f) {
   const d = new Date(f);
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 }
+// Convierte una hora "HH:MM" o "HH:MM:SS" (como vienen las columnas TIME) a "3:00 p. m.".
+function horaBonita(h) {
+  if (!h) return '';
+  const [hh, mm] = h.split(':');
+  const d = new Date();
+  d.setHours(Number(hh), Number(mm), 0, 0);
+  return d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+}
 function pesos(v) { return v == null ? '—' : '$' + Number(v).toLocaleString('es-CO'); }
 
 // Campos de dinero editables: se escriben como texto (ej. "250.000") pero se
@@ -912,7 +920,7 @@ function renderTablaReservas() {
   const cuerpo = document.getElementById('cuerpo-reservas');
   const filas = [...estado.reservas].sort((a, b) => a.checkin.localeCompare(b.checkin));
   if (!filas.length) {
-    cuerpo.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--gris);padding:20px;">No hay reservas para este filtro.</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--gris);padding:20px;">No hay reservas para este filtro.</td></tr>';
     return;
   }
   cuerpo.innerHTML = filas.map((r) => `
@@ -920,11 +928,12 @@ function renderTablaReservas() {
       <td>${esc(r.apartamento_nombre)}</td>
       <td>${esc(r.huesped_nombre) || '—'}</td>
       <td>${esc(r.huesped_telefono) || '—'}</td>
-      <td>${fechaBonita(r.checkin)}</td>
-      <td>${fechaBonita(r.checkout)}</td>
+      <td>${fechaBonita(r.checkin)}${r.hora_checkin ? ` · ${horaBonita(r.hora_checkin)}` : ''}</td>
+      <td>${fechaBonita(r.checkout)}${r.hora_checkout ? ` · ${horaBonita(r.hora_checkout)}` : ''}</td>
       <td>${r.noches}</td>
       <td>${r.num_huespedes}</td>
       <td>${pesos(r.precio_total)}</td>
+      <td>${r.valor_abono ? pesos(r.valor_abono) : '—'}</td>
       <td><span class="badge f-${r.fuente}">${NOMBRE_FUENTE[r.fuente]}</span></td>
       <td><span class="badge badge-estado ${r.estado}">${r.estado}</span></td>
       <td>${esc(r.notas) || '—'}</td>
@@ -983,6 +992,10 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
         <div class="campo"><label>Entrada</label><input type="date" id="rv-checkin" value="${v.checkin ? fechaISO(v.checkin) : ''}" required></div>
         <div class="campo"><label>Salida</label><input type="date" id="rv-checkout" value="${v.checkout ? fechaISO(v.checkout) : ''}" required></div>
       </div>
+      <div class="fila-2">
+        <div class="campo"><label>Hora de entrada <span class="noches-info">(opcional)</span></label><input type="time" id="rv-hora-checkin" value="${v.hora_checkin ? v.hora_checkin.slice(0, 5) : ''}"></div>
+        <div class="campo"><label>Hora de salida <span class="noches-info">(opcional)</span></label><input type="time" id="rv-hora-checkout" value="${v.hora_checkout ? v.hora_checkout.slice(0, 5) : ''}"></div>
+      </div>
       <div class="campo"><label>Nombre del huésped</label><input id="rv-nombre" value="${esc(v.huesped_nombre)}"></div>
       <div class="fila-2">
         <div class="campo"><label>Teléfono</label><input id="rv-telefono" value="${esc(v.huesped_telefono)}"></div>
@@ -997,6 +1010,16 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
           <label>Precio total <span class="noches-info" id="rv-noches-info"></span></label>
           <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="rv-precio" value="${formatearMoneda(v.precio_total)}" placeholder="0"></div>
         </div>
+      </div>
+      <div class="campo">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="rv-tiene-abono" style="width:18px;height:18px;" ${v.valor_abono ? 'checked' : ''}>
+          ¿Dieron abono?
+        </label>
+      </div>
+      <div class="campo${v.valor_abono ? '' : ' oculto'}" id="rv-abono-wrap">
+        <label>Valor del abono</label>
+        <div class="campo-dinero"><span>$</span><input type="text" inputmode="numeric" id="rv-abono" value="${formatearMoneda(v.valor_abono)}" placeholder="0"></div>
       </div>
       <div class="fila-2">
         <div class="campo"><label>Fuente</label><select id="rv-fuente">${opcionesFuente}</select></div>
@@ -1039,16 +1062,28 @@ function abrirFormularioReserva(reserva, prellenado = {}) {
   });
   recalcularTotal();
 
+  const chkAbono = document.getElementById('rv-tiene-abono');
+  const wrapAbono = document.getElementById('rv-abono-wrap');
+  const inputAbono = document.getElementById('rv-abono');
+  activarCampoDinero(inputAbono);
+  chkAbono.addEventListener('change', () => {
+    wrapAbono.classList.toggle('oculto', !chkAbono.checked);
+    if (!chkAbono.checked) inputAbono.value = '';
+  });
+
   document.getElementById('form-reserva').addEventListener('submit', async (e) => {
     e.preventDefault();
     const cuerpo = {
       apartamento_id: document.getElementById('rv-apartamento').value,
       checkin: document.getElementById('rv-checkin').value,
       checkout: document.getElementById('rv-checkout').value,
+      hora_checkin: document.getElementById('rv-hora-checkin').value || null,
+      hora_checkout: document.getElementById('rv-hora-checkout').value || null,
       huesped_nombre: document.getElementById('rv-nombre').value || null,
       huesped_telefono: document.getElementById('rv-telefono').value || null,
       num_huespedes: Number(document.getElementById('rv-huespedes').value) || 1,
       precio_total: limpiarMoneda(inputTotal.value) || null,
+      valor_abono: chkAbono.checked ? (limpiarMoneda(inputAbono.value) || null) : null,
       fuente: document.getElementById('rv-fuente').value,
       estado: document.getElementById('rv-estado').value,
       notas: document.getElementById('rv-notas').value || null

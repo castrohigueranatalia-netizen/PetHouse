@@ -265,5 +265,14 @@ async function aplicarMigraciones() {
      WHERE p.cantidad > 0
        AND NOT EXISTS (SELECT 1 FROM compras_producto_lavanderia c WHERE c.producto_id = p.id)
   `)
+
+  // Más datos por reserva: hora de entrada/salida (aparte de la fecha) y si
+  // ya dieron abono (y cuánto).
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS hora_checkin TIME`)
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS hora_checkout TIME`)
+  const yaTieneAbono = await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'reservas' AND column_name = 'valor_abono'`)
+  if (!yaTieneAbono.rows.length) {
+    await pool.query(`ALTER TABLE reservas ADD COLUMN valor_abono NUMERIC(10,2) CHECK (valor_abono IS NULL OR valor_abono >= 0)`)
+  }
 }
 

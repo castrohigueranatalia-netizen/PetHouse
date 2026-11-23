@@ -66,9 +66,12 @@ CREATE TABLE reservas (
     huesped_telefono  TEXT,
     checkin           DATE NOT NULL,
     checkout          DATE NOT NULL,
+    hora_checkin      TIME,
+    hora_checkout     TIME,
     noches            SMALLINT GENERATED ALWAYS AS (checkout - checkin) STORED,
     num_huespedes     SMALLINT NOT NULL DEFAULT 1 CHECK (num_huespedes >= 1),
     precio_total      NUMERIC(10,2) CHECK (precio_total IS NULL OR precio_total >= 0),
+    valor_abono       NUMERIC(10,2) CHECK (valor_abono IS NULL OR valor_abono >= 0),
 
     fuente          fuente_reserva NOT NULL DEFAULT 'directo',
     estado          estado_reserva NOT NULL DEFAULT 'confirmada',

@@ -72,17 +72,19 @@ r.post('/', auth, async (req, res, next) => {
 
     const {
       apartamento_id, huesped_nombre, huesped_telefono, checkin, checkout,
-      num_huespedes = 1, precio_total, fuente = 'directo', estado = 'confirmada', notas
+      hora_checkin, hora_checkout, num_huespedes = 1, precio_total, valor_abono,
+      fuente = 'directo', estado = 'confirmada', notas
     } = body
 
     const { rows } = await pool.query(
       `INSERT INTO reservas
          (apartamento_id, huesped_nombre, huesped_telefono, checkin, checkout,
-          num_huespedes, precio_total, fuente, estado, notas)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          hora_checkin, hora_checkout, num_huespedes, precio_total, valor_abono, fuente, estado, notas)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [apartamento_id, huesped_nombre || null, huesped_telefono || null, checkin, checkout,
-        num_huespedes, precio_total || null, fuente, estado, notas || null]
+        hora_checkin || null, hora_checkout || null, num_huespedes, precio_total || null, valor_abono || null,
+        fuente, estado, notas || null]
     )
     res.status(201).json({ reserva: rows[0] })
   } catch (err) { next(err) } // 23P01 (EXCLUDE) → 409 vía el manejador global
@@ -96,7 +98,7 @@ r.put('/:id', auth, async (req, res, next) => {
     if (error) return res.status(400).json({ error })
 
     const campos = ['apartamento_id', 'huesped_nombre', 'huesped_telefono', 'checkin', 'checkout',
-      'num_huespedes', 'precio_total', 'fuente', 'estado', 'notas']
+      'hora_checkin', 'hora_checkout', 'num_huespedes', 'precio_total', 'valor_abono', 'fuente', 'estado', 'notas']
     const sets = []
     const valores = []
     for (const campo of campos) {
