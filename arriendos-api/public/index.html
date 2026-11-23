@@ -242,6 +242,9 @@
   .modal { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
   .modal.modal-ancho { max-width: 720px; }
   .modal h2 { margin: 0 0 16px; font-size: 19px; }
+  .detalle-reserva p { margin: 0 0 12px; font-size: 15px; line-height: 1.5; }
+  .detalle-reserva p:last-child { margin-bottom: 0; }
+  .detalle-reserva strong { color: var(--gris); font-weight: 600; }
   .modal .acciones { justify-content: flex-end; margin-top: 18px; }
   .modal .acciones .izq { margin-right: auto; }
 
@@ -377,6 +380,7 @@
 
   <!-- ---- Tab Reservas ---- -->
   <section id="tab-reservas">
+    <div class="resumen-banner" id="reservas-resumen-hoy"></div>
     <div class="barra-filtros">
       <div class="mes-nav">
         <button id="mes-prev">‹</button>
@@ -676,6 +680,7 @@ const estado = {
   apartamentos: [],
   apartamentosTodos: [],
   reservas: [],
+  reservasHoy: [],
   mes: new Date(),
   filtroApartamento: '',
   filtroFuente: '',
@@ -842,6 +847,40 @@ async function refrescarReservas() {
   renderTablaReservas();
 }
 
+// ---------------- Resumen "hoy" (entradas/salidas) ----------------
+// Se carga aparte del mes que se esté mirando en el calendario, para que
+// siempre muestre lo de hoy aunque se navegue a otro mes.
+async function cargarResumenReservasHoy() {
+  const hoyISO = fechaISO(new Date());
+  const mananaISO = fechaISO(new Date(Date.now() + 86400000));
+  try {
+    const { reservas } = await api(`/reservas?desde=${hoyISO}&hasta=${mananaISO}`);
+    estado.reservasHoy = reservas.filter((r) => r.estado !== 'cancelada');
+  } catch { estado.reservasHoy = []; }
+  renderResumenReservasHoy();
+}
+
+function renderResumenReservasHoy() {
+  const el = document.getElementById('reservas-resumen-hoy');
+  if (!el) return;
+  const hoyISO = fechaISO(new Date());
+  const entradas = estado.reservasHoy.filter((r) => fechaISO(r.checkin) === hoyISO);
+  const salidas = estado.reservasHoy.filter((r) => fechaISO(r.checkout) === hoyISO);
+
+  if (!entradas.length && !salidas.length) {
+    el.innerHTML = '📅 Hoy no tienes entradas ni salidas.';
+    return;
+  }
+  const listar = (lista, hora) => lista.map((r) =>
+    `${esc(r.huesped_nombre) || 'Sin nombre'} (${esc(r.apartamento_nombre)})${r[hora] ? ' · ' + horaBonita(r[hora]) : ''}`
+  ).join(', ');
+
+  const partes = [];
+  if (entradas.length) partes.push(`<strong>Entran hoy (${entradas.length}):</strong> ${listar(entradas, 'hora_checkin')}`);
+  if (salidas.length) partes.push(`<strong>Salen hoy (${salidas.length}):</strong> ${listar(salidas, 'hora_checkout')}`);
+  el.innerHTML = `📅 ${partes.join(' &nbsp;·&nbsp; ')}`;
+}
+
 // ---------------- Render: filtros de mes ----------------
 document.getElementById('mes-prev').addEventListener('click', () => cambiarMes(-1));
 document.getElementById('mes-next').addEventListener('click', () => cambiarMes(1));
@@ -915,7 +954,7 @@ function renderCalendario() {
   const tabla = document.getElementById('tabla-calendario');
   tabla.innerHTML = thead + tbody;
   tabla.querySelectorAll('td.dia[data-reserva]').forEach((td) => {
-    td.addEventListener('click', () => abrirFormularioReserva(estado.reservas.find((r) => r.id === td.dataset.reserva)));
+    td.addEventListener('click', () => abrirDetalleReserva(estado.reservas.find((r) => r.id === td.dataset.reserva)));
   });
   tabla.querySelectorAll('td.dia[data-apartamento]').forEach((td) => {
     td.addEventListener('click', () => abrirFormularioReserva(null, { apartamento_id: td.dataset.apartamento, checkin: td.dataset.dia }));
@@ -968,6 +1007,32 @@ function renderTablaReservas() {
       }
     });
   });
+}
+
+// ---------------- Detalle de una reserva (solo lectura) ----------------
+function abrirDetalleReserva(reserva) {
+  if (!reserva) return;
+  const estadoTexto = NOMBRE_ESTADO[reserva.estado] || reserva.estado;
+  abrirModal(`
+    <h2>${esc(reserva.huesped_nombre) || 'Reserva sin nombre'}</h2>
+    <div class="detalle-reserva">
+      <p><strong>Apartamento:</strong> ${esc(reserva.apartamento_nombre)}</p>
+      <p><strong>Entrada:</strong> ${fechaBonita(reserva.checkin)}${reserva.hora_checkin ? ' · ' + horaBonita(reserva.hora_checkin) : ''}</p>
+      <p><strong>Salida:</strong> ${fechaBonita(reserva.checkout)}${reserva.hora_checkout ? ' · ' + horaBonita(reserva.hora_checkout) : ''}</p>
+      <p><strong>Noches:</strong> ${reserva.noches} &nbsp;·&nbsp; <strong>Huéspedes:</strong> ${reserva.num_huespedes}</p>
+      <p><strong>Teléfono:</strong> ${esc(reserva.huesped_telefono) || '—'}</p>
+      <p><strong>Precio total:</strong> ${pesos(reserva.precio_total)}</p>
+      <p><strong>Abono:</strong> ${reserva.valor_abono ? pesos(reserva.valor_abono) : 'No han dado abono'}</p>
+      <p><strong>Fuente:</strong> <span class="badge f-${reserva.fuente}">${NOMBRE_FUENTE[reserva.fuente]}</span>
+         &nbsp; <strong>Estado:</strong> <span class="badge badge-estado ${reserva.estado}">${estadoTexto}</span></p>
+      ${reserva.notas ? `<p><strong>Notas:</strong> ${esc(reserva.notas)}</p>` : ''}
+    </div>
+    <div class="acciones">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+      <button type="button" class="btn btn-primario" id="btn-detalle-editar">Editar</button>
+    </div>
+  `);
+  document.getElementById('btn-detalle-editar').addEventListener('click', () => abrirFormularioReserva(reserva));
 }
 
 // ---------------- Formulario nueva/editar reserva ----------------
@@ -2488,6 +2553,7 @@ async function abrirModuloArriendos() {
   try {
     await cargarApartamentos();
     await refrescarReservas();
+    await cargarResumenReservasHoy();
   } catch (err) { toast(err.message); }
 }
 </script>
