@@ -145,6 +145,8 @@
   table.reservas th, table.reservas td { padding: 11px 10px; border-bottom: 1px solid #eef0f2; text-align: left; white-space: nowrap; }
   table.reservas th { color: var(--gris); font-weight: 600; background: #fafbfc; }
   table.reservas tr.cancelada td { opacity: .45; text-decoration: line-through; }
+  table.reservas tr.fila-clickeable { cursor: pointer; }
+  table.reservas tr.fila-clickeable:hover td { background: #fff7f8; }
   .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
   .badge-estado { background: #10b981; }
   .badge-estado.pagada { background: #2563eb; }
@@ -970,7 +972,7 @@ function renderTablaReservas() {
     return;
   }
   cuerpo.innerHTML = filas.map((r) => `
-    <tr class="${r.estado === 'cancelada' ? 'cancelada' : ''}">
+    <tr class="fila-clickeable ${r.estado === 'cancelada' ? 'cancelada' : ''}" data-id="${r.id}">
       <td>${esc(r.apartamento_nombre)}</td>
       <td>${esc(r.huesped_nombre) || '—'}</td>
       <td>${esc(r.huesped_telefono) || '—'}</td>
@@ -991,8 +993,13 @@ function renderTablaReservas() {
     </tr>
   `).join('');
 
+  cuerpo.querySelectorAll('tr[data-id]').forEach((tr) => {
+    tr.addEventListener('click', () => abrirDetalleReserva(estado.reservas.find((r) => r.id === tr.dataset.id)));
+  });
+
   cuerpo.querySelectorAll('button[data-accion]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const reserva = estado.reservas.find((r) => r.id === btn.dataset.id);
       if (btn.dataset.accion === 'editar') return abrirFormularioReserva(reserva);
       if (btn.dataset.accion === 'cancelar') {
