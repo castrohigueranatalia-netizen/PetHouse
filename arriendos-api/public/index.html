@@ -93,7 +93,6 @@
   .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid var(--borde); }
   .mes-nav { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
   .mes-nav button { border: 1px solid var(--borde); background: #fff; border-radius: 8px; width: 40px; height: 40px; font-size: 17px; }
-  .mes-nav button:disabled { opacity: .35; cursor: not-allowed; }
   .barra-filtros select, .barra-filtros input[type="text"] { padding: 10px 12px; font-size: 15px; border: 1px solid var(--borde); border-radius: 8px; }
   .barra-filtros .spacer { flex: 1; }
 
@@ -116,6 +115,8 @@
   table.calendario th.nombre-apto { background: #fafbfc; z-index: 2; }
   table.calendario td.dia { width: 32px; height: 38px; cursor: pointer; }
   table.calendario td.dia:hover { outline: 2px solid var(--coral); outline-offset: -2px; }
+  table.calendario td.dia.pasado { cursor: default; background: #f6f6f7; }
+  table.calendario td.dia.pasado:hover { outline: none; }
   table.calendario td.dia.hoy { box-shadow: inset 0 0 0 2px #111827; }
   .bloque { display: block; width: 100%; height: 100%; box-sizing: border-box; }
   .f-booking { background: var(--booking); }
@@ -861,13 +862,6 @@ document.getElementById('filtro-fuente').addEventListener('change', async (e) =>
 function renderCalendario() {
   document.getElementById('mes-label').textContent = `${MESES[estado.mes.getMonth()]} ${estado.mes.getFullYear()}`;
 
-  const hoy = new Date();
-  const esMesActual = estado.mes.getFullYear() === hoy.getFullYear() && estado.mes.getMonth() === hoy.getMonth();
-  // El calendario de reservas solo muestra de hoy en adelante: en el mes
-  // actual arranca en el día de hoy, y no se puede retroceder a meses ya pasados.
-  const diaInicio = esMesActual ? hoy.getDate() : 1;
-  document.getElementById('mes-prev').disabled = esMesActual;
-
   const diasEnMes = new Date(estado.mes.getFullYear(), estado.mes.getMonth() + 1, 0).getDate();
   const apartamentos = estado.filtroApartamento
     ? estado.apartamentos.filter((a) => a.id === estado.filtroApartamento)
@@ -877,7 +871,7 @@ function renderCalendario() {
   const festivos = festivosDelAnio(estado.mes.getFullYear());
 
   let thead = '<thead><tr><th class="nombre-apto">Apartamento</th>';
-  for (let d = diaInicio; d <= diasEnMes; d++) {
+  for (let d = 1; d <= diasEnMes; d++) {
     const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
     const esFinde = diaSemana === 0 || diaSemana === 6;
     const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
@@ -891,7 +885,7 @@ function renderCalendario() {
   let tbody = '<tbody>';
   for (const apto of apartamentos) {
     tbody += `<tr><td class="nombre-apto">${esc(apto.nombre)}</td>`;
-    for (let d = diaInicio; d <= diasEnMes; d++) {
+    for (let d = 1; d <= diasEnMes; d++) {
       const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
       const esFinde = diaSemana === 0 || diaSemana === 6;
       const diaISO = fechaISO(new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)));
@@ -905,8 +899,13 @@ function renderCalendario() {
         const titulo = esc(`${res.huesped_nombre || 'Sin nombre'} · ${NOMBRE_FUENTE[res.fuente]} · ${estadoTexto} · ${fechaBonita(res.checkin)} → ${fechaBonita(res.checkout)}${nombreFestivo ? ' · 🎉 ' + nombreFestivo : ''}`);
         tbody += `<td class="${clasesCelda}" title="${titulo}" data-reserva="${res.id}"><span class="bloque ${clase}"></span></td>`;
       } else {
+        // Un día vacío ya pasado no se puede usar para crear una reserva nueva
+        // (solo se puede reservar de hoy en adelante); por eso no lleva los
+        // atributos data-apartamento/data-dia que activan el clic.
+        const esPasado = diaISO < hoyISO;
         const titulo = nombreFestivo ? ` title="${esc(nombreFestivo)}"` : '';
-        tbody += `<td class="${clasesCelda}"${titulo} data-apartamento="${apto.id}" data-dia="${diaISO}"></td>`;
+        const datos = esPasado ? '' : ` data-apartamento="${apto.id}" data-dia="${diaISO}"`;
+        tbody += `<td class="${clasesCelda}${esPasado ? ' pasado' : ''}"${titulo}${datos}></td>`;
       }
     }
     tbody += '</tr>';
