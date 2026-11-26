@@ -113,6 +113,11 @@
     text-align: left; padding: 6px 10px; white-space: nowrap; position: sticky; left: 0; background: #fff; font-weight: 600; z-index: 1;
   }
   table.calendario th.nombre-apto { background: #fafbfc; z-index: 2; }
+  table.calendario .input-nombre-apto {
+    width: 100%; border: 1px solid transparent; background: transparent; font: inherit; font-weight: 600;
+    color: var(--tinta); padding: 3px 5px; border-radius: 5px;
+  }
+  table.calendario .input-nombre-apto:hover, table.calendario .input-nombre-apto:focus { border-color: var(--borde); background: #fff; }
   table.calendario td.dia { width: 32px; height: 38px; cursor: pointer; }
   table.calendario td.dia:hover { outline: 2px solid var(--coral); outline-offset: -2px; }
   table.calendario td.dia.pasado { cursor: default; background: #f6f6f7; }
@@ -925,7 +930,7 @@ function renderCalendario() {
 
   let tbody = '<tbody>';
   for (const apto of apartamentos) {
-    tbody += `<tr><td class="nombre-apto">${esc(apto.nombre)}</td>`;
+    tbody += `<tr><td class="nombre-apto"><input class="input-nombre-apto" data-id="${apto.id}" value="${esc(apto.nombre)}" title="Clic para cambiar el nombre"></td>`;
     for (let d = 1; d <= diasEnMes; d++) {
       const diaSemana = new Date(Date.UTC(estado.mes.getFullYear(), estado.mes.getMonth(), d)).getUTCDay();
       const esFinde = diaSemana === 0 || diaSemana === 6;
@@ -960,6 +965,24 @@ function renderCalendario() {
   });
   tabla.querySelectorAll('td.dia[data-apartamento]').forEach((td) => {
     td.addEventListener('click', () => abrirFormularioReserva(null, { apartamento_id: td.dataset.apartamento, checkin: td.dataset.dia }));
+  });
+
+  // Cambiar el nombre de un apartamento directo desde el calendario de Reservas.
+  tabla.querySelectorAll('.input-nombre-apto').forEach((input) => {
+    const nombreOriginal = input.value;
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+    input.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('blur', async () => {
+      const nuevo = input.value.trim();
+      if (!nuevo) { input.value = nombreOriginal; return toast('El apartamento necesita un nombre.'); }
+      if (nuevo === nombreOriginal) return;
+      try {
+        await api(`/apartamentos/${input.dataset.id}`, { method: 'PUT', body: { nombre: nuevo } });
+        toast('Nombre del apartamento actualizado.');
+        await cargarApartamentos();
+        await refrescarReservas();
+      } catch (err) { toast(err.message); input.value = nombreOriginal; }
+    });
   });
 }
 
